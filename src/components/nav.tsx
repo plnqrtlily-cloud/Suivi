@@ -38,7 +38,7 @@ export async function Nav({ user }: { user: User }) {
 
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 lg:px-6">
         <Link href={homeHref} className="shrink-0 font-display text-lg text-ink">
-          Suivi
+          Rythme
         </Link>
 
         <nav className="hidden items-center gap-5 text-sm lg:flex">

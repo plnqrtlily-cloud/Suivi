@@ -1,6 +1,6 @@
 {
-  "name": "Suivi — Coach & Athlète",
-  "short_name": "Suivi",
+  "name": "Rythme — Coach & Athlète",
+  "short_name": "Rythme",
   "description": "Planification d'entraînement et suivi de performance entre coach et athlète.",
   "start_url": "/",
   "display": "standalone",

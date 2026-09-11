@@ -3,13 +3,13 @@ import "./globals.css";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 
 export const metadata: Metadata = {
-  title: "Suivi — Coach & Athlète",
+  title: "Rythme — Coach & Athlète",
   description: "Planification d'entraînement et suivi de performance entre coach et athlète.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Suivi",
+    title: "Rythme",
   },
   icons: {
     icon: [
