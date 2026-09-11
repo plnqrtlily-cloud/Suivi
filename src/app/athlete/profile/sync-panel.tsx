@@ -49,7 +49,7 @@ function ConnectionRow({ connection }: { connection: ExternalConnection }) {
   }
 
   return (
-    <div className="rounded-md border border-line p-3">
+    <div className="rounded-2xl border border-line p-3">
       <div className="flex items-center justify-between">
         <div>
           <p className="font-medium text-ink">{PROVIDER_LABELS[connection.provider]}</p>
@@ -93,7 +93,7 @@ export function SyncPanel({ connections, activities }: { connections: ExternalCo
         ))}
       </div>
 
-      <div className="rounded-md border border-line p-4">
+      <div className="rounded-2xl border border-line p-4">
         <p className="mb-1 text-sm font-medium text-ink-soft">Import manuel</p>
         <p className="mb-3 text-xs text-slate">
           Filet de sécurité indépendant de Garmin et Strava — utile si la synchronisation automatique n&apos;est

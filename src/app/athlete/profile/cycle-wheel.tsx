@@ -8,12 +8,14 @@ import { CycleEstimate, CyclePhase } from "@/lib/cycle-types";
 // le plus intuitif dans les meilleures apps de suivi de cycle du marché (cf. étude
 // de marché : Wild.AI, FitrWoman, et plus largement Clue/Flo).
 
+// Repris de la palette du produit (globals.css) plutôt que de couleurs "cycle"
+// génériques — aucune de ces teintes n'est un rouge alarmant.
 const PHASE_COLORS: Record<CyclePhase, string> = {
-  menstruelle: "#B23A48", // rouge sourd, cohérent avec la palette du produit (pas de rouge vif alarmant)
-  folliculaire: "#2F6F5E", // mousse (couleur primaire du produit)
-  ovulatoire: "#B08A3E", // ambre
-  lutéale: "#6B5B95", // violet doux
-  inconnue: "#D8DBD4",
+  menstruelle: "#E8896A", // corail (--color-gold-light)
+  folliculaire: "#1B4B4F", // pétrole (--color-moss)
+  ovulatoire: "#7C5C46", // argile (--color-clay)
+  lutéale: "#6B7A8A", // ardoise bleutée (--color-status-postponed)
+  inconnue: "#D5DBDA", // --color-line
 };
 
 interface PhaseSegment {
@@ -78,7 +80,7 @@ export function CycleWheel({
             />
           ))}
           {markerPos && (
-            <circle cx={markerPos.x} cy={markerPos.y} r={7} fill="#16231E" stroke="white" strokeWidth={2} />
+            <circle cx={markerPos.x} cy={markerPos.y} r={7} fill="#182220" stroke="white" strokeWidth={2} />
           )}
         </svg>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">

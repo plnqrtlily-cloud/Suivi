@@ -61,7 +61,7 @@ export function ConversationThread({
   }
 
   return (
-    <div className="flex h-[70vh] flex-col rounded-md border border-line bg-white">
+    <div className="flex h-[70vh] flex-col rounded-3xl border border-line bg-white">
       <div className="flex-1 overflow-y-auto p-4">
         {messages.length === 0 && (
           <p className="text-sm text-slate">
@@ -75,7 +75,7 @@ export function ConversationThread({
               <div key={m.id} className={`flex items-end gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
                 {!isMine && <Avatar userId={otherPartyAvatarUserId} firstName={otherPartyName} hasAvatar={otherPartyHasAvatar} size="sm" />}
                 <div
-                  className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${
+                  className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
                     isMine ? "bg-moss text-white" : "bg-paper-dim text-ink"
                   }`}
                 >
@@ -95,7 +95,7 @@ export function ConversationThread({
           name="body"
           placeholder="Écrire un message…"
           autoComplete="off"
-          className="flex-1 rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
+          className="flex-1 rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss focus:ring-1 focus:ring-moss"
         />
         <Button type="submit" disabled={pending}>
           Envoyer

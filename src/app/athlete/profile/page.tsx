@@ -63,12 +63,12 @@ export default async function AthleteProfilePage() {
         <h1 className="mb-1 font-display text-3xl text-ink">Mon profil</h1>
         <p className="mb-8 text-slate">Profil complété à {completion}% — visible par vos coachs actifs.</p>
 
-        <Card className="mb-8">
+        <Card className="mb-8 rounded-3xl">
           <AvatarUpload userId={user.id} firstName={user.first_name} hasAvatar={!!avatar?.avatar_path} />
         </Card>
 
-        <Card className="mb-8">
-          <h2 className="mb-1 text-sm font-medium text-ink-soft">Informations générales</h2>
+        <Card className="mb-8 rounded-3xl">
+          <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Informations générales</h2>
           <p className="mb-3 text-xs text-slate">
             Le genre conditionne l&apos;accès aux fonctionnalités de cycle menstruel ci-dessous.
           </p>
@@ -96,8 +96,8 @@ export default async function AthleteProfilePage() {
           </form>
         </Card>
 
-        <Card className="mb-8">
-          <h2 className="mb-1 text-sm font-medium text-ink-soft">Statistiques de performance</h2>
+        <Card className="mb-8 rounded-3xl">
+          <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Statistiques de performance</h2>
           <p className="mb-3 text-xs text-slate">Cliquez sur un indicateur pour voir son évolution.</p>
           <PerformanceStats metrics={METRICS} latest={latest} seriesByMetric={seriesByMetric} />
           <form action={addMeasurementAction} className="flex items-end gap-3">
@@ -129,11 +129,11 @@ export default async function AthleteProfilePage() {
           )}
         </Card>
 
-        <Card className="mb-8">
-          <h2 className="mb-4 text-sm font-medium text-ink-soft">Antécédents de blessures</h2>
+        <Card className="mb-8 rounded-3xl">
+          <h2 className="mb-4 text-[11px] font-bold uppercase tracking-wider text-slate">Antécédents de blessures</h2>
           <ul className="mb-4 space-y-2 text-sm">
             {injuries.map((i) => (
-              <li key={i.id} className="rounded-md bg-paper-dim p-2">
+              <li key={i.id} className="rounded-xl bg-paper-dim p-2">
                 <span className="font-medium text-ink">{i.zone}</span> — {i.description}{" "}
                 <span className="text-slate">
                   ({i.date_start}
@@ -154,8 +154,8 @@ export default async function AthleteProfilePage() {
           </form>
         </Card>
 
-        <Card className="mb-8">
-          <h2 className="mb-1 text-sm font-medium text-ink-soft">Connexions & activités</h2>
+        <Card className="mb-8 rounded-3xl">
+          <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Connexions & activités</h2>
           <p className="mb-4 text-xs text-slate">
             Statut toujours visible, jamais d&apos;échec silencieux. Strava et l&apos;import manuel restent
             disponibles indépendamment de Garmin.
@@ -164,13 +164,13 @@ export default async function AthleteProfilePage() {
         </Card>
 
         {gender === "female" && cycleSettings && cycleEstimate ? (
-          <Card className="mb-8">
-            <h2 className="mb-4 text-sm font-medium text-ink-soft">Cycle menstruel</h2>
+          <Card className="mb-8 rounded-3xl">
+            <h2 className="mb-4 text-[11px] font-bold uppercase tracking-wider text-slate">Cycle menstruel</h2>
             <CyclePanel settings={cycleSettings} estimate={cycleEstimate} entries={cycleEntries} />
           </Card>
         ) : (
           !gender && (
-            <Card className="mb-8 bg-paper-dim">
+            <Card className="mb-8 rounded-3xl bg-paper-dim">
               <p className="text-sm text-ink-soft">
                 Le suivi du cycle menstruel apparaît ici une fois le genre renseigné ci-dessus (profil féminin).
               </p>
@@ -178,11 +178,11 @@ export default async function AthleteProfilePage() {
           )
         )}
 
-        <Card>
-          <h2 className="mb-4 text-sm font-medium text-ink-soft">Journal de bord</h2>
+        <Card className="rounded-3xl">
+          <h2 className="mb-4 text-[11px] font-bold uppercase tracking-wider text-slate">Journal de bord</h2>
           <ul className="mb-4 space-y-2 text-sm">
             {journal.map((j) => (
-              <li key={j.id} className="rounded-md bg-paper-dim p-2">
+              <li key={j.id} className="rounded-xl bg-paper-dim p-2">
                 <span className="text-slate">{j.entry_date} — </span>
                 <span className="text-ink">{j.content}</span>
               </li>

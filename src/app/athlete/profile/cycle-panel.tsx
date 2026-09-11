@@ -48,7 +48,7 @@ export function CyclePanel({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="rounded-md bg-paper-dim p-4">
+      <div className="rounded-2xl bg-paper-dim p-4">
         <CycleWheel
           estimate={estimate}
           cycleLength={settings.average_cycle_length_days}
@@ -89,7 +89,7 @@ export function CyclePanel({
         </details>
       )}
 
-      <form onSubmit={handleSharingSubmit} className="rounded-md border border-line p-4">
+      <form onSubmit={handleSharingSubmit} className="rounded-2xl border border-line p-4">
         <p className="mb-1 text-sm font-medium text-ink-soft">Partage avec mes coachs</p>
         <p className="mb-3 text-xs text-slate">
           Consentement séparé de l&apos;inscription (donnée de santé, RGPD art. 9). Désactivé par défaut. Si activé,

@@ -39,7 +39,7 @@ export function PerformanceStats({
               type="button"
               disabled={!hasData}
               onClick={() => setSelected(isSelected ? null : m.value)}
-              className={`rounded-md border px-3 py-2 text-left transition-colors ${
+              className={`rounded-2xl border px-3 py-2 text-left transition-colors ${
                 isSelected ? "border-moss bg-moss/5" : "border-line bg-white"
               } ${hasData ? "cursor-pointer hover:border-moss" : "cursor-default opacity-60"}`}
             >
@@ -51,7 +51,7 @@ export function PerformanceStats({
       </dl>
 
       {selected && selectedDef && (
-        <div className="mt-3 rounded-md border border-line bg-white p-4">
+        <div className="mt-3 rounded-2xl border border-line bg-white p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-medium text-ink">Évolution — {selectedDef.label}</h3>
             <button type="button" onClick={() => setSelected(null)} className="text-xs text-slate hover:text-ink">

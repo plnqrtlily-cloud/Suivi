@@ -93,7 +93,7 @@ export default async function AthleteDashboard({
         </div>
 
         {completion < 100 && (
-          <Card className="mb-6 flex items-center justify-between bg-paper-dim">
+          <Card className="mb-6 flex items-center justify-between rounded-3xl bg-paper-dim">
             <p className="text-sm text-ink-soft">Profil complété à {completion}%</p>
             <LinkButton href="/athlete/profile" variant="secondary">
               Compléter mon profil
@@ -179,8 +179,8 @@ export default async function AthleteDashboard({
         </section>
 
         <div className="mt-10 grid gap-6 md:grid-cols-2">
-          <Card>
-            <h2 className="mb-3 text-sm font-medium text-ink-soft">Mes coachs</h2>
+          <Card className="rounded-3xl">
+            <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Mes coachs</h2>
             {coaches.length === 0 && <p className="text-sm text-slate">Aucun coach lié pour l&apos;instant.</p>}
             <ul className="mb-4 space-y-2 text-sm">
               {coaches.map((c) => (
@@ -189,8 +189,14 @@ export default async function AthleteDashboard({
                     {c.first_name} {c.last_name} — {c.email}
                   </span>
                   <span className="flex items-center gap-2">
-                    <Link href={`/athlete/messages/${c.coach_id}`} className="text-xs text-moss-dark underline">
-                      💬 Discuter
+                    <Link
+                      href={`/athlete/messages/${c.coach_id}`}
+                      className="flex items-center gap-1 text-xs font-semibold text-moss-dark hover:underline"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 5.5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-3.5 3v-3H5a2 2 0 0 1-2-2z" />
+                      </svg>
+                      Discuter
                     </Link>
                     <RevokeButton linkId={c.link_id} label="Retirer l'accès" />
                   </span>

@@ -24,7 +24,7 @@ export default async function AthleteMessagesIndexPage() {
         <p className="mb-6 text-slate">Discutez directement avec vos coachs.</p>
 
         {coaches.length === 0 ? (
-          <Card>
+          <Card className="rounded-3xl">
             <p className="text-sm text-slate">
               Aucun coach lié pour l&apos;instant — rejoignez un coach depuis votre page d&apos;accueil pour pouvoir lui écrire.
             </p>
@@ -37,7 +37,7 @@ export default async function AthleteMessagesIndexPage() {
                 <li key={c.link_id}>
                   <Link
                     href={`/athlete/messages/${c.coach_id}`}
-                    className="flex items-center gap-3 rounded-lg border border-line bg-white p-4 transition-colors hover:border-moss"
+                    className="flex items-center gap-3 rounded-2xl border border-line bg-white p-4 transition-colors hover:border-moss"
                   >
                     <Avatar userId={c.coach_id} firstName={c.first_name} hasAvatar={false} size="md" />
                     <div className="min-w-0 flex-1">
