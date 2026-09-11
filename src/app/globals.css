@@ -1,27 +1,28 @@
 @import "tailwindcss";
 
 /*
-  Direction visuelle "Rythme" : vert pin comme signature (rare chez les
-  concurrents du coaching sportif — Strava/orange, Whoop/rouge-noir,
-  TrainingPeaks/bleu, Hevy/violet), or chaleureux comme accent secondaire.
+  Direction visuelle "Rythme" : pétrole (bleu-vert profond) comme signature —
+  inoccupé dans le coaching sportif (Strava/orange, Whoop/rouge-noir,
+  TrainingPeaks/bleu marine, Hevy/violet), corail chaleureux en accent
+  secondaire — énergique sans tomber dans le rouge/orange concurrent.
   Statut "séance non faite" en gris neutre, jamais en rouge alarmant
   (cf. leçon tirée des avis clients).
 */
 @theme {
-  --color-paper: #f3f4f1;
-  --color-paper-dim: #e9ebe6;
-  --color-ink: #16231e;
-  --color-ink-soft: #3c463f;
-  --color-moss: #1e6b4f;
-  --color-moss-dark: #143f30;
-  --color-gold-light: #dcaf57;
+  --color-paper: #f2f4f3;
+  --color-paper-dim: #e6eae9;
+  --color-ink: #182220;
+  --color-ink-soft: #37413f;
+  --color-moss: #1b4b4f;
+  --color-moss-dark: #0f3336;
+  --color-gold-light: #e8896a;
   --color-clay: #7c5c46;
   --color-slate: #5b6660;
-  --color-line: #d8dbd4;
-  --color-status-planned: #1e6b4f;
-  --color-status-done: #143f30;
+  --color-line: #d5dbda;
+  --color-status-planned: #1b4b4f;
+  --color-status-done: #0f3336;
   --color-status-notdone: #9aa39c;
-  --color-status-partial: #b8862e;
+  --color-status-partial: #e8896a;
   --color-status-postponed: #6b7a8a;
 
   --font-display: var(--font-fraunces), ui-serif, Georgia, "Iowan Old Style", "Palatino Linotype", serif;
