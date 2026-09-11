@@ -1,0 +1,16 @@
+{
+  "name": "Suivi — Coach & Athlète",
+  "short_name": "Suivi",
+  "description": "Planification d'entraînement et suivi de performance entre coach et athlète.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F3F4F1",
+  "theme_color": "#2F6F5E",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

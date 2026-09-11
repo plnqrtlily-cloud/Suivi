@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+/*
+  Direction visuelle du prototype (cf. section "Direction visuelle" du prompt) :
+  sobre et digne de confiance plutôt que ludique/gamifié — l'app manipule des
+  données de santé et de performance pour des coachs professionnels.
+  - Palette "trail" désaturée (mousse/argile/graphite), pas de terracotta vif
+    ni de fond crème (tells visuels génériques à éviter).
+  - Statut "séance non faite" en gris neutre, jamais en rouge alarmant
+    (cf. leçon tirée des avis clients).
+*/
+/*
+  NOTE PROTOTYPE : cet environnement de génération n'a pas accès à
+  fonts.googleapis.com. Les polices prévues (Fraunces pour les titres,
+  Public Sans pour le reste) sont donc remplacées ici par des piles de
+  polices système. En déploiement réel (Vercel), il suffit de réintroduire
+  next/font/google avec ces deux familles pour retrouver l'intention
+  typographique d'origine — le reste des tokens (couleurs, layout) est inchangé.
+*/
+@theme {
+  --color-paper: #f3f4f1;
+  --color-paper-dim: #e9ebe6;
+  --color-ink: #16231e;
+  --color-ink-soft: #3c463f;
+  --color-moss: #2f6f5e;
+  --color-moss-dark: #1f4d40;
+  --color-clay: #7c5c46;
+  --color-slate: #5b6660;
+  --color-line: #d8dbd4;
+  --color-status-planned: #2f6f5e;
+  --color-status-done: #1f4d40;
+  --color-status-notdone: #9aa39c;
+  --color-status-partial: #b08a3e;
+  --color-status-postponed: #6b7a8a;
+
+  --font-display: ui-serif, Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  --font-sans: -apple-system, "Segoe UI", ui-sans-serif, system-ui, "Helvetica Neue", Arial, sans-serif;
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-moss);
+  outline-offset: 2px;
+}
