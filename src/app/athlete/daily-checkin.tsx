@@ -32,7 +32,7 @@ const SLIDERS: {
     maxLabel: "En pleine forme",
     family: "green",
     icon: (
-      <svg {...ICON_PROPS} stroke="#1E6B4F">
+      <svg {...ICON_PROPS} stroke="#1B4B4F">
         <rect x="2" y="7" width="16" height="10" rx="2" />
         <path d="M22 11v2" />
       </svg>
@@ -45,7 +45,7 @@ const SLIDERS: {
     maxLabel: "Très motivé·e",
     family: "green",
     icon: (
-      <svg {...ICON_PROPS} stroke="#1E6B4F">
+      <svg {...ICON_PROPS} stroke="#1B4B4F">
         <path d="M12 2v3M12 19v3M5 5l2 2M17 17l2 2M2 12h3M19 12h3M5 19l2-2M17 7l2-2" />
       </svg>
     ),
@@ -57,7 +57,7 @@ const SLIDERS: {
     maxLabel: "Excellente nuit",
     family: "green",
     icon: (
-      <svg {...ICON_PROPS} stroke="#1E6B4F">
+      <svg {...ICON_PROPS} stroke="#1B4B4F">
         <path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />
       </svg>
     ),
@@ -69,7 +69,7 @@ const SLIDERS: {
     maxLabel: "Très marquées",
     family: "amber",
     icon: (
-      <svg {...ICON_PROPS} stroke="#B8862E">
+      <svg {...ICON_PROPS} stroke="#B85A3E">
         <path d="M13 2L3 14h7l-1 8 11-14h-7l1-6z" />
       </svg>
     ),
@@ -81,7 +81,7 @@ const SLIDERS: {
     maxLabel: "Très stressé·e",
     family: "green",
     icon: (
-      <svg {...ICON_PROPS} stroke="#1E6B4F">
+      <svg {...ICON_PROPS} stroke="#1B4B4F">
         <path d="M17.5 19a4.5 4.5 0 000-9 6 6 0 00-11.4 2.1A4 4 0 007 19h10.5z" />
       </svg>
     ),

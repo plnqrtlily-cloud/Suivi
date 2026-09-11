@@ -39,7 +39,7 @@ export function ReadinessSummary({ date, checkin }: { date: string; checkin: Che
         <div className="flex items-center gap-4">
           <ReadinessGauge score={score} />
           <div className="min-w-0 flex-1">
-            <p className="mb-1 text-[15px] font-semibold" style={{ color: "#DCAF57" }}>
+            <p className="mb-1 text-[15px] font-semibold" style={{ color: "#E8896A" }}>
               {scoreLabel(score)}
             </p>
             <p className="text-xs text-white/55">Indice Hooper : {hooper}/50</p>

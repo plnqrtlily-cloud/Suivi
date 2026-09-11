@@ -4,7 +4,7 @@ export function ReadinessGauge({
   score,
   size = 96,
   trackColor = "rgba(255,255,255,0.14)",
-  fillColor = "#DCAF57",
+  fillColor = "#E8896A",
   labelColor = "#fff",
   sublabelColor = "rgba(255,255,255,0.5)",
 }: {

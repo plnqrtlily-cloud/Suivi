@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS workouts (
   time TEXT,
   duration_minutes INTEGER,
   description TEXT,
-  color TEXT NOT NULL DEFAULT '#2F6F5E',
+  color TEXT NOT NULL DEFAULT '#1B4B4F',
   status TEXT NOT NULL DEFAULT 'planned' CHECK (status IN ('planned','done','not_done','partial','postponed')),
   rpe INTEGER,
   athlete_feedback TEXT,

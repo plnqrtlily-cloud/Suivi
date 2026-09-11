@@ -92,9 +92,9 @@ function TrendChart({ series }: { series: MeasurementPoint[] }) {
   return (
     <div>
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ maxHeight: 180 }}>
-        <path d={path} fill="none" stroke="#1E6B4F" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        <path d={path} fill="none" stroke="#1B4B4F" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
         {points.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={3.5} fill="#1E6B4F" />
+          <circle key={i} cx={p.x} cy={p.y} r={3.5} fill="#1B4B4F" />
         ))}
         {points.length > 0 && (
           <>

@@ -3,8 +3,8 @@
 import { useId } from "react";
 
 const FAMILIES = {
-  green: { light: "#D6ECE2", dark: "#1E6B4F", thumb: "#143F30", badgeBg: "#E7F1EC" },
-  amber: { light: "#F5E9D2", dark: "#B8862E", thumb: "#8A6423", badgeBg: "#F3EAD8" },
+  green: { light: "#D9E8E7", dark: "#1B4B4F", thumb: "#0F3336", badgeBg: "#E3EEED" },
+  amber: { light: "#F8DDD1", dark: "#E8896A", thumb: "#B85A3E", badgeBg: "#FBEAE2" },
 };
 
 // Curseur fin avec dégradé de couleur (pâle -> teinte pleine selon la valeur) et
