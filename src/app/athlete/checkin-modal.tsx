@@ -7,10 +7,21 @@ import { Checkin } from "@/lib/checkin-types";
 // Fenêtre qui s'affiche automatiquement au premier chargement de la page si
 // l'athlète n'a pas encore renseigné sa forme du jour — une seule fois par jour
 // (le choix "Plus tard" ou l'enregistrement la ferment jusqu'au lendemain, via
-// une marque en localStorage propre à cette date).
-export function CheckinModal({ date, existing, firstName }: { date: string; existing?: Checkin; firstName: string }) {
+// une marque en localStorage propre à cette date ET à cet athlète, pour éviter
+// qu'un compte n'hérite de la fermeture d'un autre sur un appareil partagé).
+export function CheckinModal({
+  date,
+  existing,
+  firstName,
+  userId,
+}: {
+  date: string;
+  existing?: Checkin;
+  firstName: string;
+  userId: string;
+}) {
   const [open, setOpen] = useState(false);
-  const dismissKey = `checkin-dismissed-${date}`;
+  const dismissKey = `checkin-dismissed-${userId}-${date}`;
 
   useEffect(() => {
     if (existing) return;

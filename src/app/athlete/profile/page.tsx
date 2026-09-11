@@ -18,6 +18,7 @@ import { Nav } from "@/components/nav";
 import { Card, Field, SelectField, TextAreaField, Button } from "@/components/ui";
 import { CyclePanel } from "./cycle-panel";
 import { SyncPanel } from "./sync-panel";
+import { PerformanceStats, MeasurementPoint } from "./performance-stats";
 
 const METRICS = [
   { value: "weight_kg", label: "Poids (kg)" },
@@ -37,6 +38,13 @@ export default async function AthleteProfilePage() {
   const latest = await getLatestMeasurements(user.id);
   const historyAll = await getMeasurementsForAthlete(user.id);
   const history = historyAll.slice(0, 10);
+  const seriesByMetric: Record<string, MeasurementPoint[]> = {};
+  for (const h of historyAll as any[]) {
+    (seriesByMetric[h.metric] ??= []).push({ value: h.value, recorded_at: h.recorded_at });
+  }
+  for (const key in seriesByMetric) {
+    seriesByMetric[key].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
+  }
   const injuries = await getInjuriesForAthlete(user.id);
   const journal = await getJournalForAthlete(user.id);
   const completion = await profileCompletion(user.id);
@@ -89,15 +97,9 @@ export default async function AthleteProfilePage() {
         </Card>
 
         <Card className="mb-8">
-          <h2 className="mb-4 text-sm font-medium text-ink-soft">Statistiques de performance</h2>
-          <dl className="mb-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-            {METRICS.map((m) => (
-              <div key={m.value}>
-                <dt className="text-slate">{m.label}</dt>
-                <dd className="font-medium text-ink">{latest[m.value]?.value ?? "—"}</dd>
-              </div>
-            ))}
-          </dl>
+          <h2 className="mb-1 text-sm font-medium text-ink-soft">Statistiques de performance</h2>
+          <p className="mb-3 text-xs text-slate">Cliquez sur un indicateur pour voir son évolution.</p>
+          <PerformanceStats metrics={METRICS} latest={latest} seriesByMetric={seriesByMetric} />
           <form action={addMeasurementAction} className="flex items-end gap-3">
             <div className="w-48">
               <SelectField label="Indicateur" name="metric" required>

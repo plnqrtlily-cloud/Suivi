@@ -66,7 +66,7 @@ export default async function AthleteDashboard({
   return (
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
-      <CheckinModal date={today} existing={todaysCheckin} firstName={user.first_name} />
+      <CheckinModal date={today} existing={todaysCheckin} firstName={user.first_name} userId={user.id} />
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -145,56 +145,32 @@ export default async function AthleteDashboard({
 
         <CalendarFilters offset={offset} sport={sport} category={category} />
 
-        <div className="mb-6 flex justify-between gap-1.5">
+        <h2 className="mb-3 font-display text-xl text-ink">Ma semaine</h2>
+        <div className="mb-2 flex justify-between gap-1.5">
           {weekDates.map((date, idx) => {
             const hasWorkout = byDate[date].length > 0;
             const isToday = date === today;
             return (
-              <div key={date} className="flex-1 text-center">
+              <Link key={date} href={`/athlete/day/${date}`} className="flex-1 text-center">
                 <p className="text-[10.5px] font-semibold text-slate">{DAY_LABELS[idx].slice(0, 3).toUpperCase()}</p>
                 <div
-                  className={`mx-auto mt-1.5 flex h-9 w-9 items-center justify-center rounded-xl font-display text-[13px] font-semibold ${
-                    isToday ? "bg-ink text-white" : hasWorkout ? "bg-moss/10 text-moss-dark" : "bg-white text-ink"
+                  className={`mx-auto mt-1.5 flex h-9 w-9 items-center justify-center rounded-xl font-display text-[13px] font-semibold transition-colors ${
+                    isToday
+                      ? "bg-ink text-white"
+                      : hasWorkout
+                        ? "bg-moss/10 text-moss-dark hover:bg-moss/20"
+                        : "bg-white text-ink hover:border hover:border-moss"
                   }`}
                 >
                   {date.slice(8, 10)}
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
-        <div className="mb-8 -mt-4 flex items-center gap-1.5">
+        <div className="mb-8 flex items-center gap-1.5">
           <div className="h-2 w-2 flex-shrink-0 rounded-sm border border-moss/30 bg-moss/10" />
-          <p className="text-[10.5px] text-slate">Séance prévue par le coach</p>
-        </div>
-
-        <h2 className="mb-3 font-display text-xl text-ink">Ma semaine</h2>
-        <div className="grid gap-3 md:grid-cols-7">
-          {weekDates.map((date, idx) => (
-            <div
-              key={date}
-              className={date === today ? "rounded-md bg-moss/5 p-2 -m-2" : ""}
-            >
-              <p className={`mb-2 text-xs font-medium uppercase tracking-wide ${date === today ? "text-moss-dark" : "text-slate"}`}>
-                {DAY_LABELS[idx]} {date.slice(8, 10)}/{date.slice(5, 7)}
-                {date === today && " · aujourd'hui"}
-              </p>
-              <div className="flex flex-col gap-2">
-                {byDate[date].map((w) => (
-                  <Link key={w.id} href={`/workouts/${w.id}`}>
-                    <div
-                      className="rounded-md border border-line bg-white p-2 text-xs hover:border-moss"
-                      style={{ borderLeftColor: w.color, borderLeftWidth: 3 }}
-                    >
-                      <p className="font-medium text-ink">{w.title}</p>
-                      <p className="text-slate">{sportLabel(w.sport)}</p>
-                      <StatusBadge status={w.status} />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          ))}
+          <p className="text-[10.5px] text-slate">Séance prévue par le coach · touchez un jour pour le détail</p>
         </div>
 
         <div className="mt-10 grid gap-6 md:grid-cols-2">
