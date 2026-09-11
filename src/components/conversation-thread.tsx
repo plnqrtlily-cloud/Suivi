@@ -39,16 +39,26 @@ export function ConversationThread({
     bottomRef.current?.scrollIntoView({ behavior: "instant" as ScrollBehavior });
   }, []);
 
-  // Rafraîchissement léger pour donner une impression de discussion vivante, sans
-  // aller jusqu'à un vrai temps réel (websockets) hors de portée de ce prototype.
+  // Rafraîchissement fréquent pour une impression de discussion en direct, sans
+  // aller jusqu'à un vrai push temps réel (websockets, hors de portée de ce
+  // prototype sur une plateforme serverless). Coupé quand l'onglet n'est pas
+  // visible pour ne pas enchaîner les requêtes inutilement en arrière-plan.
   useEffect(() => {
-    const interval = setInterval(() => router.refresh(), 15000);
-    return () => clearInterval(interval);
+    function tick() {
+      if (document.visibilityState === "visible") router.refresh();
+    }
+    const interval = setInterval(tick, 3000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", tick);
+    };
   }, [router]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
     const body = String(formData.get("body") || "").trim();
     if (!body) return;
     setPending(true);
@@ -56,7 +66,10 @@ export function ConversationThread({
     formData.set("athleteId", athleteId);
     await sendMessageAction(formData);
     setPending(false);
-    e.currentTarget.reset();
+    // `e.currentTarget` est déjà nettoyé par React après l'await (l'event
+    // synthétique n'est plus valide) — on garde une référence au form capturée
+    // avant l'await, seule façon fiable de le réinitialiser ici.
+    form.reset();
     router.refresh();
   }
 

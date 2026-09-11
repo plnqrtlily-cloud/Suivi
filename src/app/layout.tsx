@@ -26,11 +26,15 @@ export const metadata: Metadata = {
     title: "Rythme",
   },
   icons: {
+    // ?v=2 : force les navigateurs/PWA à re-télécharger l'icône après le
+    // changement de palette (pétrole/corail) plutôt que de garder l'ancienne
+    // en cache — un appareil où l'app est déjà installée sur l'écran d'accueil
+    // devra tout de même la retirer puis la réinstaller pour la voir changer.
     icon: [
-      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icon-192.png?v=2", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png?v=2", sizes: "512x512", type: "image/png" },
     ],
-    apple: "/apple-touch-icon.png",
+    apple: "/apple-touch-icon.png?v=2",
   },
 };
 

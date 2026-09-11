@@ -761,6 +761,9 @@ export async function markMessagesReadAction(coachId: string, athleteId: string)
     `UPDATE messages SET read_at = datetime('now') WHERE coach_id = ? AND athlete_id = ? AND sender_id != ? AND read_at IS NULL`,
     [coachId, athleteId, user.id]
   );
-
-  revalidatePath("/", "layout");
+  // Pas de revalidatePath ici : ces pages sont déjà rendues dynamiquement à
+  // chaque requête (non mises en cache), et cette action est appelée en
+  // ligne pendant le rendu de la page de conversation — revalidatePath y est
+  // interdit par Next.js (uniquement autorisé hors du flux de rendu) et
+  // faisait planter toute la messagerie.
 }
