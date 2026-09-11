@@ -22,7 +22,8 @@ const CATEGORIES = [
   { value: "divers", label: "Divers" },
 ];
 
-const COLORS = ["#2F6F5E", "#7C5C46", "#5B6660", "#B08A3E", "#6B7A8A"];
+// Repris de la palette du produit (globals.css) plutôt que de teintes ad hoc.
+const COLORS = ["#1B4B4F", "#E8896A", "#7C5C46", "#5B6660", "#6B7A8A"];
 
 export function WorkoutForm({
   athleteId,
@@ -125,7 +126,7 @@ export function WorkoutForm({
               type="button"
               onClick={() => setColor(c)}
               className="h-7 w-7 rounded-full border-2"
-              style={{ backgroundColor: c, borderColor: color === c ? "#16231E" : "transparent" }}
+              style={{ backgroundColor: c, borderColor: color === c ? "#182220" : "transparent" }}
               aria-label={`Choisir la couleur ${c}`}
             />
           ))}

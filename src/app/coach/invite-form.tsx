@@ -33,7 +33,7 @@ export function InviteForm() {
         </Button>
       </form>
       {link && (
-        <div className="rounded-md border border-line bg-paper-dim px-3 py-2 text-sm">
+        <div className="rounded-2xl border border-line bg-paper-dim px-3 py-2 text-sm">
           <p className="mb-1">
             Lien à transmettre à l&apos;athlète :{" "}
             <a href={link} className="break-all text-moss-dark underline">

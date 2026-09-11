@@ -25,7 +25,7 @@ export default async function ResourcesPage({
         <h1 className="mb-1 font-display text-3xl text-ink">Ma bibliothèque</h1>
         <p className="mb-8 text-slate">Vidéos, photos et matériel que vous déposez vous-même — visibles par vos athlètes liés.</p>
 
-        <Card className="mb-8">
+        <Card className="mb-8 rounded-3xl">
           <UploadResourceForm />
         </Card>
 

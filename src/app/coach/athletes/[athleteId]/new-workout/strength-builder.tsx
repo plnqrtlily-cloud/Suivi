@@ -143,16 +143,16 @@ export function StrengthBuilder({
       {BLOCK_GROUPS.map((group) => {
         const groupRows = rows.filter((r) => group.types.some((t) => t.value === r.block_type));
         return (
-          <div key={group.title} className="rounded-md border border-line p-4">
+          <div key={group.title} className="rounded-3xl border border-line p-4">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-medium text-ink-soft">{group.title}</h3>
+              <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate">{group.title}</h3>
               <Button type="button" variant="secondary" onClick={() => addRow(group.types[0].value)}>
                 + Exercice
               </Button>
             </div>
             <div className="flex flex-col gap-4">
               {groupRows.map((row) => (
-                <div key={row.key} className="rounded-md bg-paper-dim p-3">
+                <div key={row.key} className="rounded-2xl bg-paper-dim p-3">
                   <div className="mb-3 grid grid-cols-12 gap-2">
                     <div className="col-span-4">
                       <SelectField
@@ -189,7 +189,7 @@ export function StrengthBuilder({
                   {/* Séries détaillées, façon Strong/Hevy : chaque série a ses propres
                       répétitions/charge (utile pour les séries pyramidales, montées en
                       charge…), avec copie automatique de la dernière série à l'ajout. */}
-                  <div className="mb-3 overflow-hidden rounded-md border border-line bg-white">
+                  <div className="mb-3 overflow-hidden rounded-2xl border border-line bg-white">
                     <div className="grid grid-cols-12 gap-2 border-b border-line bg-paper-dim px-2 py-1 text-xs font-medium text-ink-soft">
                       <span className="col-span-2">Série</span>
                       <span className="col-span-4">Répétitions</span>

@@ -49,7 +49,7 @@ export function UpcomingGoals({ goals }: { goals: any[] }) {
         const days = daysUntil(g.date);
         return (
           <Link key={g.id} href={`/workouts/${g.id}`}>
-            <Card className="flex items-center justify-between hover:border-moss">
+            <Card className="flex items-center justify-between rounded-2xl hover:border-moss">
               <div className="flex items-center gap-3">
                 <div className={`text-center ${urgencyColor(days)}`}>
                   <p className="font-display text-2xl leading-none">{countdownLabel(days)}</p>

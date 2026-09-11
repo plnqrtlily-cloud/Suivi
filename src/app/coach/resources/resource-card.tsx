@@ -20,7 +20,7 @@ export function ResourceCard({ resource }: { resource: any }) {
   }
 
   return (
-    <div className="overflow-hidden rounded-md border border-line bg-white">
+    <div className="overflow-hidden rounded-2xl border border-line bg-white">
       {resource.file_path && resource.type === "video" ? (
         <video controls className="aspect-video w-full bg-ink object-cover">
           <source src={`/api/resources/file/${resource.id}`} type={resource.mime_type} />

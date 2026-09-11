@@ -89,15 +89,20 @@ export default async function AthleteDetailPage({
           <div className="flex gap-2">
             <LinkButton href={`/coach/athletes/${athleteId}/new-workout`}>+ Nouvelle séance</LinkButton>
             <LinkButton href={`/coach/athletes/${athleteId}/messages`} variant="secondary">
-              💬 Discuter
+              <span className="flex items-center gap-1.5">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 5.5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-3.5 3v-3H5a2 2 0 0 1-2-2z" />
+                </svg>
+                Discuter
+              </span>
             </LinkButton>
             {link && <RevokeButton linkId={link.link_id} label="Retirer cet athlète" />}
           </div>
         </div>
 
         <div className="mb-8 grid gap-6 md:grid-cols-3">
-          <Card>
-            <h2 className="mb-3 text-sm font-medium text-ink-soft">Statistiques de performance</h2>
+          <Card className="rounded-3xl">
+            <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Statistiques de performance</h2>
             <dl className="grid grid-cols-2 gap-2 text-sm">
               {Object.entries(METRIC_LABELS).map(([key, label]) => (
                 <div key={key}>
@@ -109,8 +114,8 @@ export default async function AthleteDetailPage({
           </Card>
 
           {cycleEstimate && (
-            <Card>
-              <h2 className="mb-3 text-sm font-medium text-ink-soft">Cycle menstruel</h2>
+            <Card className="rounded-3xl">
+              <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Cycle menstruel</h2>
               <p className="font-medium text-ink">{PHASE_LABELS[cycleEstimate.phase]}</p>
               {cycleEstimate.dayOfCycle && <p className="text-sm text-slate">Jour {cycleEstimate.dayOfCycle} du cycle</p>}
               <p className="mt-2 text-xs text-slate">Partagé volontairement par l&apos;athlète — détail des entrées non visible.</p>
@@ -118,8 +123,8 @@ export default async function AthleteDetailPage({
           )}
 
           {latestCheckin && (
-            <Card>
-              <h2 className="mb-3 text-sm font-medium text-ink-soft">Forme du jour</h2>
+            <Card className="rounded-3xl">
+              <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Forme du jour</h2>
               {(() => {
                 const score = computeGlobalScore(latestCheckin);
                 return (
@@ -133,8 +138,8 @@ export default async function AthleteDetailPage({
             </Card>
           )}
 
-          <Card>
-            <h2 className="mb-3 text-sm font-medium text-ink-soft">Antécédents de blessures</h2>
+          <Card className="rounded-3xl">
+            <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Antécédents de blessures</h2>
             {injuries.length === 0 && <p className="text-sm text-slate">Aucun antécédent renseigné.</p>}
             <ul className="space-y-2 text-sm">
               {injuries.slice(0, 4).map((i) => (
@@ -149,8 +154,8 @@ export default async function AthleteDetailPage({
             </ul>
           </Card>
 
-          <Card>
-            <h2 className="mb-3 text-sm font-medium text-ink-soft">Journal de bord récent</h2>
+          <Card className="rounded-3xl">
+            <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Journal de bord récent</h2>
             {journal.length === 0 && <p className="text-sm text-slate">Aucune entrée pour l&apos;instant.</p>}
             <ul className="space-y-2 text-sm">
               {journal.map((j) => (
@@ -173,7 +178,7 @@ export default async function AthleteDetailPage({
           {workouts.length === 0 && <p className="text-sm text-slate">Aucune séance planifiée.</p>}
           {workouts.map((w) => (
             <Link key={w.id} href={`/workouts/${w.id}`}>
-              <Card className="flex items-center justify-between hover:border-moss">
+              <Card className="flex items-center justify-between rounded-2xl hover:border-moss">
                 <div>
                   <p className="font-medium text-ink">{w.title}</p>
                   <p className="text-sm text-slate">
@@ -191,7 +196,7 @@ export default async function AthleteDetailPage({
           {pastWorkouts.length === 0 && <p className="text-sm text-slate">Pas encore d&apos;historique.</p>}
           {pastWorkouts.map((w) => (
             <Link key={w.id} href={`/workouts/${w.id}`}>
-              <Card className="flex items-center justify-between hover:border-moss">
+              <Card className="flex items-center justify-between rounded-2xl hover:border-moss">
                 <div>
                   <p className="font-medium text-ink">{w.title}</p>
                   <p className="text-sm text-slate">
@@ -211,7 +216,7 @@ export default async function AthleteDetailPage({
             <p className="text-sm text-slate">Aucune activité importée ou saisie manuellement pour l&apos;instant.</p>
           )}
           {importedActivities.map((a) => (
-            <Card key={a.id} className="flex items-center justify-between">
+            <Card key={a.id} className="flex items-center justify-between rounded-2xl">
               <div>
                 <p className="font-medium text-ink">{sportLabel(a.sport)}</p>
                 <p className="text-sm text-slate">

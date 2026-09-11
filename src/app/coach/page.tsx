@@ -26,15 +26,15 @@ export default async function CoachDashboard() {
           {active.length} athlète{active.length === 1 ? "" : "s"} suivi{active.length === 1 ? "" : "s"}
         </p>
 
-        <Card className="mb-8">
-          <h2 className="mb-3 text-sm font-medium text-ink-soft">Inviter un athlète</h2>
+        <Card className="mb-8 rounded-3xl">
+          <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Inviter un athlète</h2>
           <InviteForm />
         </Card>
 
         <div className="grid gap-3">
           {active.map((link) => (
             <Link key={link.link_id} href={`/coach/athletes/${link.athlete_id}`}>
-              <Card className="flex items-center justify-between transition-colors hover:border-moss">
+              <Card className="flex items-center justify-between rounded-2xl transition-colors hover:border-moss">
                 <div className="flex items-center gap-3">
                   <Avatar userId={link.athlete_id!} firstName={link.first_name || "?"} hasAvatar={!!link.avatar_path} />
                   <div>
@@ -44,13 +44,13 @@ export default async function CoachDashboard() {
                     <p className="text-sm text-slate">{link.email}</p>
                   </div>
                 </div>
-                <span className="text-sm text-moss-dark">Voir le suivi →</span>
+                <span className="text-sm font-semibold text-moss-dark">Voir le suivi →</span>
               </Card>
             </Link>
           ))}
 
           {pending.map((link) => (
-            <Card key={link.link_id} className="flex items-center justify-between bg-paper-dim">
+            <Card key={link.link_id} className="flex items-center justify-between rounded-2xl bg-paper-dim">
               <div>
                 <p className="font-medium text-ink-soft">Invitation en attente</p>
                 <p className="text-sm text-slate">{link.invite_email || "Lien partagé sans email précisé"}</p>
@@ -60,7 +60,7 @@ export default async function CoachDashboard() {
           ))}
 
           {active.length === 0 && pending.length === 0 && (
-            <Card className="text-center text-slate">
+            <Card className="rounded-2xl text-center text-slate">
               Aucun athlète pour l&apos;instant — générez un lien d&apos;invitation ci-dessus.
             </Card>
           )}
