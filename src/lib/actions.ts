@@ -528,6 +528,7 @@ export async function addImportedActivityAction(formData: FormData) {
   if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
 
   const activityDate = String(formData.get("activityDate") || "");
+  const activityTime = String(formData.get("activityTime") || "").trim();
   const sport = String(formData.get("sport") || "");
   const durationMinutes = formData.get("durationMinutes") ? Number(formData.get("durationMinutes")) : null;
   const distanceKm = formData.get("distanceKm") ? Number(formData.get("distanceKm")) : null;
@@ -536,12 +537,14 @@ export async function addImportedActivityAction(formData: FormData) {
   if (!activityDate || !sport) return;
 
   await dbRun(
-    `INSERT INTO imported_activities (id, athlete_id, source, activity_date, sport, duration_minutes, distance_km, avg_hr, notes)
-     VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?)`,
-    [randomUUID(), user.id, activityDate, sport, durationMinutes, distanceKm, avgHr, notes || null]
+    `INSERT INTO imported_activities (id, athlete_id, source, activity_date, activity_time, sport, duration_minutes, distance_km, avg_hr, notes)
+     VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?)`,
+    [randomUUID(), user.id, activityDate, activityTime || null, sport, durationMinutes, distanceKm, avgHr, notes || null]
   );
 
   revalidatePath("/athlete/profile");
+  revalidatePath("/athlete");
+  revalidatePath(`/athlete/day/${activityDate}`);
 }
 
 // ---------- BIBLIOTHÈQUE DE RESSOURCES (vidéos, photos, matériel) ----------

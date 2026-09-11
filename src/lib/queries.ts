@@ -174,11 +174,40 @@ export async function getExternalConnections(athleteId: string): Promise<Externa
   );
 }
 
-export async function getImportedActivities(athleteId: string, limit = 15) {
-  return dbAll(`SELECT * FROM imported_activities WHERE athlete_id = ? ORDER BY activity_date DESC LIMIT ?`, [
-    athleteId,
-    limit,
-  ]);
+export interface ImportedActivity {
+  id: string;
+  athlete_id: string;
+  workout_id: string | null;
+  source: "manual" | "garmin" | "strava";
+  activity_date: string;
+  activity_time: string | null;
+  sport: string;
+  duration_minutes: number | null;
+  distance_km: number | null;
+  avg_hr: number | null;
+  notes: string | null;
+}
+
+export async function getImportedActivities(athleteId: string, limit = 15): Promise<ImportedActivity[]> {
+  return dbAll(
+    `SELECT * FROM imported_activities WHERE athlete_id = ? ORDER BY activity_date DESC, activity_time DESC LIMIT ?`,
+    [athleteId, limit]
+  );
+}
+
+// Utilisée par le calendrier (jour précis ou semaine) côté athlète et par la
+// fiche athlète côté coach — les imports manuels/synchronisés n'apparaissaient
+// nulle part ailleurs que la page de profil jusqu'ici.
+export async function getImportedActivitiesForRange(
+  athleteId: string,
+  fromDate: string,
+  toDate: string
+): Promise<ImportedActivity[]> {
+  return dbAll(
+    `SELECT * FROM imported_activities WHERE athlete_id = ? AND activity_date BETWEEN ? AND ?
+     ORDER BY activity_date ASC, activity_time ASC`,
+    [athleteId, fromDate, toDate]
+  );
 }
 
 // --- Bibliothèque de ressources du coach (vidéos, photos, matériel) ---

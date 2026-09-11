@@ -101,6 +101,7 @@ export function SyncPanel({ connections, activities }: { connections: ExternalCo
         </p>
         <form onSubmit={handleImport} className="grid grid-cols-2 gap-3">
           <Field label="Date" type="date" name="activityDate" required />
+          <Field label="Heure (facultatif)" type="time" name="activityTime" />
           <SelectField label="Sport" name="sport" defaultValue="running">
             <option value="running">Course à pied</option>
             <option value="cycling">Vélo</option>
@@ -127,7 +128,8 @@ export function SyncPanel({ connections, activities }: { connections: ExternalCo
           <ul className="mt-2 space-y-1">
             {activities.map((a) => (
               <li key={a.id}>
-                {a.activity_date} — {sportLabel(a.sport)}
+                {a.activity_date}
+                {a.activity_time ? ` ${a.activity_time}` : ""} — {sportLabel(a.sport)}
                 {a.duration_minutes ? ` · ${a.duration_minutes} min` : ""}
                 {a.distance_km ? ` · ${a.distance_km} km` : ""}
                 {a.avg_hr ? ` · FC moy. ${a.avg_hr}` : ""}

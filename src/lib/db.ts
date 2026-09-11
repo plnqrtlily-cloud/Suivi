@@ -196,6 +196,7 @@ CREATE TABLE IF NOT EXISTS imported_activities (
   workout_id TEXT REFERENCES workouts(id) ON DELETE SET NULL,
   source TEXT NOT NULL CHECK (source IN ('manual','garmin','strava')),
   activity_date TEXT NOT NULL,
+  activity_time TEXT,
   sport TEXT NOT NULL,
   duration_minutes INTEGER,
   distance_km REAL,
@@ -279,8 +280,24 @@ CREATE TABLE IF NOT EXISTS messages (
 
 let initialized: Promise<void> | null = null;
 
+// Migrations légères pour les bases déjà déployées (locales et Turso) : la base
+// existante n'a pas cette colonne (elle n'existait pas au moment où la table a été
+// créée), donc CREATE TABLE IF NOT EXISTS ne suffit pas — il faut l'ajouter
+// explicitement. Sans risque pour les données déjà enregistrées : ALTER TABLE ADD
+// COLUMN ne touche à aucune ligne existante, il ajoute juste la colonne (vide) en
+// plus. Échoue silencieusement si la colonne existe déjà (base neuve ou migration
+// déjà appliquée), ce qui la rend sûre à ré-exécuter à chaque démarrage.
+const MIGRATIONS: string[] = [`ALTER TABLE imported_activities ADD COLUMN activity_time TEXT`];
+
 async function init(): Promise<void> {
   await client.executeMultiple(SCHEMA_SQL);
+  for (const migration of MIGRATIONS) {
+    try {
+      await client.execute(migration);
+    } catch {
+      // Colonne déjà présente — migration déjà appliquée, rien à faire.
+    }
+  }
 }
 
 // À appeler (et attendre) avant toute requête — memoized, donc le coût

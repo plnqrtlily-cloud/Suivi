@@ -11,6 +11,7 @@ import {
   getUserGender,
   getUserAvatar,
   getUpcomingGoals,
+  getImportedActivities,
 } from "@/lib/queries";
 import { UpcomingGoals } from "@/components/upcoming-goals";
 import { getCycleSettings, estimateCyclePhase, PHASE_LABELS } from "@/lib/cycle";
@@ -68,6 +69,8 @@ export default async function AthleteDetailPage({
   const recentCheckins = await getRecentCheckins(athleteId, 1);
   const latestCheckin = recentCheckins[0];
   const upcomingGoals = await getUpcomingGoals(athleteId);
+  const importedActivities = await getImportedActivities(athleteId, 8);
+  const SOURCE_LABELS: Record<string, string> = { manual: "saisie manuelle", garmin: "Garmin Connect", strava: "Strava" };
 
   return (
     <div className="min-h-screen bg-paper">
@@ -184,7 +187,7 @@ export default async function AthleteDetailPage({
         </div>
 
         <h2 className="mb-3 font-display text-xl text-ink">Séances récentes</h2>
-        <div className="grid gap-2">
+        <div className="mb-8 grid gap-2">
           {pastWorkouts.length === 0 && <p className="text-sm text-slate">Pas encore d&apos;historique.</p>}
           {pastWorkouts.map((w) => (
             <Link key={w.id} href={`/workouts/${w.id}`}>
@@ -199,6 +202,28 @@ export default async function AthleteDetailPage({
                 <StatusBadge status={w.status} />
               </Card>
             </Link>
+          ))}
+        </div>
+
+        <h2 className="mb-3 font-display text-xl text-ink">Activités importées par l&apos;athlète</h2>
+        <div className="grid gap-2">
+          {importedActivities.length === 0 && (
+            <p className="text-sm text-slate">Aucune activité importée ou saisie manuellement pour l&apos;instant.</p>
+          )}
+          {importedActivities.map((a) => (
+            <Card key={a.id} className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-ink">{sportLabel(a.sport)}</p>
+                <p className="text-sm text-slate">
+                  {a.activity_date}
+                  {a.activity_time ? ` à ${a.activity_time}` : ""}
+                  {a.duration_minutes ? ` · ${a.duration_minutes} min` : ""}
+                  {a.distance_km ? ` · ${a.distance_km} km` : ""}
+                  {a.avg_hr ? ` · FC moy. ${a.avg_hr}` : ""}
+                </p>
+              </div>
+              <span className="text-xs text-slate">{SOURCE_LABELS[a.source] || a.source}</span>
+            </Card>
           ))}
         </div>
       </main>
