@@ -20,6 +20,7 @@ import { Nav } from "@/components/nav";
 import { Card, StatusBadge, LinkButton, sportLabel } from "@/components/ui";
 import { Avatar } from "@/components/avatar";
 import { RevokeButton } from "@/app/coach/revoke-button";
+import { todayISO } from "@/lib/dates";
 
 const METRIC_LABELS: Record<string, string> = {
   weight_kg: "Poids (kg)",
@@ -54,7 +55,7 @@ export default async function AthleteDetailPage({
   const links = await getAthletesForCoach(user.id);
   const link = links.find((l) => l.athlete_id === athleteId);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const allWorkouts = await getWorkoutsForAthlete(athleteId);
   const workouts = allWorkouts.filter((w) => w.date >= today).slice(0, 10);
   const pastWorkouts = allWorkouts.filter((w) => w.date < today).slice(-5).reverse();

@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { dbGet, dbRun } from "./db";
+import { todayISO } from "./dates";
 import {
   createUser,
   findUserByEmail,
@@ -649,7 +650,7 @@ export async function upsertCheckinAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
 
-  const checkDate = String(formData.get("checkDate") || new Date().toISOString().slice(0, 10));
+  const checkDate = String(formData.get("checkDate") || todayISO());
   const physicalLevel = Number(formData.get("physicalLevel") || 5);
   const mentalLevel = Number(formData.get("mentalLevel") || 5);
   const sleepQuality = Number(formData.get("sleepQuality") || 5);

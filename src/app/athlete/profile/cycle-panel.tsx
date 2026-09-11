@@ -6,6 +6,7 @@ import { updateCycleSharingAction, addCycleEntryAction } from "@/lib/actions";
 import { Button, Field, SelectField } from "@/components/ui";
 import { CycleEstimate, CycleSettings } from "@/lib/cycle-types";
 import { CycleWheel } from "./cycle-wheel";
+import { todayISO } from "@/lib/dates";
 
 function predictNextPeriod(estimate: CycleEstimate, cycleLength: number): string | null {
   if (!estimate.lastPeriodStart) return null;
@@ -63,7 +64,7 @@ export function CyclePanel({
           <option value="period_end">Fin des règles</option>
           <option value="symptom_note">Symptôme / remarque</option>
         </SelectField>
-        <Field label="Date" type="date" name="entryDate" required defaultValue={new Date().toISOString().slice(0, 10)} />
+        <Field label="Date" type="date" name="entryDate" required defaultValue={todayISO()} />
         <div className="col-span-2">
           <Field label="Notes (facultatif)" name="notes" placeholder="ex. fatigue marquée, douleurs légères…" />
         </div>

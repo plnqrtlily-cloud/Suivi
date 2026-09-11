@@ -19,6 +19,7 @@ import { Card, Field, SelectField, TextAreaField, Button } from "@/components/ui
 import { CyclePanel } from "./cycle-panel";
 import { SyncPanel } from "./sync-panel";
 import { PerformanceStats, MeasurementPoint } from "./performance-stats";
+import { todayISO } from "@/lib/dates";
 
 const METRICS = [
   { value: "weight_kg", label: "Poids (kg)" },
@@ -190,7 +191,7 @@ export default async function AthleteProfilePage() {
             {journal.length === 0 && <p className="text-slate">Aucune entrée pour l&apos;instant.</p>}
           </ul>
           <form action={addJournalEntryAction} className="flex flex-col gap-3">
-            <Field label="Date" type="date" name="entryDate" required defaultValue={new Date().toISOString().slice(0, 10)} />
+            <Field label="Date" type="date" name="entryDate" required defaultValue={todayISO()} />
             <TextAreaField label="Note" name="content" rows={3} required placeholder="Sensations du jour, fatigue, contexte particulier…" />
             <div>
               <Button type="submit">Ajouter une entrée</Button>

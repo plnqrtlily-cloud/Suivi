@@ -7,6 +7,7 @@ import { Card, StatusBadge, sportLabel } from "@/components/ui";
 import { ReadinessSummary } from "../../readiness-summary";
 import { DailyCheckin } from "../../daily-checkin";
 import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, TIME_OF_DAY_HINTS, groupByTimeOfDay } from "@/lib/time-of-day";
+import { todayISO } from "@/lib/dates";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const SOURCE_LABELS: Record<string, string> = { manual: "saisie manuelle", garmin: "Garmin Connect", strava: "Strava" };
@@ -32,7 +33,7 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
   const workouts = await getWorkoutsForAthlete(user.id, date, date);
   const imports = await getImportedActivitiesForRange(user.id, date, date);
   const checkin = await getCheckinForDate(user.id, date);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const isToday = date === today;
 
   const entries: CalendarEntry[] = [

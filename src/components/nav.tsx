@@ -6,7 +6,7 @@ import { NotificationBell } from "./notification-bell";
 import { Avatar } from "./avatar";
 import Link from "next/link";
 
-type NavIconName = "calendar" | "library" | "profile" | "messages" | "settings" | "logout";
+type NavIconName = "home" | "calendar" | "library" | "profile" | "messages" | "settings" | "logout";
 
 function NavIcon({ name, className }: { name: NavIconName; className?: string }) {
   const common = {
@@ -21,6 +21,13 @@ function NavIcon({ name, className }: { name: NavIconName; className?: string })
   };
 
   switch (name) {
+    case "home":
+      return (
+        <svg {...common}>
+          <path d="M3 9.5l7-6 7 6" />
+          <path d="M5 8v8a1 1 0 001 1h8a1 1 0 001-1V8" />
+        </svg>
+      );
     case "calendar":
       return (
         <svg {...common}>
@@ -77,10 +84,11 @@ export async function Nav({ user }: { user: User }) {
   const avatar = user.role === "athlete" ? await getUserAvatar(user.id) : undefined;
 
   const navItems: { href: string; label: string; icon: NavIconName }[] = [
-    { href: homeHref, icon: "calendar", label: user.role === "coach" ? "Mes athlètes" : "Mon calendrier" },
+    { href: homeHref, icon: "home", label: user.role === "coach" ? "Mes athlètes" : "Aujourd'hui" },
     ...(user.role === "coach" ? [{ href: "/coach/resources", icon: "library" as const, label: "Bibliothèque" }] : []),
     ...(user.role === "athlete"
       ? [
+          { href: "/athlete/programmation", icon: "calendar" as const, label: "Calendrier" },
           { href: "/athlete/profile", icon: "profile" as const, label: "Mon profil" },
           { href: "/athlete/messages", icon: "messages" as const, label: "Messages" },
         ]

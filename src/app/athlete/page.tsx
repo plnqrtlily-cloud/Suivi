@@ -10,6 +10,7 @@ import {
   getUserGender,
 } from "@/lib/queries";
 import { estimateCyclePhase } from "@/lib/cycle";
+import { getWeekDates, todayISO } from "@/lib/dates";
 import { Nav } from "@/components/nav";
 import { Card, sportLabel, LinkButton } from "@/components/ui";
 import { JoinCoachForm } from "./join-coach-form";
@@ -23,19 +24,6 @@ import { CycleBadge } from "./cycle-badge";
 const DAY_LABELS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-function getWeekDates(offsetWeeks: number): string[] {
-  const now = new Date();
-  const day = now.getDay(); // 0 = dimanche
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + mondayOffset + offsetWeeks * 7);
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    return d.toISOString().slice(0, 10);
-  });
-}
-
 export default async function AthleteDashboard({
   searchParams,
 }: {
@@ -48,7 +36,7 @@ export default async function AthleteDashboard({
   const { week, day } = await searchParams;
   const offset = week ? Number(week) : 0;
   const weekDates = getWeekDates(offset);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const selectedDate = day && DATE_RE.test(day) && weekDates.includes(day) ? day : weekDates.includes(today) ? today : weekDates[0];
   const isToday = selectedDate === today;
 
@@ -84,12 +72,20 @@ export default async function AthleteDashboard({
       <CheckinModal date={today} existing={todaysCheckin} firstName={user.first_name} userId={user.id} />
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="font-display text-3xl text-ink">Mon calendrier</h1>
-          {(offset !== 0 || selectedDate !== today) && (
-            <Link href="/athlete" className="text-sm font-semibold text-moss-dark hover:underline">
-              Revenir à aujourd&apos;hui
+          <h1 className="font-display text-3xl text-ink">Aujourd&apos;hui</h1>
+          <div className="flex items-center gap-4">
+            {(offset !== 0 || selectedDate !== today) && (
+              <Link href="/athlete" className="text-sm font-semibold text-moss-dark hover:underline">
+                Revenir à aujourd&apos;hui
+              </Link>
+            )}
+            <Link href="/athlete/programmation" className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft hover:text-ink">
+              Calendrier complet
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M7 5l6 5-6 5" />
+              </svg>
             </Link>
-          )}
+          </div>
         </div>
 
         {completion < 100 && (
