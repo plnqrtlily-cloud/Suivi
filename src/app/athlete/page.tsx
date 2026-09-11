@@ -8,6 +8,8 @@ import { UpcomingGoals } from "@/components/upcoming-goals";
 import { JoinCoachForm } from "./join-coach-form";
 import { RevokeButton } from "@/app/coach/revoke-button";
 import { DailyCheckin } from "./daily-checkin";
+import { ReadinessSummary } from "./readiness-summary";
+import { CheckinModal } from "./checkin-modal";
 import { CalendarFilters } from "./calendar-filters";
 
 const DAY_LABELS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
@@ -64,6 +66,7 @@ export default async function AthleteDashboard({
   return (
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
+      <CheckinModal date={today} existing={todaysCheckin} firstName={user.first_name} />
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -125,10 +128,14 @@ export default async function AthleteDashboard({
             )}
           </Card>
 
-          <Card>
-            <h2 className="mb-3 font-display text-xl text-ink">Ma forme du jour</h2>
-            <DailyCheckin date={today} existing={todaysCheckin} />
-          </Card>
+          {todaysCheckin ? (
+            <ReadinessSummary date={today} checkin={todaysCheckin} />
+          ) : (
+            <Card>
+              <h2 className="mb-3 font-display text-xl text-ink">Ma forme du jour</h2>
+              <DailyCheckin date={today} existing={todaysCheckin} />
+            </Card>
+          )}
         </section>
 
         <section className="mb-10">
@@ -137,6 +144,29 @@ export default async function AthleteDashboard({
         </section>
 
         <CalendarFilters offset={offset} sport={sport} category={category} />
+
+        <div className="mb-6 flex justify-between gap-1.5">
+          {weekDates.map((date, idx) => {
+            const hasWorkout = byDate[date].length > 0;
+            const isToday = date === today;
+            return (
+              <div key={date} className="flex-1 text-center">
+                <p className="text-[10.5px] font-semibold text-slate">{DAY_LABELS[idx].slice(0, 3).toUpperCase()}</p>
+                <div
+                  className={`mx-auto mt-1.5 flex h-9 w-9 items-center justify-center rounded-xl font-display text-[13px] font-semibold ${
+                    isToday ? "bg-ink text-white" : hasWorkout ? "bg-moss/10 text-moss-dark" : "bg-white text-ink"
+                  }`}
+                >
+                  {date.slice(8, 10)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mb-8 -mt-4 flex items-center gap-1.5">
+          <div className="h-2 w-2 flex-shrink-0 rounded-sm border border-moss/30 bg-moss/10" />
+          <p className="text-[10.5px] text-slate">Séance prévue par le coach</p>
+        </div>
 
         <h2 className="mb-3 font-display text-xl text-ink">Ma semaine</h2>
         <div className="grid gap-3 md:grid-cols-7">

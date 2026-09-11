@@ -294,13 +294,17 @@ export async function ready(): Promise<Client> {
 export async function dbGet<T = any>(sql: string, args: any[] = []): Promise<T | undefined> {
   const db = await ready();
   const rs = await db.execute({ sql, args });
-  return (rs.rows[0] as any) as T | undefined;
+  const row = rs.rows[0];
+  // Les lignes renvoyées par le client libSQL ne sont pas de vrais objets JS
+  // (indices numériques + méthodes en plus des colonnes) — on les transforme en
+  // objets plain pour pouvoir les passer sans avertissement à un composant client.
+  return row === undefined ? undefined : ({ ...(row as any) } as T);
 }
 
 export async function dbAll<T = any>(sql: string, args: any[] = []): Promise<T[]> {
   const db = await ready();
   const rs = await db.execute({ sql, args });
-  return rs.rows as any as T[];
+  return rs.rows.map((row) => ({ ...(row as any) })) as T[];
 }
 
 export interface RunResult {
