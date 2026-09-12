@@ -65,10 +65,10 @@ function SportIcon({ sport }: { sport: string }) {
   }
 }
 
-// Carte "hero" pour la séance du jour — cf. exploration design "Idée 2 : carte
-// hero séance", retenue par l'utilisateur. Les stats (charge, durée) deviennent
-// des badges dans la carte plutôt qu'un tableau séparé, puisqu'elles découlent
-// directement de la séance affichée.
+// Ligne discrète pour la séance du jour — "Piste A" des propositions
+// (liseré coloré + icône + titre/méta + chevron), retenue par l'utilisateur
+// à la place de l'ancienne carte hero : plus compacte, laisse de la place au
+// reste de l'écran d'accueil.
 export function SessionCard({ workout }: { workout: Workout }) {
   const effortDuration = workout.actual_duration_minutes ?? workout.duration_minutes;
   const charge = workout.rpe && effortDuration ? workout.rpe * effortDuration : null;
@@ -76,36 +76,24 @@ export function SessionCard({ workout }: { workout: Workout }) {
   return (
     <Link
       href={`/workouts/${workout.id}`}
-      className="block rounded-[22px] bg-status-postponed/10 p-5 transition-colors hover:bg-status-postponed/15"
+      className="flex items-center gap-3 rounded-2xl border border-line bg-white py-3 pl-0 pr-3.5 transition-colors hover:border-moss"
     >
-      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-status-postponed">
+      <span className="w-[3px] flex-shrink-0 self-stretch rounded-full" style={{ backgroundColor: workout.color }} />
+      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-paper-dim text-ink-soft">
         <SportIcon sport={workout.sport} />
-      </div>
-      <p className="mt-3.5 text-lg font-bold text-ink">{workout.title}</p>
-      <p className="mt-0.5 text-xs font-semibold text-status-postponed">
-        {workout.time ? `${workout.time} · ` : ""}
-        {sportLabel(workout.sport)}
-      </p>
-
-      <div className="mt-4 flex flex-wrap gap-1.5">
-        {workout.duration_minutes && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1.5 text-[11px] font-bold text-ink-soft">
-            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-status-postponed">
-              <circle cx="10" cy="10" r="7.5" />
-              <path d="M10 6v4l3 2" />
-            </svg>
-            {workout.duration_minutes} min
-          </span>
-        )}
-        {charge !== null && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1.5 text-[11px] font-bold text-ink-soft">
-            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-status-postponed">
-              <path d="M11 2L4 12h5l-1 6 8-11h-5l1-5z" />
-            </svg>
-            {charge} u.a.
-          </span>
-        )}
-      </div>
+      </span>
+      <span className="min-w-0 flex-1">
+        <p className="truncate text-[14.5px] font-semibold text-ink">{workout.title}</p>
+        <p className="mt-0.5 truncate text-xs text-slate">
+          {workout.time ? `${workout.time} · ` : ""}
+          {sportLabel(workout.sport)}
+          {workout.duration_minutes ? ` · ${workout.duration_minutes} min` : ""}
+          {charge !== null ? ` · ${charge} u.a.` : ""}
+        </p>
+      </span>
+      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 text-slate">
+        <path d="M7 5l6 5-6 5" />
+      </svg>
     </Link>
   );
 }

@@ -14,7 +14,7 @@ import { estimateCyclePhase } from "@/lib/cycle";
 import { getWeekDates, todayISO } from "@/lib/dates";
 import { Nav } from "@/components/nav";
 import { Card, sportLabel, LinkButton, Field, TextAreaField, Button } from "@/components/ui";
-import { ScrollNav } from "@/components/scroll-nav";
+import { SnapScrollNav } from "@/components/snap-scroll-nav";
 import { DailyCheckin } from "./daily-checkin";
 import { ReadinessSummary } from "./readiness-summary";
 import { CheckinModal } from "./checkin-modal";
@@ -24,6 +24,42 @@ import { DayLink } from "@/components/day-link";
 
 const DAY_LABELS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Un panneau = les 7 pastilles d'une semaine — extrait pour être répété trois
+// fois (semaine précédente/courante/suivante) dans le défilement continu.
+function WeekPillRow({
+  dates,
+  weekOffset,
+  today,
+  selectedDate,
+}: {
+  dates: string[];
+  weekOffset: number;
+  today: string;
+  selectedDate: string;
+}) {
+  return (
+    <div className="flex gap-1 py-2">
+      {dates.map((date, idx) => {
+        const isSel = date === selectedDate;
+        const isCurDay = date === today;
+        return (
+          <Link key={date} href={`/athlete?week=${weekOffset}&day=${date}`} className="flex-1 rounded-2xl py-2 text-center">
+            <p className="mb-1.5 text-[10px] uppercase text-slate">{DAY_LABELS[idx].slice(0, 1)}</p>
+            <div
+              className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full font-display text-[14px] font-semibold ${
+                isSel ? "bg-gold-light text-white" : "text-ink hover:bg-paper-dim"
+              }`}
+            >
+              {date.slice(8, 10)}
+            </div>
+            <div className={`mx-auto mt-1 h-1 w-1 rounded-full bg-gold-light ${isCurDay && !isSel ? "" : "invisible"}`} />
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
 
 export default async function AthleteDashboard({
   searchParams,
@@ -62,9 +98,6 @@ export default async function AthleteDashboard({
 
   function weekLink(o: number) {
     return `/athlete?week=${o}`;
-  }
-  function dayLink(o: number, date: string) {
-    return `/athlete?week=${o}&day=${date}`;
   }
 
   const formattedSelectedDate = new Date(`${selectedDate}T00:00:00`).toLocaleDateString("fr-FR", {
@@ -117,27 +150,17 @@ export default async function AthleteDashboard({
             </Link>
           </div>
 
-          <ScrollNav prevHref={weekLink(offset - 1)} nextHref={weekLink(offset + 1)} axis="x">
-            <div className="flex gap-1 py-2">
-              {weekDates.map((date, idx) => {
-                const isSel = date === selectedDate;
-                const isCurDay = date === today;
-                return (
-                  <Link key={date} href={dayLink(offset, date)} className="flex-1 rounded-2xl py-2 text-center">
-                    <p className="mb-1.5 text-[10px] uppercase text-slate">{DAY_LABELS[idx].slice(0, 1)}</p>
-                    <div
-                      className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full font-display text-[14px] font-semibold ${
-                        isSel ? "bg-gold-light text-white" : "text-ink hover:bg-paper-dim"
-                      }`}
-                    >
-                      {date.slice(8, 10)}
-                    </div>
-                    <div className={`mx-auto mt-1 h-1 w-1 rounded-full bg-gold-light ${isCurDay && !isSel ? "" : "invisible"}`} />
-                  </Link>
-                );
-              })}
-            </div>
-          </ScrollNav>
+          <SnapScrollNav
+            axis="x"
+            panesKey={`week-${offset}`}
+            prevHref={weekLink(offset - 1)}
+            nextHref={weekLink(offset + 1)}
+            panes={[
+              <WeekPillRow key="prev" dates={getWeekDates(offset - 1)} weekOffset={offset - 1} today={today} selectedDate={selectedDate} />,
+              <WeekPillRow key="cur" dates={weekDates} weekOffset={offset} today={today} selectedDate={selectedDate} />,
+              <WeekPillRow key="next" dates={getWeekDates(offset + 1)} weekOffset={offset + 1} today={today} selectedDate={selectedDate} />,
+            ]}
+          />
 
           <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2 border-t border-line pt-4">
             <DayLink href={`/athlete/day/${selectedDate}`} className="text-lg font-bold capitalize text-ink hover:underline">
