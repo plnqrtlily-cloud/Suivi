@@ -10,6 +10,8 @@ import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, TIME_OF_DAY_HINTS, groupByTimeOf
 import { todayISO } from "@/lib/dates";
 import { DeleteAvailabilityButton } from "@/components/delete-availability-button";
 import { EditAvailabilityModal } from "@/components/availability-modal";
+import { EditImportedActivityModal, DeleteImportedActivityButton } from "@/components/imported-activity-modal";
+import type { ImportedActivity } from "@/lib/queries";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const SOURCE_LABELS: Record<string, string> = { manual: "saisie manuelle", garmin: "Garmin Connect", strava: "Strava" };
@@ -22,6 +24,7 @@ interface CalendarEntry {
   color: string;
   href?: string;
   status?: string;
+  activity?: ImportedActivity;
 }
 
 export default async function AthleteDayPage({ params }: { params: Promise<{ date: string }> }) {
@@ -59,6 +62,7 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
         a.avg_hr ? `FC moy. ${a.avg_hr} · ` : ""
       }${SOURCE_LABELS[a.source] || a.source}`,
       color: "#7C5C46",
+      activity: a,
     })),
   ];
 
@@ -103,9 +107,17 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
         className={`rounded-md border border-line bg-white p-4 text-sm ${e.href ? "hover:border-moss" : ""}`}
         style={{ borderLeftColor: e.color, borderLeftWidth: 3 }}
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <p className="font-medium text-ink">{e.title}</p>
-          {e.status && <StatusBadge status={e.status} />}
+          <span className="flex flex-shrink-0 items-center gap-2">
+            {e.status && <StatusBadge status={e.status} />}
+            {e.activity && (
+              <span className="flex items-center gap-1.5 text-slate">
+                <EditImportedActivityModal activity={e.activity} className="hover:text-ink" />
+                <DeleteImportedActivityButton id={e.activity.id} className="hover:text-clay" />
+              </span>
+            )}
+          </span>
         </div>
         <p className="mt-1 text-slate">
           {e.time ? `${e.time} · ` : ""}

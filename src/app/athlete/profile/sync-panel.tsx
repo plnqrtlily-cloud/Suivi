@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { connectProviderAction, disconnectProviderAction, addImportedActivityAction } from "@/lib/actions";
 import { Button, Field, SelectField, sportLabel } from "@/components/ui";
+import { EditImportedActivityModal, DeleteImportedActivityButton } from "@/components/imported-activity-modal";
 
 // Type dupliqué volontairement depuis src/lib/queries.ts (et non importé) :
 // ce fichier est un composant client, importer queries.ts entraînerait
@@ -137,13 +138,19 @@ export function SyncPanel({ connections, activities }: { connections: ExternalCo
           <summary className="cursor-pointer">Activités importées récentes</summary>
           <ul className="mt-2 space-y-1">
             {activities.map((a) => (
-              <li key={a.id}>
-                {a.activity_date}
-                {a.activity_time ? ` ${a.activity_time}` : ""} — {sportLabel(a.sport)}
-                {a.duration_minutes ? ` · ${a.duration_minutes} min` : ""}
-                {a.distance_km ? ` · ${a.distance_km} km` : ""}
-                {a.avg_hr ? ` · FC moy. ${a.avg_hr}` : ""}
-                {a.source !== "manual" ? ` · via ${PROVIDER_LABELS[a.source]}` : " · saisie manuelle"}
+              <li key={a.id} className="flex items-center justify-between gap-2">
+                <span>
+                  {a.activity_date}
+                  {a.activity_time ? ` ${a.activity_time}` : ""} — {sportLabel(a.sport)}
+                  {a.duration_minutes ? ` · ${a.duration_minutes} min` : ""}
+                  {a.distance_km ? ` · ${a.distance_km} km` : ""}
+                  {a.avg_hr ? ` · FC moy. ${a.avg_hr}` : ""}
+                  {a.source !== "manual" ? ` · via ${PROVIDER_LABELS[a.source]}` : " · saisie manuelle"}
+                </span>
+                <span className="flex flex-shrink-0 items-center gap-2 text-slate">
+                  <EditImportedActivityModal activity={a} className="hover:text-ink" />
+                  <DeleteImportedActivityButton id={a.id} className="hover:text-clay" />
+                </span>
               </li>
             ))}
           </ul>

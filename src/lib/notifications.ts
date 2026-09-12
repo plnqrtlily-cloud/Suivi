@@ -1,7 +1,7 @@
 import { dbGet, dbAll, dbRun } from "./db";
 import { randomUUID } from "crypto";
 
-export type NotificationType = "new_workout" | "workout_cancelled" | "comment" | "event_reminder" | "message";
+export type NotificationType = "new_workout" | "workout_cancelled" | "workout_updated" | "comment" | "event_reminder" | "message";
 
 export interface Notification {
   id: string;

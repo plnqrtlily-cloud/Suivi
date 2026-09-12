@@ -269,6 +269,110 @@ export async function createWorkoutAction(params: {
   return { workoutIds };
 }
 
+// Modification d'une séance déjà créée par le coach — reprend la même logique
+// de résolution/insertion des blocs que createWorkoutAction, mais pour une
+// séance unique déjà existante (contrairement à la création, l'édition ne
+// porte jamais sur une plage de dates : chaque jour créé via le sélecteur
+// Booking reste un enregistrement `workouts` indépendant).
+export async function updateWorkoutAction(params: {
+  workoutId: string;
+  sport: string;
+  category: string;
+  priority?: string;
+  title: string;
+  date: string;
+  time?: string;
+  durationMinutes?: number;
+  description?: string;
+  color?: string;
+  blocks?: BlockInput[];
+}) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [params.workoutId]);
+  if (!workout) throw new Error("Séance introuvable.");
+  if (workout.coach_id !== user.id) throw new Error("Non autorisé.");
+  if (!params.date) throw new Error("Choisissez un jour.");
+
+  const resolvedBlocks =
+    params.sport === "strength" && params.blocks?.length
+      ? await Promise.all(
+          params.blocks
+            .filter((b) => b.exercise_name)
+            .map(async (b) => {
+              let resourceId: string | null = null;
+              if (b.resource_id) {
+                const resource = await dbGet<any>(`SELECT coach_id FROM resources WHERE id = ?`, [b.resource_id]);
+                if (resource && resource.coach_id === user.id) resourceId = b.resource_id;
+              }
+              return { ...b, resourceId };
+            })
+        )
+      : [];
+
+  const priority = params.category === "objectif" || params.category === "evenement" ? params.priority || null : null;
+  const color = params.color || "#1B4B4F";
+
+  await dbRun(
+    `UPDATE workouts SET sport = ?, category = ?, priority = ?, title = ?, date = ?, time = ?, duration_minutes = ?, description = ?, color = ?
+     WHERE id = ?`,
+    [
+      params.sport,
+      params.category,
+      priority,
+      params.title,
+      params.date,
+      params.time || null,
+      params.durationMinutes || null,
+      params.description || null,
+      color,
+      params.workoutId,
+    ]
+  );
+
+  // Reconstruit entièrement la structure (blocs + séries) plutôt que de tenter
+  // un diff — cascade FK sur workout_blocks -> exercise_sets (PRAGMA foreign_keys
+  // activé dans ce module), donc un seul DELETE suffit à tout nettoyer.
+  await dbRun(`DELETE FROM workout_blocks WHERE workout_id = ?`, [params.workoutId]);
+
+  let idx = 0;
+  for (const b of resolvedBlocks) {
+    const blockId = randomUUID();
+    await dbRun(
+      `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, notes, resource_id, order_index, training_quality)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [blockId, params.workoutId, b.block_type, b.exercise_name, b.notes || null, b.resourceId, idx, b.training_quality || null]
+    );
+
+    let setIdx = 0;
+    for (const s of b.sets || []) {
+      if (s.reps || s.load) {
+        await dbRun(
+          `INSERT INTO exercise_sets (id, block_id, set_number, reps, load, rest_seconds, rpe, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [randomUUID(), blockId, setIdx + 1, s.reps || null, s.load || null, s.restSeconds || null, s.rpe || null, setIdx]
+        );
+      }
+      setIdx++;
+    }
+    idx++;
+  }
+
+  revalidatePath(`/workouts/${params.workoutId}`);
+  revalidatePath(`/coach/athletes/${workout.athlete_id}`);
+  revalidatePath("/athlete");
+  revalidatePath(`/athlete/day/${params.date}`);
+  if (params.date !== workout.date) revalidatePath(`/athlete/day/${workout.date}`);
+
+  await createNotification({
+    userId: workout.athlete_id,
+    type: "workout_updated",
+    title: "Séance modifiée",
+    body: `« ${params.title} » a été modifiée par votre coach.`,
+    link: `/workouts/${params.workoutId}`,
+  });
+}
+
 export async function updateWorkoutStatusAction(params: {
   workoutId: string;
   status: "done" | "not_done" | "partial" | "postponed";
@@ -593,6 +697,51 @@ export async function addImportedActivityAction(formData: FormData) {
   revalidatePath("/athlete/profile");
   revalidatePath("/athlete");
   revalidatePath(`/athlete/day/${activityDate}`);
+}
+
+export async function updateImportedActivityAction(id: string, formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+
+  const existing = await dbGet<any>(`SELECT athlete_id, activity_date FROM imported_activities WHERE id = ?`, [id]);
+  if (!existing || existing.athlete_id !== user.id) throw new Error("Non autorisé.");
+
+  const activityDate = String(formData.get("activityDate") || "");
+  const activityTime = String(formData.get("activityTime") || "").trim();
+  const sport = String(formData.get("sport") || "");
+  const durationMinutes = formData.get("durationMinutes") ? Number(formData.get("durationMinutes")) : null;
+  const distanceKm = formData.get("distanceKm") ? Number(formData.get("distanceKm")) : null;
+  const avgHr = formData.get("avgHr") ? Number(formData.get("avgHr")) : null;
+  const elevationGainM = formData.get("elevationGainM") ? Number(formData.get("elevationGainM")) : null;
+  const avgPowerW = formData.get("avgPowerW") ? Number(formData.get("avgPowerW")) : null;
+  const rpe = formData.get("rpe") ? Number(formData.get("rpe")) : null;
+  const notes = String(formData.get("notes") || "").trim();
+  if (!activityDate || !sport) throw new Error("Date et sport requis.");
+
+  await dbRun(
+    `UPDATE imported_activities SET activity_date = ?, activity_time = ?, sport = ?, duration_minutes = ?, distance_km = ?, avg_hr = ?, elevation_gain_m = ?, avg_power_w = ?, rpe = ?, notes = ?
+     WHERE id = ?`,
+    [activityDate, activityTime || null, sport, durationMinutes, distanceKm, avgHr, elevationGainM, avgPowerW, rpe, notes || null, id]
+  );
+
+  revalidatePath("/athlete/profile");
+  revalidatePath("/athlete");
+  revalidatePath(`/athlete/day/${activityDate}`);
+  if (activityDate !== existing.activity_date) revalidatePath(`/athlete/day/${existing.activity_date}`);
+}
+
+export async function deleteImportedActivityAction(id: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+
+  const existing = await dbGet<any>(`SELECT athlete_id, activity_date FROM imported_activities WHERE id = ?`, [id]);
+  if (!existing || existing.athlete_id !== user.id) throw new Error("Non autorisé.");
+
+  await dbRun(`DELETE FROM imported_activities WHERE id = ?`, [id]);
+
+  revalidatePath("/athlete/profile");
+  revalidatePath("/athlete");
+  revalidatePath(`/athlete/day/${existing.activity_date}`);
 }
 
 // ---------- INDISPONIBILITÉS PERSONNELLES DE L'ATHLÈTE ----------

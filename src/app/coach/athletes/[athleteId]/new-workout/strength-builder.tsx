@@ -126,12 +126,14 @@ export function StrengthBuilder({
   onChange,
   resources,
   exerciseHistory,
+  initialBlocks,
 }: {
   onChange: (blocks: BlockRow[]) => void;
   resources: LibraryResource[];
   exerciseHistory: string[];
+  initialBlocks?: BlockRow[];
 }) {
-  const [rows, setRows] = useState<BlockRow[]>([]);
+  const [rows, setRows] = useState<BlockRow[]>(initialBlocks ?? []);
   const attachable = resources.filter((r) => r.type === "video" || r.type === "photo");
   // Les exercices déjà utilisés par ce coach apparaissent en premier dans l'autocomplétion,
   // avant la bibliothèque générique — cf. demande de s'inspirer des meilleures apps.

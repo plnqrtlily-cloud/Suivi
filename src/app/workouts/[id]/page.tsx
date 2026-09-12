@@ -1,4 +1,5 @@
 import { redirect, notFound } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getWorkoutById, getBlocksForWorkout, getCommentsForWorkout } from "@/lib/queries";
 import { Nav } from "@/components/nav";
@@ -73,7 +74,14 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
               )}
               <StatusBadge status={workout.status} />
             </div>
-            {user.role === "coach" && <CancelWorkoutButton workoutId={workout.id} />}
+            {user.role === "coach" && (
+              <div className="flex items-center gap-3">
+                <Link href={`/workouts/${workout.id}/edit`} className="text-sm font-semibold text-moss-dark hover:underline">
+                  Modifier
+                </Link>
+                <CancelWorkoutButton workoutId={workout.id} />
+              </div>
+            )}
           </div>
         </div>
 

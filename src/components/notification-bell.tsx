@@ -34,6 +34,12 @@ function TypeIcon({ type }: { type: string }) {
           <path d="M7.5 7.5l5 5M12.5 7.5l-5 5" />
         </svg>
       );
+    case "workout_updated":
+      return (
+        <svg {...ICON_PROPS}>
+          <path d="M13.5 3.5l3 3L7 16l-4 1 1-4z" />
+        </svg>
+      );
     case "comment":
       return (
         <svg {...ICON_PROPS}>

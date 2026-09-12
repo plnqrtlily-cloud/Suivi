@@ -237,7 +237,7 @@ CREATE TABLE IF NOT EXISTS resources (
 CREATE TABLE IF NOT EXISTS notifications (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK (type IN ('new_workout','workout_cancelled','comment','event_reminder','message')),
+  type TEXT NOT NULL CHECK (type IN ('new_workout','workout_cancelled','workout_updated','comment','event_reminder','message')),
   title TEXT NOT NULL,
   body TEXT,
   link TEXT,
@@ -353,9 +353,38 @@ async function migrateAvailabilityBlocksCheck(): Promise<void> {
   }
 }
 
+// Même contrainte SQLite qu'au-dessus (CHECK non modifiable par ALTER TABLE) :
+// 'workout_updated' a été ajouté aux types de notification après le premier
+// déploiement de la table notifications.
+async function migrateNotificationsCheck(): Promise<void> {
+  try {
+    const info = await client.execute(`SELECT sql FROM sqlite_master WHERE type='table' AND name='notifications'`);
+    const ddl = info.rows[0]?.sql as string | undefined;
+    if (!ddl || ddl.includes("workout_updated")) return;
+    await client.executeMultiple(`
+      CREATE TABLE IF NOT EXISTS notifications_new (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        type TEXT NOT NULL CHECK (type IN ('new_workout','workout_cancelled','workout_updated','comment','event_reminder','message')),
+        title TEXT NOT NULL,
+        body TEXT,
+        link TEXT,
+        read_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO notifications_new SELECT * FROM notifications;
+      DROP TABLE notifications;
+      ALTER TABLE notifications_new RENAME TO notifications;
+    `);
+  } catch {
+    // Best effort — en cas d'échec, la contrainte reste stricte mais aucune donnée n'est perdue.
+  }
+}
+
 async function init(): Promise<void> {
   await client.executeMultiple(SCHEMA_SQL);
   await migrateAvailabilityBlocksCheck();
+  await migrateNotificationsCheck();
   for (const migration of MIGRATIONS) {
     try {
       await client.execute(migration);
