@@ -1,13 +1,14 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
-import { getWorkoutsForAthlete, getCheckinForDate, getImportedActivitiesForRange } from "@/lib/queries";
+import { getWorkoutsForAthlete, getCheckinForDate, getImportedActivitiesForRange, getAvailabilityBlocksForRange } from "@/lib/queries";
 import { Nav } from "@/components/nav";
 import { Card, StatusBadge, sportLabel } from "@/components/ui";
 import { ReadinessSummary } from "../../readiness-summary";
 import { DailyCheckin } from "../../daily-checkin";
 import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, TIME_OF_DAY_HINTS, groupByTimeOfDay } from "@/lib/time-of-day";
 import { todayISO } from "@/lib/dates";
+import { DeleteAvailabilityButton } from "@/components/delete-availability-button";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const SOURCE_LABELS: Record<string, string> = { manual: "saisie manuelle", garmin: "Garmin Connect", strava: "Strava" };
@@ -30,10 +31,11 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
   const { date } = await params;
   if (!DATE_RE.test(date)) notFound();
 
-  const [workouts, imports, checkin] = await Promise.all([
+  const [workouts, imports, checkin, blocks] = await Promise.all([
     getWorkoutsForAthlete(user.id, date, date),
     getImportedActivitiesForRange(user.id, date, date),
     getCheckinForDate(user.id, date),
+    getAvailabilityBlocksForRange(user.id, date, date),
   ]);
   const today = todayISO();
   const isToday = date === today;
@@ -60,6 +62,8 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
   ];
 
   const { byPhase, unscheduled } = groupByTimeOfDay(entries, (e) => e.time);
+  const blocksByPhase: Record<string, typeof blocks> = { morning: [], midday: [], afternoon: [], evening: [] };
+  for (const b of blocks) blocksByPhase[b.time_of_day].push(b);
 
   const formattedDate = new Date(`${date}T00:00:00`).toLocaleDateString("fr-FR", {
     weekday: "long",
@@ -107,20 +111,35 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
         <section className="mb-8">
           <h2 className="mb-3 font-display text-xl text-ink">Séances &amp; activités</h2>
 
-          {entries.length === 0 ? (
+          {entries.length === 0 && blocks.length === 0 ? (
             <Card>
               <p className="text-sm text-slate">Rien de prévu ni d&apos;enregistré ce jour-là.</p>
             </Card>
           ) : (
             <div className="flex flex-col gap-5">
               {TIME_OF_DAY_ORDER.map((phase) =>
-                byPhase[phase].length > 0 ? (
+                byPhase[phase].length > 0 || blocksByPhase[phase].length > 0 ? (
                   <div key={phase}>
                     <div className="mb-2 flex items-baseline gap-2">
                       <h3 className="font-display text-base text-ink">{TIME_OF_DAY_LABELS[phase]}</h3>
                       <span className="text-xs text-slate">{TIME_OF_DAY_HINTS[phase]}</span>
                     </div>
                     <div className="flex flex-col gap-2">
+                      {blocksByPhase[phase].map((b) => (
+                        <div key={b.id} className="flex items-center justify-between gap-3 rounded-md bg-ink p-4 text-sm text-white">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                              <rect x="4" y="9" width="12" height="8" rx="1.5" />
+                              <path d="M7 9V6a3 3 0 016 0v3" />
+                            </svg>
+                            <span className="truncate">
+                              <b className="font-semibold">Indisponible</b>
+                              {b.reason && <span className="text-white/70"> — {b.reason}</span>}
+                            </span>
+                          </span>
+                          <DeleteAvailabilityButton id={b.id} className="flex-shrink-0 text-white/50 hover:text-white" />
+                        </div>
+                      ))}
                       {byPhase[phase].map((e) => (
                         <EntryCard key={e.id} e={e} />
                       ))}

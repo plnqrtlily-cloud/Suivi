@@ -1,5 +1,6 @@
 import { dbGet, dbAll } from "./db";
 import type { Checkin } from "./checkin-types";
+import type { TimeOfDay } from "./time-of-day";
 
 export interface AthleteLink {
   link_id: string;
@@ -209,6 +210,27 @@ export async function getImportedActivitiesForRange(
   return dbAll(
     `SELECT * FROM imported_activities WHERE athlete_id = ? AND activity_date BETWEEN ? AND ?
      ORDER BY activity_date ASC, activity_time ASC`,
+    [athleteId, fromDate, toDate]
+  );
+}
+
+// --- Indisponibilités personnelles de l'athlète (cf. calendrier) ---
+
+export interface AvailabilityBlock {
+  id: string;
+  athlete_id: string;
+  date: string;
+  time_of_day: TimeOfDay;
+  reason: string | null;
+}
+
+export async function getAvailabilityBlocksForRange(
+  athleteId: string,
+  fromDate: string,
+  toDate: string
+): Promise<AvailabilityBlock[]> {
+  return dbAll(
+    `SELECT * FROM availability_blocks WHERE athlete_id = ? AND date BETWEEN ? AND ? ORDER BY date ASC`,
     [athleteId, fromDate, toDate]
   );
 }

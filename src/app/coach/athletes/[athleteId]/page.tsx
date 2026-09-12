@@ -1,5 +1,4 @@
 import { redirect, notFound } from "next/navigation";
-import Link from "next/link";
 import { getCurrentUser, isCoachLinkedToAthlete, findUserById } from "@/lib/auth";
 import {
   getAthletesForCoach,
@@ -11,16 +10,18 @@ import {
   getUserGender,
   getUserAvatar,
   getUpcomingGoals,
-  getImportedActivities,
+  getImportedActivitiesForRange,
 } from "@/lib/queries";
 import { UpcomingGoals } from "@/components/upcoming-goals";
 import { getCycleSettings, estimateCyclePhase, PHASE_LABELS } from "@/lib/cycle";
 import { computeGlobalScore, scoreLabel, scoreColor } from "@/lib/checkin-types";
 import { Nav } from "@/components/nav";
-import { Card, StatusBadge, LinkButton, sportLabel } from "@/components/ui";
+import { Card, LinkButton } from "@/components/ui";
 import { Avatar } from "@/components/avatar";
 import { RevokeButton } from "@/app/coach/revoke-button";
-import { todayISO } from "@/lib/dates";
+import { todayISO, toISODate } from "@/lib/dates";
+import { AthleteCalendar } from "./athlete-calendar";
+import { TrainingInsights } from "./training-insights";
 
 const METRIC_LABELS: Record<string, string> = {
   weight_kg: "Poids (kg)",
@@ -34,19 +35,27 @@ const METRIC_LABELS: Record<string, string> = {
 
 export default async function AthleteDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ athleteId: string }>;
+  searchParams: Promise<{ view?: string; week?: string; month?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "coach") redirect("/athlete");
 
   const { athleteId } = await params;
+  const { view, week, month } = await searchParams;
 
   // Garde de permission (cf. prompt : règle la plus critique du produit).
   if (!(await isCoachLinkedToAthlete(user.id, athleteId))) {
     notFound();
   }
+
+  const today = todayISO();
+  const statsFrom = new Date();
+  statsFrom.setDate(statsFrom.getDate() - 90);
+  const statsFromISO = toISODate(statsFrom);
 
   // Requêtes indépendantes parties en parallèle plutôt qu'en série — la fiche
   // athlète est la page la plus lourde en aller-retours vers la base distante,
@@ -63,7 +72,7 @@ export default async function AthleteDetailPage({
     athleteGender,
     recentCheckins,
     upcomingGoals,
-    importedActivities,
+    recentImports,
   ] = await Promise.all([
     findUserById(athleteId),
     getUserAvatar(athleteId),
@@ -76,19 +85,15 @@ export default async function AthleteDetailPage({
     getUserGender(athleteId),
     getRecentCheckins(athleteId, 1),
     getUpcomingGoals(athleteId),
-    getImportedActivities(athleteId, 8),
+    getImportedActivitiesForRange(athleteId, statsFromISO, today),
   ]);
   if (!athlete) notFound();
 
   const link = links.find((l) => l.athlete_id === athleteId);
-  const today = todayISO();
-  const workouts = allWorkouts.filter((w) => w.date >= today).slice(0, 10);
-  const pastWorkouts = allWorkouts.filter((w) => w.date < today).slice(-5).reverse();
   const journal = journalAll.slice(0, 3);
   const cycleEstimate =
     athleteGender === "female" && cycleSettings.share_with_coaches ? await estimateCyclePhase(athleteId) : null;
   const latestCheckin = recentCheckins[0];
-  const SOURCE_LABELS: Record<string, string> = { manual: "saisie manuelle", garmin: "Garmin Connect", strava: "Strava" };
 
   return (
     <div className="min-h-screen bg-paper">
@@ -191,64 +196,15 @@ export default async function AthleteDetailPage({
           <UpcomingGoals goals={upcomingGoals} />
         </div>
 
-        <h2 className="mb-3 font-display text-xl text-ink">Séances à venir</h2>
-        <div className="mb-8 grid gap-2">
-          {workouts.length === 0 && <p className="text-sm text-slate">Aucune séance planifiée.</p>}
-          {workouts.map((w) => (
-            <Link key={w.id} href={`/workouts/${w.id}`}>
-              <Card className="flex items-center justify-between rounded-2xl hover:border-moss">
-                <div>
-                  <p className="font-medium text-ink">{w.title}</p>
-                  <p className="text-sm text-slate">
-                    {w.date} {w.time ? `à ${w.time}` : ""} · {sportLabel(w.sport)}
-                  </p>
-                </div>
-                <StatusBadge status={w.status} />
-              </Card>
-            </Link>
-          ))}
+        <h2 className="mb-3 font-display text-xl text-ink">Bilan d&apos;entraînement</h2>
+        <p className="mb-3 text-sm text-slate">Séances faites et activités importées des 90 derniers jours.</p>
+        <div className="mb-8">
+          <TrainingInsights workouts={allWorkouts} imports={recentImports} />
         </div>
 
-        <h2 className="mb-3 font-display text-xl text-ink">Séances récentes</h2>
-        <div className="mb-8 grid gap-2">
-          {pastWorkouts.length === 0 && <p className="text-sm text-slate">Pas encore d&apos;historique.</p>}
-          {pastWorkouts.map((w) => (
-            <Link key={w.id} href={`/workouts/${w.id}`}>
-              <Card className="flex items-center justify-between rounded-2xl hover:border-moss">
-                <div>
-                  <p className="font-medium text-ink">{w.title}</p>
-                  <p className="text-sm text-slate">
-                    {w.date} · {sportLabel(w.sport)}
-                    {w.rpe ? ` · RPE ${w.rpe}/10` : ""}
-                  </p>
-                </div>
-                <StatusBadge status={w.status} />
-              </Card>
-            </Link>
-          ))}
-        </div>
-
-        <h2 className="mb-3 font-display text-xl text-ink">Activités importées par l&apos;athlète</h2>
-        <div className="grid gap-2">
-          {importedActivities.length === 0 && (
-            <p className="text-sm text-slate">Aucune activité importée ou saisie manuellement pour l&apos;instant.</p>
-          )}
-          {importedActivities.map((a) => (
-            <Card key={a.id} className="flex items-center justify-between rounded-2xl">
-              <div>
-                <p className="font-medium text-ink">{sportLabel(a.sport)}</p>
-                <p className="text-sm text-slate">
-                  {a.activity_date}
-                  {a.activity_time ? ` à ${a.activity_time}` : ""}
-                  {a.duration_minutes ? ` · ${a.duration_minutes} min` : ""}
-                  {a.distance_km ? ` · ${a.distance_km} km` : ""}
-                  {a.avg_hr ? ` · FC moy. ${a.avg_hr}` : ""}
-                </p>
-              </div>
-              <span className="text-xs text-slate">{SOURCE_LABELS[a.source] || a.source}</span>
-            </Card>
-          ))}
-        </div>
+        <h2 className="mb-3 font-display text-xl text-ink">Programmation</h2>
+        <p className="mb-3 text-sm text-slate">Séances récentes, à venir et activités importées, en un coup d&apos;œil.</p>
+        <AthleteCalendar athleteId={athleteId} view={view} week={week} month={month} today={today} />
       </main>
     </div>
   );

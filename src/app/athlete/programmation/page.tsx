@@ -1,12 +1,15 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
-import { getWorkoutsForAthlete, getImportedActivitiesForRange } from "@/lib/queries";
+import { getWorkoutsForAthlete, getImportedActivitiesForRange, getAvailabilityBlocksForRange } from "@/lib/queries";
 import { getWeekDates, getMonthGrid, monthLabel, todayISO } from "@/lib/dates";
+import { TIME_OF_DAY_LABELS } from "@/lib/time-of-day";
 import { Nav } from "@/components/nav";
 import { sportLabel } from "@/components/ui";
 import { DayLink } from "@/components/day-link";
+import { DeleteAvailabilityButton } from "@/components/delete-availability-button";
 import { MonthScrollNav } from "./month-scroll-nav";
+import { AddAvailabilityModal } from "./add-availability-modal";
 
 const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 const DAY_LETTERS = ["L", "M", "M", "J", "V", "S", "D"];
@@ -30,6 +33,7 @@ export default async function ProgrammationPage({
       <main className="mx-auto max-w-3xl px-6 py-10">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="font-display text-3xl text-ink">Calendrier</h1>
+          <AddAvailabilityModal defaultDate={today} />
         </div>
 
         <div className="mb-6 flex rounded-2xl bg-paper-dim p-1">
@@ -63,9 +67,10 @@ export default async function ProgrammationPage({
 
 async function WeekView({ athleteId, offset, today }: { athleteId: string; offset: number; today: string }) {
   const weekDates = getWeekDates(offset);
-  const [workouts, imports] = await Promise.all([
+  const [workouts, imports, blocks] = await Promise.all([
     getWorkoutsForAthlete(athleteId, weekDates[0], weekDates[6]),
     getImportedActivitiesForRange(athleteId, weekDates[0], weekDates[6]),
+    getAvailabilityBlocksForRange(athleteId, weekDates[0], weekDates[6]),
   ]);
 
   return (
@@ -87,6 +92,7 @@ async function WeekView({ athleteId, offset, today }: { athleteId: string; offse
         {weekDates.map((date, idx) => {
           const dayWorkouts = workouts.filter((w) => w.date === date).sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"));
           const dayImports = imports.filter((a) => a.activity_date === date);
+          const dayBlocks = blocks.filter((b) => b.date === date);
           const totalMinutes = dayWorkouts.reduce((sum, w) => sum + (w.duration_minutes || 0), 0);
           const isToday = date === today;
 
@@ -107,8 +113,26 @@ async function WeekView({ athleteId, offset, today }: { athleteId: string; offse
                 )}
               </div>
 
+              {dayBlocks.length > 0 && (
+                <div className="mb-2 flex flex-col gap-1.5 pl-9">
+                  {dayBlocks.map((b) => (
+                    <div key={b.id} className="flex items-center justify-between gap-2 rounded-lg bg-ink px-2.5 py-1.5 text-white">
+                      <span className="flex min-w-0 items-center gap-1.5 text-xs">
+                        <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                          <rect x="4" y="9" width="12" height="8" rx="1.5" />
+                          <path d="M7 9V6a3 3 0 016 0v3" />
+                        </svg>
+                        <b className="font-semibold">{TIME_OF_DAY_LABELS[b.time_of_day]}</b>
+                        {b.reason && <span className="truncate text-white/70">— {b.reason}</span>}
+                      </span>
+                      <DeleteAvailabilityButton id={b.id} className="flex-shrink-0 text-white/50 hover:text-white" />
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {dayWorkouts.length === 0 && dayImports.length === 0 ? (
-                <p className="pl-9 text-xs text-slate">Repos</p>
+                dayBlocks.length === 0 && <p className="pl-9 text-xs text-slate">Repos</p>
               ) : (
                 <div className="flex flex-col gap-1.5 pl-9">
                   {dayWorkouts.map((w) => (
@@ -145,7 +169,10 @@ async function MonthView({ athleteId, monthParam, today }: { athleteId: string; 
     : [now.getFullYear(), now.getMonth() + 1];
 
   const grid = getMonthGrid(year, month);
-  const workouts = await getWorkoutsForAthlete(athleteId, grid[0].date, grid[grid.length - 1].date);
+  const [workouts, blocks] = await Promise.all([
+    getWorkoutsForAthlete(athleteId, grid[0].date, grid[grid.length - 1].date),
+    getAvailabilityBlocksForRange(athleteId, grid[0].date, grid[grid.length - 1].date),
+  ]);
 
   function prevMonth() {
     const d = new Date(year, month - 2, 1);
@@ -186,6 +213,7 @@ async function MonthView({ athleteId, monthParam, today }: { athleteId: string; 
             const dayWorkouts = workouts.filter((w) => w.date === cell.date);
             const hasGoal = dayWorkouts.some((w) => w.category === "objectif" || w.category === "evenement");
             const hasTraining = dayWorkouts.some((w) => w.category !== "objectif" && w.category !== "evenement");
+            const hasBlock = blocks.some((b) => b.date === cell.date);
             const isToday = cell.date === today;
 
             return (
@@ -200,6 +228,7 @@ async function MonthView({ athleteId, monthParam, today }: { athleteId: string; 
                 <span className="flex h-1.5 gap-0.5">
                   {hasTraining && <span className="h-1.5 w-1.5 rounded-full bg-moss" />}
                   {hasGoal && <span className="h-1.5 w-1.5 rounded-sm bg-gold-light" />}
+                  {hasBlock && <span className="h-1.5 w-1.5 rounded-sm bg-ink" />}
                 </span>
               </DayLink>
             );
@@ -213,6 +242,9 @@ async function MonthView({ athleteId, monthParam, today }: { athleteId: string; 
         </span>
         <span className="flex items-center gap-1.5">
           <span className="h-1.5 w-1.5 rounded-sm bg-gold-light" /> Objectif / échéance
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-1.5 w-1.5 rounded-sm bg-ink" /> Indisponibilité
         </span>
       </div>
     </div>

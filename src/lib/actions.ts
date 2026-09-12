@@ -595,6 +595,49 @@ export async function addImportedActivityAction(formData: FormData) {
   revalidatePath(`/athlete/day/${activityDate}`);
 }
 
+// ---------- INDISPONIBILITÉS PERSONNELLES DE L'ATHLÈTE ----------
+// L'athlète pose lui-même ses créneaux indisponibles (rendez-vous, obligations
+// personnelles...) ; visibles par ses coachs actifs pour planifier les séances
+// autour plutôt qu'en plein dessus — pas de bascule de partage séparée ici,
+// contrairement au cycle menstruel : il ne s'agit pas d'une donnée de santé.
+const VALID_TIME_OF_DAY = ["morning", "midday", "afternoon", "evening"];
+
+export async function addAvailabilityBlockAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+
+  const date = String(formData.get("date") || "");
+  const timeOfDay = String(formData.get("timeOfDay") || "");
+  const reason = String(formData.get("reason") || "").trim();
+  if (!date || !VALID_TIME_OF_DAY.includes(timeOfDay)) throw new Error("Choisissez un jour et un créneau.");
+
+  await dbRun(`INSERT INTO availability_blocks (id, athlete_id, date, time_of_day, reason) VALUES (?, ?, ?, ?, ?)`, [
+    randomUUID(),
+    user.id,
+    date,
+    timeOfDay,
+    reason || null,
+  ]);
+
+  revalidatePath("/athlete/programmation");
+  revalidatePath("/athlete");
+  revalidatePath(`/athlete/day/${date}`);
+}
+
+export async function deleteAvailabilityBlockAction(id: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Non autorisé.");
+
+  const block = await dbGet<any>(`SELECT athlete_id, date FROM availability_blocks WHERE id = ?`, [id]);
+  if (!block || block.athlete_id !== user.id) throw new Error("Non autorisé.");
+
+  await dbRun(`DELETE FROM availability_blocks WHERE id = ?`, [id]);
+
+  revalidatePath("/athlete/programmation");
+  revalidatePath("/athlete");
+  revalidatePath(`/athlete/day/${block.date}`);
+}
+
 // ---------- BIBLIOTHÈQUE DE RESSOURCES (vidéos, photos, matériel) ----------
 // Le coach dépose lui-même ses propres documents (cf. demande explicite).
 // Chaque coach ne voit et ne gère que ses propres ressources.

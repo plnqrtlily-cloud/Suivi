@@ -277,6 +277,18 @@ CREATE TABLE IF NOT EXISTS exercise_sets (
   rpe INTEGER,
   order_index INTEGER NOT NULL DEFAULT 0
 );
+-- Indisponibilités personnelles de l'athlète (rendez-vous, obligations...),
+-- par créneau de la journée plutôt qu'horaire précis — l'athlète les pose
+-- lui-même sur son calendrier, le coach les voit pour planifier ses séances
+-- autour plutôt qu'en plein dessus.
+CREATE TABLE IF NOT EXISTS availability_blocks (
+  id TEXT PRIMARY KEY,
+  athlete_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  time_of_day TEXT NOT NULL CHECK (time_of_day IN ('morning','midday','afternoon','evening')),
+  reason TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 -- Discussion coach <-> athlète, indépendante d'une séance précise (cf. demande V3 :
 -- fonctionnalité de discussion). Scindée par paire coach/athlète puisqu'un athlète
 -- peut avoir plusieurs coachs et un coach plusieurs athlètes.
