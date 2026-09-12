@@ -159,7 +159,7 @@ export async function createWorkoutAction(params: {
   category: string;
   priority?: string;
   title: string;
-  date: string;
+  dates: string[];
   time?: string;
   durationMinutes?: number;
   description?: string;
@@ -171,71 +171,93 @@ export async function createWorkoutAction(params: {
   if (!(await isCoachLinkedToAthlete(user.id, params.athleteId))) {
     throw new Error("Ce coach n'est pas lié à cet athlète.");
   }
+  if (!params.dates.length) throw new Error("Choisissez au moins un jour.");
 
-  const workoutId = randomUUID();
-  await dbRun(
-    `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, priority, title, date, time, duration_minutes, description, color)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      workoutId,
-      user.id,
-      params.athleteId,
-      params.sport,
-      params.category,
-      params.category === "objectif" || params.category === "evenement" ? params.priority || null : null,
-      params.title,
-      params.date,
-      params.time || null,
-      params.durationMinutes || null,
-      params.description || null,
-      params.color || "#2F6F5E",
-    ]
-  );
+  // Résolu une seule fois (pas par date créée) : un exercice ne peut pointer
+  // que vers une ressource appartenant au coach qui crée la séance.
+  const resolvedBlocks =
+    params.sport === "strength" && params.blocks?.length
+      ? await Promise.all(
+          params.blocks
+            .filter((b) => b.exercise_name)
+            .map(async (b) => {
+              let resourceId: string | null = null;
+              if (b.resource_id) {
+                const resource = await dbGet<any>(`SELECT coach_id FROM resources WHERE id = ?`, [b.resource_id]);
+                if (resource && resource.coach_id === user.id) resourceId = b.resource_id;
+              }
+              return { ...b, resourceId };
+            })
+        )
+      : [];
 
-  if (params.sport === "strength" && params.blocks?.length) {
-    let idx = 0;
-    for (const b of params.blocks) {
-      if (!b.exercise_name) continue;
-      // Un exercice ne peut pointer que vers une ressource appartenant au coach qui crée la séance
-      // (règle de permission, même logique que pour les athlètes liés).
-      let resourceId: string | null = null;
-      if (b.resource_id) {
-        const resource = await dbGet<any>(`SELECT coach_id FROM resources WHERE id = ?`, [b.resource_id]);
-        if (resource && resource.coach_id === user.id) resourceId = b.resource_id;
-      }
-      const blockId = randomUUID();
+  const priority = params.category === "objectif" || params.category === "evenement" ? params.priority || null : null;
+  const color = params.color || "#1B4B4F";
+
+  const workoutIds = await Promise.all(
+    params.dates.map(async (date) => {
+      const workoutId = randomUUID();
       await dbRun(
-        `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, notes, resource_id, order_index)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [blockId, workoutId, b.block_type, b.exercise_name, b.notes || null, resourceId, idx]
+        `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, priority, title, date, time, duration_minutes, description, color)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          workoutId,
+          user.id,
+          params.athleteId,
+          params.sport,
+          params.category,
+          priority,
+          params.title,
+          date,
+          params.time || null,
+          params.durationMinutes || null,
+          params.description || null,
+          color,
+        ]
       );
 
-      let setIdx = 0;
-      for (const s of b.sets || []) {
-        if (s.reps || s.load) {
-          await dbRun(
-            `INSERT INTO exercise_sets (id, block_id, set_number, reps, load, order_index) VALUES (?, ?, ?, ?, ?, ?)`,
-            [randomUUID(), blockId, setIdx + 1, s.reps || null, s.load || null, setIdx]
-          );
+      let idx = 0;
+      for (const b of resolvedBlocks) {
+        const blockId = randomUUID();
+        await dbRun(
+          `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, notes, resource_id, order_index)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [blockId, workoutId, b.block_type, b.exercise_name, b.notes || null, b.resourceId, idx]
+        );
+
+        let setIdx = 0;
+        for (const s of b.sets || []) {
+          if (s.reps || s.load) {
+            await dbRun(
+              `INSERT INTO exercise_sets (id, block_id, set_number, reps, load, order_index) VALUES (?, ?, ?, ?, ?, ?)`,
+              [randomUUID(), blockId, setIdx + 1, s.reps || null, s.load || null, setIdx]
+            );
+          }
+          setIdx++;
         }
-        setIdx++;
+        idx++;
       }
-      idx++;
-    }
-  }
+
+      return workoutId;
+    })
+  );
 
   revalidatePath(`/coach/athletes/${params.athleteId}`);
   revalidatePath("/athlete");
 
+  const body =
+    params.dates.length === 1
+      ? `« ${params.title} » prévue le ${params.dates[0]}.`
+      : `« ${params.title} » prévue ${params.dates.length} jours, du ${params.dates[0]} au ${params.dates[params.dates.length - 1]}.`;
   await createNotification({
     userId: params.athleteId,
     type: "new_workout",
     title: "Nouvelle séance",
-    body: `« ${params.title} » prévue le ${params.date}.`,
-    link: `/workouts/${workoutId}`,
+    body,
+    link: `/workouts/${workoutIds[0]}`,
   });
 
-  return { workoutId };
+  return { workoutIds };
 }
 
 export async function updateWorkoutStatusAction(params: {

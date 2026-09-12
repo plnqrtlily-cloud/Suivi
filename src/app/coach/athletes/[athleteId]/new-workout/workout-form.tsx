@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createWorkoutAction } from "@/lib/actions";
 import { Field, SelectField, TextAreaField, Button, ErrorText } from "@/components/ui";
+import { DateRangePicker, dateRangeToList } from "@/components/date-range-picker";
 import { StrengthBuilder, BlockRow, LibraryResource } from "./strength-builder";
 
 const SPORTS = [
@@ -39,14 +40,21 @@ export function WorkoutForm({
   const [category, setCategory] = useState("entrainement");
   const [color, setColor] = useState(COLORS[0]);
   const [blocks, setBlocks] = useState<BlockRow[]>([]);
+  const [rangeStart, setRangeStart] = useState<string | null>(null);
+  const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   const [error, setError] = useState<string | undefined>();
   const [pending, setPending] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!rangeStart || !rangeEnd) {
+      setError("Choisissez au moins un jour dans le calendrier.");
+      return;
+    }
     setPending(true);
     setError(undefined);
     const formData = new FormData(e.currentTarget);
+    const dates = dateRangeToList(rangeStart, rangeEnd);
     try {
       const result = await createWorkoutAction({
         athleteId,
@@ -54,7 +62,7 @@ export function WorkoutForm({
         category,
         priority: String(formData.get("priority") || ""),
         title: String(formData.get("title")),
-        date: String(formData.get("date")),
+        dates,
         time: String(formData.get("time") || ""),
         durationMinutes: formData.get("duration") ? Number(formData.get("duration")) : undefined,
         description: String(formData.get("description") || ""),
@@ -70,7 +78,7 @@ export function WorkoutForm({
               }))
             : undefined,
       });
-      router.push(`/workouts/${result.workoutId}`);
+      router.push(dates.length === 1 ? `/workouts/${result.workoutIds[0]}` : `/coach/athletes/${athleteId}`);
     } catch (err: any) {
       setError(err.message || "Une erreur est survenue.");
       setPending(false);
@@ -111,8 +119,16 @@ export function WorkoutForm({
         </SelectField>
       )}
 
-      <div className="grid grid-cols-3 gap-4">
-        <Field label="Date" type="date" name="date" required />
+      <div>
+        <span className="mb-1.5 block text-sm font-medium text-ink-soft">Jour(s)</span>
+        <p className="mb-2 text-xs text-slate">
+          Cliquez un jour pour une séance unique, ou un deuxième jour pour répéter la même séance sur toute la période
+          (comme sur Booking pour un séjour).
+        </p>
+        <DateRangePicker start={rangeStart} end={rangeEnd} onChange={({ start, end }) => { setRangeStart(start); setRangeEnd(end); }} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
         <Field label="Heure (facultatif)" type="time" name="time" />
         <Field label="Durée prévue (minutes)" type="number" name="duration" min={0} />
       </div>
