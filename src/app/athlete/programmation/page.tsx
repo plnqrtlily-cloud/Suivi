@@ -61,8 +61,10 @@ export default async function ProgrammationPage({
 
 async function WeekView({ athleteId, offset, today }: { athleteId: string; offset: number; today: string }) {
   const weekDates = getWeekDates(offset);
-  const workouts = await getWorkoutsForAthlete(athleteId, weekDates[0], weekDates[6]);
-  const imports = await getImportedActivitiesForRange(athleteId, weekDates[0], weekDates[6]);
+  const [workouts, imports] = await Promise.all([
+    getWorkoutsForAthlete(athleteId, weekDates[0], weekDates[6]),
+    getImportedActivitiesForRange(athleteId, weekDates[0], weekDates[6]),
+  ]);
 
   return (
     <div>

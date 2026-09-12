@@ -80,8 +80,10 @@ function NavIcon({ name, className }: { name: NavIconName; className?: string })
 
 export async function Nav({ user }: { user: User }) {
   const homeHref = user.role === "coach" ? "/coach" : "/athlete";
-  const notifications = await getNotifications(user.id);
-  const avatar = user.role === "athlete" ? await getUserAvatar(user.id) : undefined;
+  const [notifications, avatar] = await Promise.all([
+    getNotifications(user.id),
+    user.role === "athlete" ? getUserAvatar(user.id) : Promise.resolve(undefined),
+  ]);
 
   const navItems: { href: string; label: string; icon: NavIconName }[] = [
     { href: homeHref, icon: "home", label: user.role === "coach" ? "Mes athlètes" : "Aujourd'hui" },

@@ -15,12 +15,10 @@ export default async function AthleteMessagesPage({
   if (user.role !== "athlete") redirect("/coach");
 
   const { coachId } = await params;
-  if (!(await isCoachLinkedToAthlete(coachId, user.id))) notFound();
-  const coach = await findUserById(coachId);
-  if (!coach) notFound();
+  const [linked, coach] = await Promise.all([isCoachLinkedToAthlete(coachId, user.id), findUserById(coachId)]);
+  if (!linked || !coach) notFound();
 
-  const messages = await getMessages(coachId, user.id);
-  await markMessagesReadAction(coachId, user.id);
+  const [messages] = await Promise.all([getMessages(coachId, user.id), markMessagesReadAction(coachId, user.id)]);
 
   return (
     <div className="min-h-screen bg-paper">

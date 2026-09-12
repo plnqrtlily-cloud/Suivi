@@ -36,8 +36,21 @@ export default async function AthleteProfilePage() {
   if (!user) redirect("/login");
   if (user.role !== "athlete") redirect("/coach");
 
-  const latest = await getLatestMeasurements(user.id);
-  const historyAll = await getMeasurementsForAthlete(user.id);
+  // Requêtes indépendantes parties en parallèle plutôt qu'en série (chacune est
+  // un aller-retour réseau vers la base distante en production — les enchaîner
+  // une par une multipliait la latence de la page par leur nombre).
+  const [latest, historyAll, injuries, journal, completion, gender, avatar, externalConnections, importedActivities] =
+    await Promise.all([
+      getLatestMeasurements(user.id),
+      getMeasurementsForAthlete(user.id),
+      getInjuriesForAthlete(user.id),
+      getJournalForAthlete(user.id),
+      profileCompletion(user.id),
+      getUserGender(user.id),
+      getUserAvatar(user.id),
+      getExternalConnections(user.id),
+      getImportedActivities(user.id),
+    ]);
   const history = historyAll.slice(0, 10);
   const seriesByMetric: Record<string, MeasurementPoint[]> = {};
   for (const h of historyAll as any[]) {
@@ -46,16 +59,11 @@ export default async function AthleteProfilePage() {
   for (const key in seriesByMetric) {
     seriesByMetric[key].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
   }
-  const injuries = await getInjuriesForAthlete(user.id);
-  const journal = await getJournalForAthlete(user.id);
-  const completion = await profileCompletion(user.id);
-  const gender = await getUserGender(user.id);
-  const avatar = await getUserAvatar(user.id);
-  const externalConnections = await getExternalConnections(user.id);
-  const importedActivities = await getImportedActivities(user.id);
-  const cycleSettings = gender === "female" ? await getCycleSettings(user.id) : null;
-  const cycleEstimate = gender === "female" ? await estimateCyclePhase(user.id) : null;
-  const cycleEntries = gender === "female" ? await getCycleEntries(user.id) : [];
+
+  const [cycleSettings, cycleEstimate, cycleEntries] =
+    gender === "female"
+      ? await Promise.all([getCycleSettings(user.id), estimateCyclePhase(user.id), getCycleEntries(user.id)])
+      : [null, null, []];
 
   return (
     <div className="min-h-screen bg-paper">

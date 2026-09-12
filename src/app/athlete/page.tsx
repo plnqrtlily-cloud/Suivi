@@ -40,17 +40,23 @@ export default async function AthleteDashboard({
   const selectedDate = day && DATE_RE.test(day) && weekDates.includes(day) ? day : weekDates.includes(today) ? today : weekDates[0];
   const isToday = selectedDate === today;
 
-  const coaches = await getCoachesForAthlete(user.id);
-  const completion = await profileCompletion(user.id);
-  const todaysCheckin = await getCheckinForDate(user.id, today);
-  const selectedCheckin = isToday ? todaysCheckin : await getCheckinForDate(user.id, selectedDate);
-
-  const selectedWorkouts = await getWorkoutsForAthlete(user.id, selectedDate, selectedDate);
-  const selectedImports = await getImportedActivitiesForRange(user.id, selectedDate, selectedDate);
+  // Toutes ces requêtes sont indépendantes : parties en parallèle plutôt qu'en
+  // série pour ne pas payer N×latence réseau vers la base distante (Turso) à
+  // chaque chargement de la page.
+  const [coaches, completion, todaysCheckin, otherDayCheckin, selectedWorkouts, selectedImports, gender] =
+    await Promise.all([
+      getCoachesForAthlete(user.id),
+      profileCompletion(user.id),
+      getCheckinForDate(user.id, today),
+      isToday ? Promise.resolve(undefined) : getCheckinForDate(user.id, selectedDate),
+      getWorkoutsForAthlete(user.id, selectedDate, selectedDate),
+      getImportedActivitiesForRange(user.id, selectedDate, selectedDate),
+      getUserGender(user.id),
+    ]);
+  const selectedCheckin = isToday ? todaysCheckin : otherDayCheckin;
   const primaryWorkout = [...selectedWorkouts].sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"))[0];
   const otherCount = selectedWorkouts.length + selectedImports.length - (primaryWorkout ? 1 : 0);
 
-  const gender = await getUserGender(user.id);
   const cycleEstimate = gender === "female" ? await estimateCyclePhase(user.id) : null;
 
   function weekLink(o: number) {

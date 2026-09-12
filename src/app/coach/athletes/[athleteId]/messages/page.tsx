@@ -15,13 +15,14 @@ export default async function CoachMessagesPage({
   if (user.role !== "coach") redirect("/athlete");
 
   const { athleteId } = await params;
-  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) notFound();
-  const athlete = await findUserById(athleteId);
-  if (!athlete) notFound();
+  const [linked, athlete, athleteAvatar] = await Promise.all([
+    isCoachLinkedToAthlete(user.id, athleteId),
+    findUserById(athleteId),
+    getUserAvatar(athleteId),
+  ]);
+  if (!linked || !athlete) notFound();
 
-  const messages = await getMessages(user.id, athleteId);
-  await markMessagesReadAction(user.id, athleteId);
-  const athleteAvatar = await getUserAvatar(athleteId);
+  const [messages] = await Promise.all([getMessages(user.id, athleteId), markMessagesReadAction(user.id, athleteId)]);
 
   return (
     <div className="min-h-screen bg-paper">

@@ -48,29 +48,46 @@ export default async function AthleteDetailPage({
     notFound();
   }
 
-  const athlete = await findUserById(athleteId);
+  // Requêtes indépendantes parties en parallèle plutôt qu'en série — la fiche
+  // athlète est la page la plus lourde en aller-retours vers la base distante,
+  // les enchaîner une par une multipliait sa latence par leur nombre.
+  const [
+    athlete,
+    athleteAvatar,
+    links,
+    allWorkouts,
+    measurements,
+    injuries,
+    journalAll,
+    cycleSettings,
+    athleteGender,
+    recentCheckins,
+    upcomingGoals,
+    importedActivities,
+  ] = await Promise.all([
+    findUserById(athleteId),
+    getUserAvatar(athleteId),
+    getAthletesForCoach(user.id),
+    getWorkoutsForAthlete(athleteId),
+    getLatestMeasurements(athleteId),
+    getInjuriesForAthlete(athleteId),
+    getJournalForAthlete(athleteId),
+    getCycleSettings(athleteId),
+    getUserGender(athleteId),
+    getRecentCheckins(athleteId, 1),
+    getUpcomingGoals(athleteId),
+    getImportedActivities(athleteId, 8),
+  ]);
   if (!athlete) notFound();
-  const athleteAvatar = await getUserAvatar(athleteId);
 
-  const links = await getAthletesForCoach(user.id);
   const link = links.find((l) => l.athlete_id === athleteId);
-
   const today = todayISO();
-  const allWorkouts = await getWorkoutsForAthlete(athleteId);
   const workouts = allWorkouts.filter((w) => w.date >= today).slice(0, 10);
   const pastWorkouts = allWorkouts.filter((w) => w.date < today).slice(-5).reverse();
-  const measurements = await getLatestMeasurements(athleteId);
-  const injuries = await getInjuriesForAthlete(athleteId);
-  const journalAll = await getJournalForAthlete(athleteId);
   const journal = journalAll.slice(0, 3);
-  const cycleSettings = await getCycleSettings(athleteId);
-  const athleteGender = await getUserGender(athleteId);
   const cycleEstimate =
     athleteGender === "female" && cycleSettings.share_with_coaches ? await estimateCyclePhase(athleteId) : null;
-  const recentCheckins = await getRecentCheckins(athleteId, 1);
   const latestCheckin = recentCheckins[0];
-  const upcomingGoals = await getUpcomingGoals(athleteId);
-  const importedActivities = await getImportedActivities(athleteId, 8);
   const SOURCE_LABELS: Record<string, string> = { manual: "saisie manuelle", garmin: "Garmin Connect", strava: "Strava" };
 
   return (

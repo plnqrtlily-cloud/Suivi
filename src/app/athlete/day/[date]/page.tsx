@@ -30,9 +30,11 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
   const { date } = await params;
   if (!DATE_RE.test(date)) notFound();
 
-  const workouts = await getWorkoutsForAthlete(user.id, date, date);
-  const imports = await getImportedActivitiesForRange(user.id, date, date);
-  const checkin = await getCheckinForDate(user.id, date);
+  const [workouts, imports, checkin] = await Promise.all([
+    getWorkoutsForAthlete(user.id, date, date),
+    getImportedActivitiesForRange(user.id, date, date),
+    getCheckinForDate(user.id, date),
+  ]);
   const today = todayISO();
   const isToday = date === today;
 
