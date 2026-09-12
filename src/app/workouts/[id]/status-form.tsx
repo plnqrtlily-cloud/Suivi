@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateWorkoutStatusAction } from "@/lib/actions";
 import { Button, Field, TextAreaField } from "@/components/ui";
+import { todayISO } from "@/lib/dates";
 
 const STATUSES: { value: "done" | "not_done" | "partial" | "postponed"; label: string }[] = [
   { value: "done", label: "Faite" },
@@ -21,6 +22,7 @@ export function StatusForm({ workoutId, currentStatus, sport }: { workoutId: str
   const [rpe, setRpe] = useState(5);
   const [pending, setPending] = useState(false);
   const showDone = status === "done" || status === "partial";
+  const isPostponed = status === "postponed";
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -36,6 +38,7 @@ export function StatusForm({ workoutId, currentStatus, sport }: { workoutId: str
       avgHr: formData.get("avgHr") ? Number(formData.get("avgHr")) : undefined,
       elevationGainM: formData.get("elevationGainM") ? Number(formData.get("elevationGainM")) : undefined,
       avgPowerW: formData.get("avgPowerW") ? Number(formData.get("avgPowerW")) : undefined,
+      postponedToDate: isPostponed ? String(formData.get("postponedToDate") || "") : undefined,
     });
     setPending(false);
     router.refresh();
@@ -58,34 +61,40 @@ export function StatusForm({ workoutId, currentStatus, sport }: { workoutId: str
         ))}
       </div>
 
-      <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium text-ink-soft">Ressenti (RPE) — {rpe}/10</span>
-        <input type="range" min={1} max={10} value={rpe} onChange={(e) => setRpe(Number(e.target.value))} />
-      </label>
+      {isPostponed ? (
+        <Field label="Nouveau jour" type="date" name="postponedToDate" required min={todayISO()} />
+      ) : (
+        <>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium text-ink-soft">Ressenti (RPE) — {rpe}/10</span>
+            <input type="range" min={1} max={10} value={rpe} onChange={(e) => setRpe(Number(e.target.value))} />
+          </label>
 
-      <input
-        type="number"
-        name="actualDuration"
-        placeholder="Durée réelle (minutes, facultatif)"
-        className="rounded-md border border-line bg-white px-3 py-2 text-sm"
-      />
+          <input
+            type="number"
+            name="actualDuration"
+            placeholder="Durée réelle (minutes, facultatif)"
+            className="rounded-md border border-line bg-white px-3 py-2 text-sm"
+          />
 
-      {showDone && (
-        <div className="grid grid-cols-2 gap-3">
-          {sport !== "strength" && <Field label="Distance (km)" type="number" step="0.1" name="distanceKm" min={0} />}
-          <Field label="FC moyenne (bpm)" type="number" name="avgHr" min={0} />
-          {(sport === "hiking" || sport === "cycling" || sport === "running") && (
-            <Field label="Dénivelé positif (m)" type="number" name="elevationGainM" min={0} />
+          {showDone && (
+            <div className="grid grid-cols-2 gap-3">
+              {sport !== "strength" && <Field label="Distance (km)" type="number" step="0.1" name="distanceKm" min={0} />}
+              <Field label="FC moyenne (bpm)" type="number" name="avgHr" min={0} />
+              {(sport === "hiking" || sport === "cycling" || sport === "running") && (
+                <Field label="Dénivelé positif (m)" type="number" name="elevationGainM" min={0} />
+              )}
+              {sport === "cycling" && <Field label="Puissance moyenne (W)" type="number" name="avgPowerW" min={0} />}
+            </div>
           )}
-          {sport === "cycling" && <Field label="Puissance moyenne (W)" type="number" name="avgPowerW" min={0} />}
-        </div>
-      )}
 
-      <TextAreaField label="Sensations, remarques" name="feedback" rows={3} placeholder="Comment s'est passée la séance ?" />
+          <TextAreaField label="Sensations, remarques" name="feedback" rows={3} placeholder="Comment s'est passée la séance ?" />
+        </>
+      )}
 
       <div>
         <Button type="submit" disabled={pending}>
-          {pending ? "Enregistrement…" : "Enregistrer"}
+          {pending ? "Enregistrement…" : isPostponed ? "Reporter la séance" : "Enregistrer"}
         </Button>
       </div>
     </form>

@@ -385,6 +385,12 @@ export async function updateWorkoutStatusAction(params: {
   avgHr?: number;
   elevationGainM?: number;
   avgPowerW?: number;
+  // Nouveau jour choisi par l'athlète pour une séance reportée — une séance
+  // "reportée" n'est pas un état permanent, c'est une transition vers un
+  // autre jour : dès qu'un nouveau jour est fourni, le statut repasse à
+  // "planned" à cette date plutôt que de rester marquée "reportée" pour
+  // toujours à son ancienne date.
+  postponedToDate?: string;
 }) {
   const user = await getCurrentUser();
   if (!user) throw new Error("Non autorisé.");
@@ -395,18 +401,28 @@ export async function updateWorkoutStatusAction(params: {
     throw new Error("Non autorisé.");
   }
 
+  const isReschedule = params.status === "postponed" && !!params.postponedToDate;
+  const finalStatus = isReschedule ? "planned" : params.status;
+  const finalDate = isReschedule ? params.postponedToDate! : workout.date;
+  // Un report n'est pas un retour d'entraînement : aucun de ces champs ne
+  // s'applique à une séance qui n'a pas eu lieu, quoi que le client envoie.
+  const feedbackFields = isReschedule
+    ? { rpe: null, athleteFeedback: null, actualDurationMinutes: null, distanceKm: null, avgHr: null, elevationGainM: null, avgPowerW: null }
+    : params;
+
   await dbRun(
-    `UPDATE workouts SET status = ?, rpe = ?, athlete_feedback = ?, actual_duration_minutes = ?, distance_km = ?, avg_hr = ?, elevation_gain_m = ?, avg_power_w = ?
+    `UPDATE workouts SET status = ?, date = ?, rpe = ?, athlete_feedback = ?, actual_duration_minutes = ?, distance_km = ?, avg_hr = ?, elevation_gain_m = ?, avg_power_w = ?
      WHERE id = ?`,
     [
-      params.status,
-      params.rpe ?? null,
-      params.athleteFeedback ?? null,
-      params.actualDurationMinutes ?? null,
-      params.distanceKm ?? null,
-      params.avgHr ?? null,
-      params.elevationGainM ?? null,
-      params.avgPowerW ?? null,
+      finalStatus,
+      finalDate,
+      feedbackFields.rpe ?? null,
+      feedbackFields.athleteFeedback ?? null,
+      feedbackFields.actualDurationMinutes ?? null,
+      feedbackFields.distanceKm ?? null,
+      feedbackFields.avgHr ?? null,
+      feedbackFields.elevationGainM ?? null,
+      feedbackFields.avgPowerW ?? null,
       params.workoutId,
     ]
   );
@@ -414,6 +430,17 @@ export async function updateWorkoutStatusAction(params: {
   revalidatePath(`/workouts/${params.workoutId}`);
   revalidatePath("/athlete");
   revalidatePath(`/coach/athletes/${workout.athlete_id}`);
+  revalidatePath(`/athlete/day/${workout.date}`);
+  if (isReschedule && finalDate !== workout.date) {
+    revalidatePath(`/athlete/day/${finalDate}`);
+    await createNotification({
+      userId: workout.coach_id,
+      type: "workout_updated",
+      title: "Séance reportée",
+      body: `« ${workout.title} » a été reportée par l'athlète du ${workout.date} au ${finalDate}.`,
+      link: `/workouts/${params.workoutId}`,
+    });
+  }
 }
 
 // Annulation d'une séance par le coach (cf. prompt : "séance modifiée/annulée" parmi
