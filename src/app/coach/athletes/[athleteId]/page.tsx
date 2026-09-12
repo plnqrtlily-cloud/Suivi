@@ -1,4 +1,5 @@
 import { redirect, notFound } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUser, isCoachLinkedToAthlete, findUserById } from "@/lib/auth";
 import {
   getAthletesForCoach,
@@ -23,6 +24,17 @@ import { todayISO, toISODate } from "@/lib/dates";
 import { AthleteCalendar } from "./athlete-calendar";
 import { TrainingInsights } from "./training-insights";
 
+// "Bloc" et "cycle" reprennent le vocabulaire de périodisation de l'entraînement
+// (mésocycle ~4 semaines, bloc plus large regroupant plusieurs cycles) plutôt
+// que des découpages calendaires stricts — aucune notion de bloc/cycle n'existe
+// en base, ce sont ici de simples fenêtres glissantes en jours.
+const BILAN_PERIODS: { value: string; label: string; days: number }[] = [
+  { value: "semaine", label: "Semaine", days: 7 },
+  { value: "cycle", label: "Cycle", days: 28 },
+  { value: "mois", label: "Mois", days: 30 },
+  { value: "bloc", label: "Bloc", days: 84 },
+];
+
 const METRIC_LABELS: Record<string, string> = {
   weight_kg: "Poids (kg)",
   height_cm: "Taille (cm)",
@@ -38,14 +50,14 @@ export default async function AthleteDetailPage({
   searchParams,
 }: {
   params: Promise<{ athleteId: string }>;
-  searchParams: Promise<{ view?: string; week?: string; month?: string }>;
+  searchParams: Promise<{ view?: string; week?: string; month?: string; bilan?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "coach") redirect("/athlete");
 
   const { athleteId } = await params;
-  const { view, week, month } = await searchParams;
+  const { view, week, month, bilan } = await searchParams;
 
   // Garde de permission (cf. prompt : règle la plus critique du produit).
   if (!(await isCoachLinkedToAthlete(user.id, athleteId))) {
@@ -53,8 +65,9 @@ export default async function AthleteDetailPage({
   }
 
   const today = todayISO();
+  const bilanPeriod = BILAN_PERIODS.find((p) => p.value === bilan) || BILAN_PERIODS[3];
   const statsFrom = new Date();
-  statsFrom.setDate(statsFrom.getDate() - 90);
+  statsFrom.setDate(statsFrom.getDate() - bilanPeriod.days);
   const statsFromISO = toISODate(statsFrom);
 
   // Requêtes indépendantes parties en parallèle plutôt qu'en série — la fiche
@@ -196,10 +209,29 @@ export default async function AthleteDetailPage({
           <UpcomingGoals goals={upcomingGoals} />
         </div>
 
-        <h2 className="mb-3 font-display text-xl text-ink">Bilan d&apos;entraînement</h2>
-        <p className="mb-3 text-sm text-slate">Séances faites et activités importées des 90 derniers jours.</p>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-xl text-ink">Bilan d&apos;entraînement</h2>
+          <div className="flex rounded-2xl bg-paper-dim p-1">
+            {BILAN_PERIODS.map((p) => (
+              <Link
+                key={p.value}
+                href={`/coach/athletes/${athleteId}?bilan=${p.value}`}
+                className={`rounded-xl px-3.5 py-1.5 text-center text-sm font-semibold transition-colors ${
+                  bilanPeriod.value === p.value ? "bg-white text-ink shadow-sm" : "text-slate"
+                }`}
+              >
+                {p.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+        <p className="mb-3 text-sm text-slate">Séances faites et activités importées sur la période sélectionnée ({bilanPeriod.days} jours).</p>
         <div className="mb-8">
-          <TrainingInsights workouts={allWorkouts} imports={recentImports} />
+          <TrainingInsights
+            workouts={allWorkouts.filter((w) => w.date >= statsFromISO && w.date <= today)}
+            imports={recentImports}
+            periodDays={bilanPeriod.days}
+          />
         </div>
 
         <h2 className="mb-3 font-display text-xl text-ink">Programmation</h2>

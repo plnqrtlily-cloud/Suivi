@@ -1,6 +1,7 @@
 import { sportLabel } from "@/components/ui";
 import type { Workout, ImportedActivity } from "@/lib/queries";
-import { computeWeeklyLoad, computeRpeEvolution, computeSportDistribution, computeSportSummaries } from "@/lib/training-stats";
+import { computeWeeklyLoad, computeRpeEvolution, computeSportDistribution, computeSportSummaries, computePeriodSummary } from "@/lib/training-stats";
+import { todayISO } from "@/lib/dates";
 
 const SPORT_COLORS: Record<string, string> = {
   running: "#1B4B4F",
@@ -177,14 +178,47 @@ function SportSummaryCard({ s }: { s: ReturnType<typeof computeSportSummaries>[n
   );
 }
 
-export function TrainingInsights({ workouts, imports }: { workouts: Workout[]; imports: ImportedActivity[] }) {
-  const weeklyLoad = computeWeeklyLoad(workouts, imports, 8);
+function StatTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="rounded-2xl bg-paper-dim p-3.5">
+      <p className="text-[10.5px] font-bold uppercase tracking-wide text-slate">{label}</p>
+      <p className="mt-1 font-display text-xl font-semibold text-ink">{value}</p>
+      {sub && <p className="mt-0.5 text-[11px] text-slate">{sub}</p>}
+    </div>
+  );
+}
+
+function PeriodSummaryRow({ summary }: { summary: ReturnType<typeof computePeriodSummary> }) {
+  const hours = Math.floor(summary.avgWeeklyMinutes / 60);
+  const mins = summary.avgWeeklyMinutes % 60;
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <StatTile label="Volume hebdo moyen" value={hours > 0 ? `${hours}h${mins.toString().padStart(2, "0")}` : `${mins} min`} />
+      <StatTile
+        label="Respect du plan"
+        value={summary.adherenceRate !== null ? `${summary.adherenceRate}%` : "—"}
+        sub={summary.totalSessions > 0 ? `${summary.completedSessions}/${summary.totalSessions} séances` : "Aucune séance passée"}
+      />
+      <StatTile label="Charge totale" value={`${summary.totalLoad}`} sub="u.a." />
+      <StatTile label="Distance totale" value={summary.totalDistanceKm !== null ? `${summary.totalDistanceKm} km` : "—"} />
+    </div>
+  );
+}
+
+export function TrainingInsights({ workouts, imports, periodDays }: { workouts: Workout[]; imports: ImportedActivity[]; periodDays: number }) {
+  const weeklyLoad = computeWeeklyLoad(workouts, imports, Math.max(1, Math.ceil(periodDays / 7)));
   const rpeEvolution = computeRpeEvolution(workouts, imports, 15);
   const distribution = computeSportDistribution(workouts, imports);
   const summaries = computeSportSummaries(workouts, imports).slice(0, 4);
+  const periodSummary = computePeriodSummary(workouts, imports, periodDays, todayISO());
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
+      <div className="rounded-3xl border border-line bg-white p-4 md:col-span-2">
+        <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">L&apos;essentiel</h3>
+        <PeriodSummaryRow summary={periodSummary} />
+      </div>
+
       <div className="rounded-3xl border border-line bg-white p-4">
         <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Répartition par sport</h3>
         <SportDonut distribution={distribution} />

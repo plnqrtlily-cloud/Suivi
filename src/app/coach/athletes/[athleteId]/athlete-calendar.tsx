@@ -90,12 +90,12 @@ async function CoachWeekView({ athleteId, offset, today, base }: { athleteId: st
 
           return (
             <div key={date} className={`rounded-2xl border p-4 ${isToday ? "border-gold-light bg-gold-light/5" : "border-line bg-white"}`}>
-              <div className="mb-2 flex items-center gap-2">
+              <Link href={`${base}/day/${date}`} className="mb-2 flex items-center gap-2 hover:underline">
                 <span className={`flex h-7 w-7 items-center justify-center rounded-full font-display text-[13px] font-semibold ${isToday ? "bg-gold-light text-white" : "bg-paper-dim text-ink"}`}>
                   {date.slice(8, 10)}
                 </span>
                 <span className="text-sm font-semibold text-ink">{DAY_LABELS[idx]}</span>
-              </div>
+              </Link>
 
               {dayBlocks.length > 0 && (
                 <div className="mb-2 flex flex-col gap-1.5 pl-9">
@@ -199,10 +199,10 @@ async function CoachMonthView({ athleteId, monthParam, today, base }: { athleteI
           const isToday = cell.date === today;
 
           return (
-            <div key={cell.date} className="flex flex-col items-center gap-1 py-1">
+            <Link key={cell.date} href={`${base}/day/${cell.date}`} className="flex flex-col items-center gap-1 py-1">
               <span
                 className={`flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-semibold ${
-                  isToday ? "bg-gold-light text-white" : cell.inMonth ? "text-ink" : "text-line"
+                  isToday ? "bg-gold-light text-white" : cell.inMonth ? "text-ink hover:bg-paper-dim" : "text-line"
                 }`}
               >
                 {cell.day}
@@ -212,7 +212,7 @@ async function CoachMonthView({ athleteId, monthParam, today, base }: { athleteI
                 {hasGoal && <span className="h-1.5 w-1.5 rounded-sm bg-gold-light" />}
                 {hasBlock && <span className="h-1.5 w-1.5 rounded-sm bg-ink" />}
               </span>
-            </div>
+            </Link>
           );
         })}
       </div>

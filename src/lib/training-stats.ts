@@ -28,7 +28,7 @@ export interface SportSummary {
 
 // Charge façon session-RPE (Foster) : durée × intensité ressentie. Seules les
 // séances/activités avec un RPE renseigné comptent — pas de charge inventée.
-function sessionLoad(minutes: number | null, rpe: number | null): number {
+export function sessionLoad(minutes: number | null, rpe: number | null): number {
   if (!minutes || !rpe) return 0;
   return minutes * rpe;
 }
@@ -137,4 +137,55 @@ export function computeSportSummaries(workouts: Workout[], imports: ImportedActi
       avgRpe: b.rpes.length ? Math.round((b.rpes.reduce((s, v) => s + v, 0) / b.rpes.length) * 10) / 10 : null,
     }))
     .sort((a, b) => b.count - a.count);
+}
+
+export interface PeriodSummary {
+  totalSessions: number; // séances déjà passées sur la période (tout statut confondu)
+  completedSessions: number; // faites ou partielles, parmi les séances passées
+  adherenceRate: number | null; // % respect du plan — null si aucune séance passée à comparer
+  avgWeeklyMinutes: number; // volume hebdomadaire moyen sur la période (séances faites + activités importées)
+  totalDistanceKm: number | null;
+  totalLoad: number; // somme des charges session-RPE sur la période
+}
+
+// Indicateurs essentiels pour un coup d'œil coach : est-ce que l'athlète suit
+// le plan (adhérence), combien il/elle s'entraîne par semaine en moyenne, et
+// la charge totale accumulée — au-delà des graphiques détaillés déjà présents.
+export function computePeriodSummary(workouts: Workout[], imports: ImportedActivity[], periodDays: number, today: string): PeriodSummary {
+  const pastWorkouts = workouts.filter((w) => w.date <= today);
+  const completed = pastWorkouts.filter((w) => w.status === "done" || w.status === "partial");
+  const adherenceRate = pastWorkouts.length > 0 ? Math.round((completed.length / pastWorkouts.length) * 100) : null;
+
+  let totalMinutes = 0;
+  let totalLoad = 0;
+  let totalDistance = 0;
+  let hasDistance = false;
+
+  for (const w of completed) {
+    const minutes = w.actual_duration_minutes ?? w.duration_minutes ?? 0;
+    totalMinutes += minutes;
+    totalLoad += sessionLoad(minutes, w.rpe);
+    if (w.distance_km) {
+      totalDistance += w.distance_km;
+      hasDistance = true;
+    }
+  }
+  for (const a of imports) {
+    totalMinutes += a.duration_minutes || 0;
+    totalLoad += sessionLoad(a.duration_minutes, a.rpe);
+    if (a.distance_km) {
+      totalDistance += a.distance_km;
+      hasDistance = true;
+    }
+  }
+
+  const weeks = periodDays / 7;
+  return {
+    totalSessions: pastWorkouts.length,
+    completedSessions: completed.length,
+    adherenceRate,
+    avgWeeklyMinutes: Math.round(totalMinutes / weeks),
+    totalDistanceKm: hasDistance ? Math.round(totalDistance * 10) / 10 : null,
+    totalLoad: Math.round(totalLoad),
+  };
 }
