@@ -21,8 +21,10 @@ import {
   Role,
 } from "./auth";
 import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES } from "./storage";
+import { parseGpx, simplifyRoute } from "./gpx";
 import { getResourceById } from "./queries";
 import { createNotification, markNotificationRead, markAllNotificationsRead } from "./notifications";
+import { saveSubscription, removeSubscription } from "./push";
 
 // ---------- AUTH ----------
 
@@ -379,6 +381,10 @@ export async function updateWorkoutStatusAction(params: {
   rpe?: number;
   athleteFeedback?: string;
   actualDurationMinutes?: number;
+  distanceKm?: number;
+  avgHr?: number;
+  elevationGainM?: number;
+  avgPowerW?: number;
 }) {
   const user = await getCurrentUser();
   if (!user) throw new Error("Non autorisé.");
@@ -390,8 +396,19 @@ export async function updateWorkoutStatusAction(params: {
   }
 
   await dbRun(
-    `UPDATE workouts SET status = ?, rpe = ?, athlete_feedback = ?, actual_duration_minutes = ? WHERE id = ?`,
-    [params.status, params.rpe ?? null, params.athleteFeedback ?? null, params.actualDurationMinutes ?? null, params.workoutId]
+    `UPDATE workouts SET status = ?, rpe = ?, athlete_feedback = ?, actual_duration_minutes = ?, distance_km = ?, avg_hr = ?, elevation_gain_m = ?, avg_power_w = ?
+     WHERE id = ?`,
+    [
+      params.status,
+      params.rpe ?? null,
+      params.athleteFeedback ?? null,
+      params.actualDurationMinutes ?? null,
+      params.distanceKm ?? null,
+      params.avgHr ?? null,
+      params.elevationGainM ?? null,
+      params.avgPowerW ?? null,
+      params.workoutId,
+    ]
   );
 
   revalidatePath(`/workouts/${params.workoutId}`);
@@ -657,6 +674,20 @@ export async function disconnectProviderAction(provider: "garmin" | "strava") {
   revalidatePath("/athlete/profile");
 }
 
+// Trace GPS facultative jointe à un import manuel — jamais bloquant : un GPX
+// illisible ou absent laisse simplement route_points à null plutôt que de
+// faire échouer tout l'enregistrement de l'activité.
+async function extractRoutePoints(formData: FormData): Promise<string | null> {
+  const file = formData.get("gpxFile") as File | null;
+  if (!file || file.size === 0) return null;
+  try {
+    const points = simplifyRoute(parseGpx(await file.text()));
+    return points.length >= 2 ? JSON.stringify(points) : null;
+  } catch {
+    return null;
+  }
+}
+
 // Import manuel — filet de sécurité indépendant de toute API tierce (cf. prompt).
 // Sert aussi de secours si Garmin ou Strava change ses conditions d'accès.
 export async function addImportedActivityAction(formData: FormData) {
@@ -674,10 +705,11 @@ export async function addImportedActivityAction(formData: FormData) {
   const rpe = formData.get("rpe") ? Number(formData.get("rpe")) : null;
   const notes = String(formData.get("notes") || "").trim();
   if (!activityDate || !sport) return;
+  const routePoints = await extractRoutePoints(formData);
 
   await dbRun(
-    `INSERT INTO imported_activities (id, athlete_id, source, activity_date, activity_time, sport, duration_minutes, distance_km, avg_hr, elevation_gain_m, avg_power_w, rpe, notes)
-     VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO imported_activities (id, athlete_id, source, activity_date, activity_time, sport, duration_minutes, distance_km, avg_hr, elevation_gain_m, avg_power_w, rpe, notes, route_points)
+     VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       randomUUID(),
       user.id,
@@ -691,6 +723,7 @@ export async function addImportedActivityAction(formData: FormData) {
       avgPowerW,
       rpe,
       notes || null,
+      routePoints,
     ]
   );
 
@@ -703,7 +736,7 @@ export async function updateImportedActivityAction(id: string, formData: FormDat
   const user = await getCurrentUser();
   if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
 
-  const existing = await dbGet<any>(`SELECT athlete_id, activity_date FROM imported_activities WHERE id = ?`, [id]);
+  const existing = await dbGet<any>(`SELECT athlete_id, activity_date, route_points FROM imported_activities WHERE id = ?`, [id]);
   if (!existing || existing.athlete_id !== user.id) throw new Error("Non autorisé.");
 
   const activityDate = String(formData.get("activityDate") || "");
@@ -717,11 +750,14 @@ export async function updateImportedActivityAction(id: string, formData: FormDat
   const rpe = formData.get("rpe") ? Number(formData.get("rpe")) : null;
   const notes = String(formData.get("notes") || "").trim();
   if (!activityDate || !sport) throw new Error("Date et sport requis.");
+  // Un nouveau GPX remplace l'ancien tracé ; sans nouveau fichier, on garde
+  // celui déjà enregistré plutôt que de l'effacer silencieusement.
+  const routePoints = (await extractRoutePoints(formData)) ?? existing.route_points ?? null;
 
   await dbRun(
-    `UPDATE imported_activities SET activity_date = ?, activity_time = ?, sport = ?, duration_minutes = ?, distance_km = ?, avg_hr = ?, elevation_gain_m = ?, avg_power_w = ?, rpe = ?, notes = ?
+    `UPDATE imported_activities SET activity_date = ?, activity_time = ?, sport = ?, duration_minutes = ?, distance_km = ?, avg_hr = ?, elevation_gain_m = ?, avg_power_w = ?, rpe = ?, notes = ?, route_points = ?
      WHERE id = ?`,
-    [activityDate, activityTime || null, sport, durationMinutes, distanceKm, avgHr, elevationGainM, avgPowerW, rpe, notes || null, id]
+    [activityDate, activityTime || null, sport, durationMinutes, distanceKm, avgHr, elevationGainM, avgPowerW, rpe, notes || null, routePoints, id]
   );
 
   revalidatePath("/athlete/profile");
@@ -888,6 +924,18 @@ export async function markAllNotificationsReadAction() {
   if (!user) throw new Error("Non autorisé.");
   await markAllNotificationsRead(user.id);
   revalidatePath("/", "layout");
+}
+
+export async function subscribePushAction(subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Non autorisé.");
+  await saveSubscription(user.id, subscription);
+}
+
+export async function unsubscribePushAction(endpoint: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Non autorisé.");
+  await removeSubscription(endpoint);
 }
 
 // ---------- INFORMATIONS GÉNÉRALES DU PROFIL ----------

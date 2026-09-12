@@ -1,16 +1,18 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
-import { getWorkoutsForAthlete, getCheckinForDate, getImportedActivitiesForRange, getAvailabilityBlocksForRange } from "@/lib/queries";
+import { getWorkoutsForAthlete, getCheckinForDate, getImportedActivitiesForRange, getAvailabilityBlocksForRange, getLatestMeasurements } from "@/lib/queries";
 import { Nav } from "@/components/nav";
 import { Card, StatusBadge, sportLabel } from "@/components/ui";
 import { ReadinessSummary } from "../../readiness-summary";
 import { DailyCheckin } from "../../daily-checkin";
 import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, TIME_OF_DAY_HINTS, groupByTimeOfDay } from "@/lib/time-of-day";
 import { todayISO } from "@/lib/dates";
+import { classifyHr } from "@/lib/hr-zones";
 import { DeleteAvailabilityButton } from "@/components/delete-availability-button";
 import { EditAvailabilityModal } from "@/components/availability-modal";
 import { EditImportedActivityModal, DeleteImportedActivityButton } from "@/components/imported-activity-modal";
+import { RouteMap } from "@/components/route-map";
 import type { ImportedActivity } from "@/lib/queries";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -35,14 +37,17 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
   const { date } = await params;
   if (!DATE_RE.test(date)) notFound();
 
-  const [workouts, imports, checkin, blocks] = await Promise.all([
+  const [workouts, imports, checkin, blocks, latest] = await Promise.all([
     getWorkoutsForAthlete(user.id, date, date),
     getImportedActivitiesForRange(user.id, date, date),
     getCheckinForDate(user.id, date),
     getAvailabilityBlocksForRange(user.id, date, date),
+    getLatestMeasurements(user.id),
   ]);
   const today = todayISO();
   const isToday = date === today;
+  const hrZone = (avgHr: number | null) =>
+    avgHr && latest.fc_repos && latest.fc_max ? classifyHr(avgHr, latest.fc_repos.value, latest.fc_max.value) : null;
 
   const entries: CalendarEntry[] = [
     ...workouts.map((w) => ({
@@ -54,16 +59,19 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
       href: `/workouts/${w.id}`,
       status: w.status,
     })),
-    ...imports.map((a) => ({
-      id: `i-${a.id}`,
-      time: a.activity_time,
-      title: sportLabel(a.sport),
-      subtitle: `${a.duration_minutes ? `${a.duration_minutes} min · ` : ""}${a.distance_km ? `${a.distance_km} km · ` : ""}${
-        a.avg_hr ? `FC moy. ${a.avg_hr} · ` : ""
-      }${SOURCE_LABELS[a.source] || a.source}`,
-      color: "#7C5C46",
-      activity: a,
-    })),
+    ...imports.map((a) => {
+      const zone = hrZone(a.avg_hr);
+      return {
+        id: `i-${a.id}`,
+        time: a.activity_time,
+        title: sportLabel(a.sport),
+        subtitle: `${a.duration_minutes ? `${a.duration_minutes} min · ` : ""}${a.distance_km ? `${a.distance_km} km · ` : ""}${
+          a.avg_hr ? `FC moy. ${a.avg_hr}${zone ? ` (Z${zone.zone})` : ""} · ` : ""
+        }${SOURCE_LABELS[a.source] || a.source}`,
+        color: "#7C5C46",
+        activity: a,
+      };
+    }),
   ];
 
   const { byPhase, unscheduled } = groupByTimeOfDay(entries, (e) => e.time);
@@ -123,6 +131,11 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
           {e.time ? `${e.time} · ` : ""}
           {e.subtitle}
         </p>
+        {e.activity?.route_points && (
+          <div className="mt-3">
+            <RouteMap points={JSON.parse(e.activity.route_points)} />
+          </div>
+        )}
       </div>
     );
     return e.href ? (

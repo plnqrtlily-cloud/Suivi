@@ -126,6 +126,9 @@ export function SyncPanel({ connections, activities }: { connections: ExternalCo
           <Field label="RPE ressenti (facultatif)" type="number" name="rpe" min={1} max={10} placeholder="1 à 10" />
           <Field label="Notes" name="notes" />
           <div className="col-span-2">
+            <Field label="Trace GPS (fichier .gpx, facultatif)" type="file" name="gpxFile" accept=".gpx" />
+          </div>
+          <div className="col-span-2">
             <Button type="submit" disabled={pending}>
               {pending ? "Ajout…" : "Ajouter l'activité"}
             </Button>

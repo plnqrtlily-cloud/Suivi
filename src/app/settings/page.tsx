@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { getPushPublicKey } from "@/lib/push";
 import { Nav } from "@/components/nav";
 import { Card } from "@/components/ui";
 import { LogoutAllButton, DeleteAccountButton } from "./account-buttons";
+import { PushNotificationsToggle } from "@/components/push-notifications-toggle";
 
 function DownloadIcon() {
   return (
@@ -21,6 +23,11 @@ export default async function SettingsPage() {
       <Nav user={user} />
       <main className="mx-auto max-w-2xl px-6 py-10">
         <h1 className="mb-8 font-display text-3xl text-ink">Paramètres du compte</h1>
+
+        <Card className="mb-6 rounded-3xl">
+          <h2 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate">Notifications push</h2>
+          <PushNotificationsToggle publicKey={getPushPublicKey()} />
+        </Card>
 
         <Card className="mb-6 rounded-3xl">
           <h2 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate">Exporter mes données (RGPD)</h2>

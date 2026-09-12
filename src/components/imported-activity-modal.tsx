@@ -17,6 +17,7 @@ export interface EditableActivity {
   avg_power_w: number | null;
   rpe: number | null;
   notes: string | null;
+  route_points?: string | null;
 }
 
 function Modal({ title, subtitle, onClose, children }: { title: string; subtitle: string; onClose: () => void; children: React.ReactNode }) {
@@ -85,6 +86,14 @@ export function EditImportedActivityModal({ activity, className }: { activity: E
             )}
             <Field label="RPE ressenti (facultatif)" type="number" name="rpe" min={1} max={10} placeholder="1 à 10" defaultValue={activity.rpe ?? ""} />
             <Field label="Notes" name="notes" defaultValue={activity.notes || ""} />
+            <div className="col-span-2">
+              <Field
+                label={activity.route_points ? "Remplacer la trace GPS (.gpx)" : "Trace GPS (fichier .gpx, facultatif)"}
+                type="file"
+                name="gpxFile"
+                accept=".gpx"
+              />
+            </div>
             <div className="col-span-2">
               <Button type="submit" disabled={pending}>
                 {pending ? "Enregistrement…" : "Enregistrer"}

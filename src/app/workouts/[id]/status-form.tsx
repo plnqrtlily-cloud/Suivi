@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateWorkoutStatusAction } from "@/lib/actions";
-import { Button, TextAreaField } from "@/components/ui";
+import { Button, Field, TextAreaField } from "@/components/ui";
 
 const STATUSES: { value: "done" | "not_done" | "partial" | "postponed"; label: string }[] = [
   { value: "done", label: "Faite" },
@@ -12,11 +12,15 @@ const STATUSES: { value: "done" | "not_done" | "partial" | "postponed"; label: s
   { value: "postponed", label: "Reportée" },
 ];
 
-export function StatusForm({ workoutId, currentStatus }: { workoutId: string; currentStatus: string }) {
+// Les mêmes champs que l'import manuel d'activité, affichés selon le sport de
+// la séance — inutile de demander une distance pour une séance de musculation,
+// ou une puissance moyenne hors vélo.
+export function StatusForm({ workoutId, currentStatus, sport }: { workoutId: string; currentStatus: string; sport: string }) {
   const router = useRouter();
   const [status, setStatus] = useState(currentStatus === "planned" ? "done" : currentStatus);
   const [rpe, setRpe] = useState(5);
   const [pending, setPending] = useState(false);
+  const showDone = status === "done" || status === "partial";
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -28,6 +32,10 @@ export function StatusForm({ workoutId, currentStatus }: { workoutId: string; cu
       rpe,
       athleteFeedback: String(formData.get("feedback") || ""),
       actualDurationMinutes: formData.get("actualDuration") ? Number(formData.get("actualDuration")) : undefined,
+      distanceKm: formData.get("distanceKm") ? Number(formData.get("distanceKm")) : undefined,
+      avgHr: formData.get("avgHr") ? Number(formData.get("avgHr")) : undefined,
+      elevationGainM: formData.get("elevationGainM") ? Number(formData.get("elevationGainM")) : undefined,
+      avgPowerW: formData.get("avgPowerW") ? Number(formData.get("avgPowerW")) : undefined,
     });
     setPending(false);
     router.refresh();
@@ -61,6 +69,17 @@ export function StatusForm({ workoutId, currentStatus }: { workoutId: string; cu
         placeholder="Durée réelle (minutes, facultatif)"
         className="rounded-md border border-line bg-white px-3 py-2 text-sm"
       />
+
+      {showDone && (
+        <div className="grid grid-cols-2 gap-3">
+          {sport !== "strength" && <Field label="Distance (km)" type="number" step="0.1" name="distanceKm" min={0} />}
+          <Field label="FC moyenne (bpm)" type="number" name="avgHr" min={0} />
+          {(sport === "hiking" || sport === "cycling" || sport === "running") && (
+            <Field label="Dénivelé positif (m)" type="number" name="elevationGainM" min={0} />
+          )}
+          {sport === "cycling" && <Field label="Puissance moyenne (W)" type="number" name="avgPowerW" min={0} />}
+        </div>
+      )}
 
       <TextAreaField label="Sensations, remarques" name="feedback" rows={3} placeholder="Comment s'est passée la séance ?" />
 

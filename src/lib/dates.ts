@@ -18,6 +18,17 @@ export function todayISO(): string {
   return toISODate(new Date());
 }
 
+// Nombre de jours calendaires entre aujourd'hui et une date "YYYY-MM-DD" (peut
+// être négatif si la date est passée) — calculé en UTC pur sur les seuls
+// composants Y/M/D pour ne jamais être affecté par un changement d'heure
+// (DST) entre les deux dates, contrairement à une simple soustraction de Date.
+export function daysUntil(dateISO: string): number {
+  const [ty, tm, td] = todayISO().split("-").map(Number);
+  const [y, m, d] = dateISO.split("-").map(Number);
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(ty, tm - 1, td)) / msPerDay);
+}
+
 export function getWeekDates(offsetWeeks: number): string[] {
   const now = new Date();
   const day = now.getDay(); // 0 = dimanche

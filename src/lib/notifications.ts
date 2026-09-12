@@ -1,5 +1,6 @@
 import { dbGet, dbAll, dbRun } from "./db";
 import { randomUUID } from "crypto";
+import { sendPushToUser } from "./push";
 
 export type NotificationType = "new_workout" | "workout_cancelled" | "workout_updated" | "comment" | "event_reminder" | "message";
 
@@ -29,6 +30,13 @@ export async function createNotification(params: {
     params.body || null,
     params.link || null,
   ]);
+
+  try {
+    await sendPushToUser(params.userId, { title: params.title, body: params.body, url: params.link });
+  } catch {
+    // Best-effort : la notification in-app existe déjà, un échec du push ne
+    // doit jamais remonter jusqu'à l'appelant (création de séance, message…).
+  }
 }
 
 // Rappel avant une compétition (cf. prompt). Pas de tâche planifiée (cron) dans ce

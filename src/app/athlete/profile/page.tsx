@@ -8,6 +8,7 @@ import {
   getCoachesForAthlete,
   getExternalConnections,
   getImportedActivities,
+  getPersonalRecordsForAthlete,
   getUserGender,
   getUserAvatar,
   profileCompletion,
@@ -15,13 +16,20 @@ import {
 import { addMeasurementAction, addInjuryAction, setGenderAction } from "@/lib/actions";
 import { AvatarUpload } from "./avatar-upload";
 import { getCycleSettings, getCycleEntries, estimateCyclePhase } from "@/lib/cycle";
+import { computeHrZones } from "@/lib/hr-zones";
 import { Nav } from "@/components/nav";
-import { Card, Field, SelectField, Button } from "@/components/ui";
+import { Card, Field, SelectField, Button, sportLabel } from "@/components/ui";
 import { CyclePanel } from "./cycle-panel";
 import { SyncPanel } from "./sync-panel";
 import { PerformanceStats, MeasurementPoint } from "./performance-stats";
 import { RevokeButton } from "@/app/coach/revoke-button";
 import { JoinCoachForm } from "../join-coach-form";
+
+function formatPace(minPerKm: number): string {
+  const min = Math.floor(minPerKm);
+  const sec = Math.round((minPerKm - min) * 60);
+  return `${min}:${String(sec).padStart(2, "0")} /km`;
+}
 
 const METRICS = [
   { value: "weight_kg", label: "Poids (kg)" },
@@ -41,7 +49,7 @@ export default async function AthleteProfilePage() {
   // Requêtes indépendantes parties en parallèle plutôt qu'en série (chacune est
   // un aller-retour réseau vers la base distante en production — les enchaîner
   // une par une multipliait la latence de la page par leur nombre).
-  const [latest, historyAll, injuries, coaches, completion, gender, avatar, externalConnections, importedActivities] =
+  const [latest, historyAll, injuries, coaches, completion, gender, avatar, externalConnections, importedActivities, personalRecords] =
     await Promise.all([
       getLatestMeasurements(user.id),
       getMeasurementsForAthlete(user.id),
@@ -52,6 +60,7 @@ export default async function AthleteProfilePage() {
       getUserAvatar(user.id),
       getExternalConnections(user.id),
       getImportedActivities(user.id),
+      getPersonalRecordsForAthlete(user.id),
     ]);
   const history = historyAll.slice(0, 10);
   const seriesByMetric: Record<string, MeasurementPoint[]> = {};
@@ -140,6 +149,34 @@ export default async function AthleteProfilePage() {
           )}
         </Card>
 
+        {latest.fc_repos && latest.fc_max ? (
+          <Card className="mb-8 rounded-3xl">
+            <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Zones de fréquence cardiaque</h2>
+            <p className="mb-4 text-xs text-slate">
+              Calculées par méthode de Karvonen à partir de vos FC repos ({latest.fc_repos.value}) et FC max (
+              {latest.fc_max.value}).
+            </p>
+            <div className="grid grid-cols-5 gap-2">
+              {computeHrZones(latest.fc_repos.value, latest.fc_max.value).map((z) => (
+                <div key={z.zone} className="rounded-xl bg-paper-dim p-2.5 text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate">Z{z.zone}</p>
+                  <p className="mt-1 text-sm font-semibold text-ink">
+                    {z.minBpm}-{z.maxBpm}
+                  </p>
+                  <p className="mt-0.5 text-[10.5px] leading-tight text-slate">{z.label}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        ) : (
+          <Card className="mb-8 rounded-3xl bg-paper-dim">
+            <p className="text-sm text-ink-soft">
+              Renseignez votre FC repos et votre FC max ci-dessus pour voir apparaître vos zones cardiaques
+              personnelles.
+            </p>
+          </Card>
+        )}
+
         <Card className="mb-8 rounded-3xl">
           <h2 className="mb-4 text-[11px] font-bold uppercase tracking-wider text-slate">Antécédents de blessures</h2>
           <ul className="mb-4 space-y-2 text-sm">
@@ -173,6 +210,49 @@ export default async function AthleteProfilePage() {
           </p>
           <SyncPanel connections={externalConnections} activities={importedActivities} />
         </Card>
+
+        {personalRecords.length > 0 && (
+          <Card className="mb-8 rounded-3xl">
+            <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Records personnels</h2>
+            <p className="mb-4 text-xs text-slate">
+              Calculés à partir de vos activités importées — plus longue distance, meilleure allure et plus longue
+              durée, sport par sport.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {personalRecords.map((r) => (
+                <div key={r.sport} className="rounded-2xl border border-line p-3.5">
+                  <p className="mb-2 text-sm font-semibold text-ink">{sportLabel(r.sport)}</p>
+                  <ul className="space-y-1 text-sm">
+                    {r.bestDistanceKm !== null && (
+                      <li className="flex items-baseline justify-between gap-2">
+                        <span className="text-slate">Plus longue distance</span>
+                        <span className="font-medium text-ink">
+                          {r.bestDistanceKm} km <span className="text-xs text-slate">({r.bestDistanceDate})</span>
+                        </span>
+                      </li>
+                    )}
+                    {r.bestPaceMinPerKm !== null && (
+                      <li className="flex items-baseline justify-between gap-2">
+                        <span className="text-slate">Meilleure allure</span>
+                        <span className="font-medium text-ink">
+                          {formatPace(r.bestPaceMinPerKm)} <span className="text-xs text-slate">({r.bestPaceDate})</span>
+                        </span>
+                      </li>
+                    )}
+                    {r.bestDurationMinutes !== null && (
+                      <li className="flex items-baseline justify-between gap-2">
+                        <span className="text-slate">Plus longue durée</span>
+                        <span className="font-medium text-ink">
+                          {r.bestDurationMinutes} min <span className="text-xs text-slate">({r.bestDurationDate})</span>
+                        </span>
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {gender === "female" && cycleSettings && cycleEstimate ? (
           <Card className="mb-8 rounded-3xl">

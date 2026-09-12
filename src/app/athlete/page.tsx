@@ -8,10 +8,11 @@ import {
   getImportedActivitiesForRange,
   getUserGender,
   getJournalForAthlete,
+  getNextGoalForAthlete,
 } from "@/lib/queries";
 import { addJournalEntryAction } from "@/lib/actions";
 import { estimateCyclePhase } from "@/lib/cycle";
-import { getWeekDates, todayISO } from "@/lib/dates";
+import { getWeekDates, todayISO, daysUntil } from "@/lib/dates";
 import { Nav } from "@/components/nav";
 import { Card, sportLabel, LinkButton, Field, TextAreaField, Button } from "@/components/ui";
 import { SnapScrollNav } from "@/components/snap-scroll-nav";
@@ -80,7 +81,7 @@ export default async function AthleteDashboard({
   // Toutes ces requêtes sont indépendantes : parties en parallèle plutôt qu'en
   // série pour ne pas payer N×latence réseau vers la base distante (Turso) à
   // chaque chargement de la page.
-  const [journal, completion, todaysCheckin, otherDayCheckin, selectedWorkouts, selectedImports, gender] =
+  const [journal, completion, todaysCheckin, otherDayCheckin, selectedWorkouts, selectedImports, gender, nextGoal] =
     await Promise.all([
       getJournalForAthlete(user.id),
       profileCompletion(user.id),
@@ -89,6 +90,7 @@ export default async function AthleteDashboard({
       getWorkoutsForAthlete(user.id, selectedDate, selectedDate),
       getImportedActivitiesForRange(user.id, selectedDate, selectedDate),
       getUserGender(user.id),
+      getNextGoalForAthlete(user.id, today),
     ]);
   const selectedCheckin = isToday ? todaysCheckin : otherDayCheckin;
   const primaryWorkout = [...selectedWorkouts].sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"))[0];
@@ -135,6 +137,28 @@ export default async function AthleteDashboard({
               Compléter mon profil
             </LinkButton>
           </Card>
+        )}
+
+        {nextGoal && (
+          <Link
+            href={`/workouts/${nextGoal.id}`}
+            className="mb-6 flex items-center justify-between gap-4 rounded-3xl border border-line bg-white px-5 py-4 transition-colors hover:border-moss"
+          >
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate">
+                {nextGoal.category === "evenement" ? "Prochain événement" : "Prochain objectif"}
+              </p>
+              <p className="mt-0.5 truncate font-display text-lg font-semibold text-ink">{nextGoal.title}</p>
+            </div>
+            <div className="flex-shrink-0 text-right">
+              <p className="font-display text-2xl font-bold leading-none text-gold-light">
+                {daysUntil(nextGoal.date) === 0 ? "Jour J" : `J-${daysUntil(nextGoal.date)}`}
+              </p>
+              <p className="mt-1 text-xs text-slate">
+                {new Date(`${nextGoal.date}T00:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
+              </p>
+            </div>
+          </Link>
         )}
 
         <section className="mb-10 rounded-3xl border border-line bg-white p-5">

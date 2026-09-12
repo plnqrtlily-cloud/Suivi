@@ -95,6 +95,13 @@ CREATE TABLE IF NOT EXISTS workouts (
   rpe INTEGER,
   athlete_feedback TEXT,
   actual_duration_minutes INTEGER,
+  -- Données réellement effectuées, saisies par l'athlète à la validation de la
+  -- séance — mêmes champs que l'import manuel, demandés selon le sport (cf.
+  -- StatusForm) plutôt que génériques pour tous les sports.
+  distance_km REAL,
+  avg_hr INTEGER,
+  elevation_gain_m INTEGER,
+  avg_power_w INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -213,6 +220,10 @@ CREATE TABLE IF NOT EXISTS imported_activities (
   avg_power_w INTEGER,
   rpe INTEGER,
   notes TEXT,
+  -- Trace GPS d'un import GPX manuel : tableau JSON de {lat,lng}, sous-
+  -- échantillonné à l'import (cf. src/lib/gpx.ts) — jamais le fichier GPX
+  -- brut, pour rester léger à lire/afficher.
+  route_points TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 -- Bibliothèque de ressources du coach (cf. prompt : "Base de données : Vidéos, Tests
@@ -242,6 +253,17 @@ CREATE TABLE IF NOT EXISTS notifications (
   body TEXT,
   link TEXT,
   read_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- Abonnements Web Push (notifications système, hors app) — un utilisateur peut
+-- avoir plusieurs abonnements (plusieurs appareils/navigateurs), identifiés
+-- chacun par leur endpoint unique côté navigateur.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 -- Check-in quotidien de forme (cf. demande V2 : niveau physique/psychologique et
@@ -320,6 +342,11 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE workout_blocks ADD COLUMN training_quality TEXT`,
   `ALTER TABLE exercise_sets ADD COLUMN rest_seconds INTEGER`,
   `ALTER TABLE exercise_sets ADD COLUMN rpe INTEGER`,
+  `ALTER TABLE imported_activities ADD COLUMN route_points TEXT`,
+  `ALTER TABLE workouts ADD COLUMN distance_km REAL`,
+  `ALTER TABLE workouts ADD COLUMN avg_hr INTEGER`,
+  `ALTER TABLE workouts ADD COLUMN elevation_gain_m INTEGER`,
+  `ALTER TABLE workouts ADD COLUMN avg_power_w INTEGER`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

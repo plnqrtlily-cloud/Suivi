@@ -82,6 +82,18 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                 <CancelWorkoutButton workoutId={workout.id} />
               </div>
             )}
+            {user.role === "athlete" && (
+              <a
+                href={`/api/workouts/${workout.id}/fit`}
+                className="flex items-center gap-1.5 text-xs font-semibold text-slate hover:text-ink"
+                title="Fichier .fit à copier dans le dossier NEWFILES de votre montre Garmin connectée en USB"
+              >
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10 3v10m0 0l-3.5-3.5M10 13l3.5-3.5M3 15.5v1a2 2 0 002 2h10a2 2 0 002-2v-1" />
+                </svg>
+                Télécharger pour ma montre (.fit)
+              </a>
+            )}
           </div>
         </div>
 
@@ -151,6 +163,10 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
             <p className="text-sm text-ink">
               {workout.rpe ? `RPE ${workout.rpe}/10` : "Pas de RPE renseigné"}
               {workout.actual_duration_minutes ? ` · ${workout.actual_duration_minutes} min réelles` : ""}
+              {workout.distance_km ? ` · ${workout.distance_km} km` : ""}
+              {workout.avg_hr ? ` · FC moy. ${workout.avg_hr}` : ""}
+              {workout.elevation_gain_m ? ` · D+ ${workout.elevation_gain_m} m` : ""}
+              {workout.avg_power_w ? ` · ${workout.avg_power_w} W moy.` : ""}
             </p>
             {workout.athlete_feedback && <p className="mt-1 text-sm text-ink-soft">{workout.athlete_feedback}</p>}
           </Card>
@@ -159,7 +175,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
         {user.role === "athlete" && (
           <Card className="mb-6">
             <h2 className="mb-3 text-sm font-medium text-ink-soft">Mettre à jour le statut de la séance</h2>
-            <StatusForm workoutId={workout.id} currentStatus={workout.status} />
+            <StatusForm workoutId={workout.id} currentStatus={workout.status} sport={workout.sport} />
           </Card>
         )}
 

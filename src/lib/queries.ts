@@ -61,6 +61,10 @@ export interface Workout {
   rpe: number | null;
   athlete_feedback: string | null;
   actual_duration_minutes: number | null;
+  distance_km: number | null;
+  avg_hr: number | null;
+  elevation_gain_m: number | null;
+  avg_power_w: number | null;
   coach_first_name?: string;
   coach_last_name?: string;
 }
@@ -81,6 +85,19 @@ export async function getWorkoutsForAthlete(athleteId: string, fromDate?: string
      WHERE w.athlete_id = ?
      ORDER BY w.date ASC, w.time ASC`,
     [athleteId]
+  );
+}
+
+// Prochain objectif/événement à venir (compte à rebours de l'écran d'accueil
+// athlète) — priorité A avant B avant C à date égale, sinon la date la plus
+// proche l'emporte.
+export async function getNextGoalForAthlete(athleteId: string, fromDate: string): Promise<Workout | undefined> {
+  return dbGet(
+    `SELECT * FROM workouts
+     WHERE athlete_id = ? AND category IN ('objectif','evenement') AND date >= ?
+     ORDER BY date ASC, CASE priority WHEN 'A' THEN 0 WHEN 'B' THEN 1 WHEN 'C' THEN 2 ELSE 3 END ASC
+     LIMIT 1`,
+    [athleteId, fromDate]
   );
 }
 
@@ -190,6 +207,68 @@ export interface ImportedActivity {
   avg_power_w: number | null;
   rpe: number | null;
   notes: string | null;
+  route_points: string | null;
+}
+
+export interface PersonalRecord {
+  sport: string;
+  bestDistanceKm: number | null;
+  bestDistanceDate: string | null;
+  bestPaceMinPerKm: number | null; // minutes par km — plus bas = meilleur
+  bestPaceDate: string | null;
+  bestDurationMinutes: number | null;
+  bestDurationDate: string | null;
+}
+
+// Records personnels par sport, dérivés des activités importées (donc
+// réellement effectuées — contrairement aux séries de musculation
+// planifiées par le coach, qui décrivent une charge prescrite et non ce que
+// l'athlète a réellement soulevé, aucun record fiable n'en est tiré ici).
+export async function getPersonalRecordsForAthlete(athleteId: string): Promise<PersonalRecord[]> {
+  const rows = await dbAll<{ sport: string; distance_km: number | null; duration_minutes: number | null; activity_date: string }>(
+    `SELECT sport, distance_km, duration_minutes, activity_date FROM imported_activities WHERE athlete_id = ?`,
+    [athleteId]
+  );
+
+  const bySport = new Map<string, typeof rows>();
+  for (const r of rows) {
+    if (!bySport.has(r.sport)) bySport.set(r.sport, []);
+    bySport.get(r.sport)!.push(r);
+  }
+
+  const records: PersonalRecord[] = [];
+  for (const [sport, activities] of bySport) {
+    let bestDistanceKm: number | null = null;
+    let bestDistanceDate: string | null = null;
+    let bestPace: number | null = null;
+    let bestPaceDate: string | null = null;
+    let bestDuration: number | null = null;
+    let bestDurationDate: string | null = null;
+
+    for (const a of activities) {
+      if (a.distance_km && (bestDistanceKm === null || a.distance_km > bestDistanceKm)) {
+        bestDistanceKm = a.distance_km;
+        bestDistanceDate = a.activity_date;
+      }
+      if (a.duration_minutes && (bestDuration === null || a.duration_minutes > bestDuration)) {
+        bestDuration = a.duration_minutes;
+        bestDurationDate = a.activity_date;
+      }
+      // L'allure n'a de sens qu'à partir d'une distance significative (1 km)
+      // — en dessous, le bruit de saisie (arrondis) fausse le résultat.
+      if (a.distance_km && a.duration_minutes && a.distance_km >= 1) {
+        const pace = a.duration_minutes / a.distance_km;
+        if (bestPace === null || pace < bestPace) {
+          bestPace = pace;
+          bestPaceDate = a.activity_date;
+        }
+      }
+    }
+
+    records.push({ sport, bestDistanceKm, bestDistanceDate, bestPaceMinPerKm: bestPace, bestPaceDate, bestDurationMinutes: bestDuration, bestDurationDate });
+  }
+
+  return records.sort((a, b) => a.sport.localeCompare(b.sport));
 }
 
 export async function getImportedActivities(athleteId: string, limit = 15): Promise<ImportedActivity[]> {
