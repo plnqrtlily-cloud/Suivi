@@ -1,25 +1,27 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import {
   getMeasurementsForAthlete,
   getLatestMeasurements,
   getInjuriesForAthlete,
-  getJournalForAthlete,
+  getCoachesForAthlete,
   getExternalConnections,
   getImportedActivities,
   getUserGender,
   getUserAvatar,
   profileCompletion,
 } from "@/lib/queries";
-import { addMeasurementAction, addInjuryAction, addJournalEntryAction, setGenderAction } from "@/lib/actions";
+import { addMeasurementAction, addInjuryAction, setGenderAction } from "@/lib/actions";
 import { AvatarUpload } from "./avatar-upload";
 import { getCycleSettings, getCycleEntries, estimateCyclePhase } from "@/lib/cycle";
 import { Nav } from "@/components/nav";
-import { Card, Field, SelectField, TextAreaField, Button } from "@/components/ui";
+import { Card, Field, SelectField, Button } from "@/components/ui";
 import { CyclePanel } from "./cycle-panel";
 import { SyncPanel } from "./sync-panel";
 import { PerformanceStats, MeasurementPoint } from "./performance-stats";
-import { todayISO } from "@/lib/dates";
+import { RevokeButton } from "@/app/coach/revoke-button";
+import { JoinCoachForm } from "../join-coach-form";
 
 const METRICS = [
   { value: "weight_kg", label: "Poids (kg)" },
@@ -39,12 +41,12 @@ export default async function AthleteProfilePage() {
   // Requêtes indépendantes parties en parallèle plutôt qu'en série (chacune est
   // un aller-retour réseau vers la base distante en production — les enchaîner
   // une par une multipliait la latence de la page par leur nombre).
-  const [latest, historyAll, injuries, journal, completion, gender, avatar, externalConnections, importedActivities] =
+  const [latest, historyAll, injuries, coaches, completion, gender, avatar, externalConnections, importedActivities] =
     await Promise.all([
       getLatestMeasurements(user.id),
       getMeasurementsForAthlete(user.id),
       getInjuriesForAthlete(user.id),
-      getJournalForAthlete(user.id),
+      getCoachesForAthlete(user.id),
       profileCompletion(user.id),
       getUserGender(user.id),
       getUserAvatar(user.id),
@@ -188,23 +190,30 @@ export default async function AthleteProfilePage() {
         )}
 
         <Card className="rounded-3xl">
-          <h2 className="mb-4 text-[11px] font-bold uppercase tracking-wider text-slate">Journal de bord</h2>
+          <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Mes coachs</h2>
+          {coaches.length === 0 && <p className="text-sm text-slate">Aucun coach lié pour l&apos;instant.</p>}
           <ul className="mb-4 space-y-2 text-sm">
-            {journal.map((j) => (
-              <li key={j.id} className="rounded-xl bg-paper-dim p-2">
-                <span className="text-slate">{j.entry_date} — </span>
-                <span className="text-ink">{j.content}</span>
+            {coaches.map((c) => (
+              <li key={c.link_id} className="flex items-center justify-between">
+                <span className="text-ink">
+                  {c.first_name} {c.last_name} — {c.email}
+                </span>
+                <span className="flex items-center gap-2">
+                  <Link
+                    href={`/athlete/messages/${c.coach_id}`}
+                    className="flex items-center gap-1 text-xs font-semibold text-moss-dark hover:underline"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 5.5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-3.5 3v-3H5a2 2 0 0 1-2-2z" />
+                    </svg>
+                    Discuter
+                  </Link>
+                  <RevokeButton linkId={c.link_id} label="Retirer l'accès" />
+                </span>
               </li>
             ))}
-            {journal.length === 0 && <p className="text-slate">Aucune entrée pour l&apos;instant.</p>}
           </ul>
-          <form action={addJournalEntryAction} className="flex flex-col gap-3">
-            <Field label="Date" type="date" name="entryDate" required defaultValue={todayISO()} />
-            <TextAreaField label="Note" name="content" rows={3} required placeholder="Sensations du jour, fatigue, contexte particulier…" />
-            <div>
-              <Button type="submit">Ajouter une entrée</Button>
-            </div>
-          </form>
+          <JoinCoachForm />
         </Card>
       </main>
     </div>

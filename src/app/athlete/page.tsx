@@ -3,18 +3,18 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import {
   getWorkoutsForAthlete,
-  getCoachesForAthlete,
   profileCompletion,
   getCheckinForDate,
   getImportedActivitiesForRange,
   getUserGender,
+  getJournalForAthlete,
 } from "@/lib/queries";
+import { addJournalEntryAction } from "@/lib/actions";
 import { estimateCyclePhase } from "@/lib/cycle";
 import { getWeekDates, todayISO } from "@/lib/dates";
 import { Nav } from "@/components/nav";
-import { Card, sportLabel, LinkButton } from "@/components/ui";
-import { JoinCoachForm } from "./join-coach-form";
-import { RevokeButton } from "@/app/coach/revoke-button";
+import { Card, sportLabel, LinkButton, Field, TextAreaField, Button } from "@/components/ui";
+import { ScrollNav } from "@/components/scroll-nav";
 import { DailyCheckin } from "./daily-checkin";
 import { ReadinessSummary } from "./readiness-summary";
 import { CheckinModal } from "./checkin-modal";
@@ -44,9 +44,9 @@ export default async function AthleteDashboard({
   // Toutes ces requêtes sont indépendantes : parties en parallèle plutôt qu'en
   // série pour ne pas payer N×latence réseau vers la base distante (Turso) à
   // chaque chargement de la page.
-  const [coaches, completion, todaysCheckin, otherDayCheckin, selectedWorkouts, selectedImports, gender] =
+  const [journal, completion, todaysCheckin, otherDayCheckin, selectedWorkouts, selectedImports, gender] =
     await Promise.all([
-      getCoachesForAthlete(user.id),
+      getJournalForAthlete(user.id),
       profileCompletion(user.id),
       getCheckinForDate(user.id, today),
       isToday ? Promise.resolve(undefined) : getCheckinForDate(user.id, selectedDate),
@@ -117,25 +117,27 @@ export default async function AthleteDashboard({
             </Link>
           </div>
 
-          <div className="flex gap-1 py-2">
-            {weekDates.map((date, idx) => {
-              const isSel = date === selectedDate;
-              const isCurDay = date === today;
-              return (
-                <Link key={date} href={dayLink(offset, date)} className="flex-1 rounded-2xl py-2 text-center">
-                  <p className="mb-1.5 text-[10px] uppercase text-slate">{DAY_LABELS[idx].slice(0, 1)}</p>
-                  <div
-                    className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full font-display text-[14px] font-semibold ${
-                      isSel ? "bg-gold-light text-white" : "text-ink hover:bg-paper-dim"
-                    }`}
-                  >
-                    {date.slice(8, 10)}
-                  </div>
-                  <div className={`mx-auto mt-1 h-1 w-1 rounded-full bg-gold-light ${isCurDay && !isSel ? "" : "invisible"}`} />
-                </Link>
-              );
-            })}
-          </div>
+          <ScrollNav prevHref={weekLink(offset - 1)} nextHref={weekLink(offset + 1)} axis="x">
+            <div className="flex gap-1 py-2">
+              {weekDates.map((date, idx) => {
+                const isSel = date === selectedDate;
+                const isCurDay = date === today;
+                return (
+                  <Link key={date} href={dayLink(offset, date)} className="flex-1 rounded-2xl py-2 text-center">
+                    <p className="mb-1.5 text-[10px] uppercase text-slate">{DAY_LABELS[idx].slice(0, 1)}</p>
+                    <div
+                      className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full font-display text-[14px] font-semibold ${
+                        isSel ? "bg-gold-light text-white" : "text-ink hover:bg-paper-dim"
+                      }`}
+                    >
+                      {date.slice(8, 10)}
+                    </div>
+                    <div className={`mx-auto mt-1 h-1 w-1 rounded-full bg-gold-light ${isCurDay && !isSel ? "" : "invisible"}`} />
+                  </Link>
+                );
+              })}
+            </div>
+          </ScrollNav>
 
           <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2 border-t border-line pt-4">
             <DayLink href={`/athlete/day/${selectedDate}`} className="text-lg font-bold capitalize text-ink hover:underline">
@@ -188,32 +190,25 @@ export default async function AthleteDashboard({
           )}
         </section>
 
-        <div className="mt-10 grid gap-6 md:grid-cols-2">
+        <div className="mt-10">
           <Card className="rounded-3xl">
-            <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Mes coachs</h2>
-            {coaches.length === 0 && <p className="text-sm text-slate">Aucun coach lié pour l&apos;instant.</p>}
+            <h2 className="mb-4 text-[11px] font-bold uppercase tracking-wider text-slate">Journal de bord</h2>
             <ul className="mb-4 space-y-2 text-sm">
-              {coaches.map((c) => (
-                <li key={c.link_id} className="flex items-center justify-between">
-                  <span className="text-ink">
-                    {c.first_name} {c.last_name} — {c.email}
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <Link
-                      href={`/athlete/messages/${c.coach_id}`}
-                      className="flex items-center gap-1 text-xs font-semibold text-moss-dark hover:underline"
-                    >
-                      <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 5.5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-3.5 3v-3H5a2 2 0 0 1-2-2z" />
-                      </svg>
-                      Discuter
-                    </Link>
-                    <RevokeButton linkId={c.link_id} label="Retirer l'accès" />
-                  </span>
+              {journal.map((j) => (
+                <li key={j.id} className="rounded-xl bg-paper-dim p-2">
+                  <span className="text-slate">{j.entry_date} — </span>
+                  <span className="text-ink">{j.content}</span>
                 </li>
               ))}
+              {journal.length === 0 && <p className="text-slate">Aucune entrée pour l&apos;instant.</p>}
             </ul>
-            <JoinCoachForm />
+            <form action={addJournalEntryAction} className="flex flex-col gap-3">
+              <Field label="Date" type="date" name="entryDate" required defaultValue={todayISO()} />
+              <TextAreaField label="Note" name="content" rows={3} required placeholder="Sensations du jour, fatigue, contexte particulier…" />
+              <div>
+                <Button type="submit">Ajouter une entrée</Button>
+              </div>
+            </form>
           </Card>
         </div>
       </main>

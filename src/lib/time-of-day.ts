@@ -21,6 +21,19 @@ export const TIME_OF_DAY_HINTS: Record<TimeOfDay, string> = {
   evening: "18h – 5h",
 };
 
+// Créneaux pour les indisponibilités de l'athlète uniquement : "journée
+// entière" s'ajoute aux 4 créneaux ci-dessus (qui, eux, restent réservés au
+// classement des séances/activités par heure — un "full_day" n'aurait aucun
+// sens dérivé d'un champ "heure").
+export type AvailabilitySlot = TimeOfDay | "full_day";
+
+export const AVAILABILITY_SLOT_ORDER: AvailabilitySlot[] = [...TIME_OF_DAY_ORDER, "full_day"];
+
+export const AVAILABILITY_SLOT_LABELS: Record<AvailabilitySlot, string> = {
+  ...TIME_OF_DAY_LABELS,
+  full_day: "Journée entière",
+};
+
 // "HH:MM" (ou "HH:MM:SS") -> créneau. Soir couvre aussi la nuit (18h-5h) pour ne
 // laisser aucun trou sur 24h. Retourne null si l'heure est absente/invalide —
 // à traiter comme "sans horaire" par l'appelant, jamais comme "matin" par défaut.

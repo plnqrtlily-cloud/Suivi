@@ -9,6 +9,7 @@ import { DailyCheckin } from "../../daily-checkin";
 import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, TIME_OF_DAY_HINTS, groupByTimeOfDay } from "@/lib/time-of-day";
 import { todayISO } from "@/lib/dates";
 import { DeleteAvailabilityButton } from "@/components/delete-availability-button";
+import { EditAvailabilityModal } from "@/components/availability-modal";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const SOURCE_LABELS: Record<string, string> = { manual: "saisie manuelle", garmin: "Garmin Connect", strava: "Strava" };
@@ -62,8 +63,32 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
   ];
 
   const { byPhase, unscheduled } = groupByTimeOfDay(entries, (e) => e.time);
+  const fullDayBlocks = blocks.filter((b) => b.time_of_day === "full_day");
   const blocksByPhase: Record<string, typeof blocks> = { morning: [], midday: [], afternoon: [], evening: [] };
-  for (const b of blocks) blocksByPhase[b.time_of_day].push(b);
+  for (const b of blocks) {
+    if (b.time_of_day !== "full_day") blocksByPhase[b.time_of_day].push(b);
+  }
+
+  function AvailabilityBrick({ b }: { b: (typeof blocks)[number] }) {
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-md bg-ink p-4 text-sm text-white">
+        <span className="flex min-w-0 items-center gap-2">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+            <rect x="4" y="9" width="12" height="8" rx="1.5" />
+            <path d="M7 9V6a3 3 0 016 0v3" />
+          </svg>
+          <span className="truncate">
+            <b className="font-semibold">Indisponible</b>
+            {b.reason && <span className="text-white/70"> — {b.reason}</span>}
+          </span>
+        </span>
+        <span className="flex flex-shrink-0 items-center gap-2">
+          <EditAvailabilityModal block={b} className="text-white/50 hover:text-white" />
+          <DeleteAvailabilityButton id={b.id} className="text-white/50 hover:text-white" />
+        </span>
+      </div>
+    );
+  }
 
   const formattedDate = new Date(`${date}T00:00:00`).toLocaleDateString("fr-FR", {
     weekday: "long",
@@ -117,6 +142,14 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
             </Card>
           ) : (
             <div className="flex flex-col gap-5">
+              {fullDayBlocks.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {fullDayBlocks.map((b) => (
+                    <AvailabilityBrick key={b.id} b={b} />
+                  ))}
+                </div>
+              )}
+
               {TIME_OF_DAY_ORDER.map((phase) =>
                 byPhase[phase].length > 0 || blocksByPhase[phase].length > 0 ? (
                   <div key={phase}>
@@ -126,19 +159,7 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
                     </div>
                     <div className="flex flex-col gap-2">
                       {blocksByPhase[phase].map((b) => (
-                        <div key={b.id} className="flex items-center justify-between gap-3 rounded-md bg-ink p-4 text-sm text-white">
-                          <span className="flex min-w-0 items-center gap-2">
-                            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
-                              <rect x="4" y="9" width="12" height="8" rx="1.5" />
-                              <path d="M7 9V6a3 3 0 016 0v3" />
-                            </svg>
-                            <span className="truncate">
-                              <b className="font-semibold">Indisponible</b>
-                              {b.reason && <span className="text-white/70"> — {b.reason}</span>}
-                            </span>
-                          </span>
-                          <DeleteAvailabilityButton id={b.id} className="flex-shrink-0 text-white/50 hover:text-white" />
-                        </div>
+                        <AvailabilityBrick key={b.id} b={b} />
                       ))}
                       {byPhase[phase].map((e) => (
                         <EntryCard key={e.id} e={e} />

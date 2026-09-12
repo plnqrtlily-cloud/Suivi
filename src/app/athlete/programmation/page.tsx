@@ -3,13 +3,13 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getWorkoutsForAthlete, getImportedActivitiesForRange, getAvailabilityBlocksForRange } from "@/lib/queries";
 import { getWeekDates, getMonthGrid, monthLabel, todayISO } from "@/lib/dates";
-import { TIME_OF_DAY_LABELS } from "@/lib/time-of-day";
+import { AVAILABILITY_SLOT_LABELS } from "@/lib/time-of-day";
 import { Nav } from "@/components/nav";
 import { sportLabel } from "@/components/ui";
 import { DayLink } from "@/components/day-link";
 import { DeleteAvailabilityButton } from "@/components/delete-availability-button";
-import { MonthScrollNav } from "./month-scroll-nav";
-import { AddAvailabilityModal } from "./add-availability-modal";
+import { ScrollNav } from "@/components/scroll-nav";
+import { AddAvailabilityModal, EditAvailabilityModal } from "@/components/availability-modal";
 
 const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 const DAY_LETTERS = ["L", "M", "M", "J", "V", "S", "D"];
@@ -122,10 +122,13 @@ async function WeekView({ athleteId, offset, today }: { athleteId: string; offse
                           <rect x="4" y="9" width="12" height="8" rx="1.5" />
                           <path d="M7 9V6a3 3 0 016 0v3" />
                         </svg>
-                        <b className="font-semibold">{TIME_OF_DAY_LABELS[b.time_of_day]}</b>
+                        <b className="font-semibold">{AVAILABILITY_SLOT_LABELS[b.time_of_day]}</b>
                         {b.reason && <span className="truncate text-white/70">— {b.reason}</span>}
                       </span>
-                      <DeleteAvailabilityButton id={b.id} className="flex-shrink-0 text-white/50 hover:text-white" />
+                      <span className="flex flex-shrink-0 items-center gap-2">
+                        <EditAvailabilityModal block={b} className="text-white/50 hover:text-white" />
+                        <DeleteAvailabilityButton id={b.id} className="text-white/50 hover:text-white" />
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -196,7 +199,7 @@ async function MonthView({ athleteId, monthParam, today }: { athleteId: string; 
       </div>
       <p className="mb-3 text-center text-[10.5px] text-slate">⌃ défiler pour changer de mois ⌄</p>
 
-      <MonthScrollNav
+      <ScrollNav
         prevHref={`/athlete/programmation?view=month&month=${prevMonth()}`}
         nextHref={`/athlete/programmation?view=month&month=${nextMonth()}`}
       >
@@ -234,7 +237,7 @@ async function MonthView({ athleteId, monthParam, today }: { athleteId: string; 
             );
           })}
         </div>
-      </MonthScrollNav>
+      </ScrollNav>
 
       <div className="mt-6 flex items-center gap-4 border-t border-line pt-4 text-[11px] text-slate">
         <span className="flex items-center gap-1.5">

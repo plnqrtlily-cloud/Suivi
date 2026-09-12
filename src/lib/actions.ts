@@ -600,7 +600,7 @@ export async function addImportedActivityAction(formData: FormData) {
 // personnelles...) ; visibles par ses coachs actifs pour planifier les séances
 // autour plutôt qu'en plein dessus — pas de bascule de partage séparée ici,
 // contrairement au cycle menstruel : il ne s'agit pas d'une donnée de santé.
-const VALID_TIME_OF_DAY = ["morning", "midday", "afternoon", "evening"];
+const VALID_TIME_OF_DAY = ["morning", "midday", "afternoon", "evening", "full_day"];
 
 export async function addAvailabilityBlockAction(formData: FormData) {
   const user = await getCurrentUser();
@@ -622,6 +622,31 @@ export async function addAvailabilityBlockAction(formData: FormData) {
   revalidatePath("/athlete/programmation");
   revalidatePath("/athlete");
   revalidatePath(`/athlete/day/${date}`);
+}
+
+export async function updateAvailabilityBlockAction(id: string, formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Non autorisé.");
+
+  const existing = await dbGet<any>(`SELECT athlete_id, date FROM availability_blocks WHERE id = ?`, [id]);
+  if (!existing || existing.athlete_id !== user.id) throw new Error("Non autorisé.");
+
+  const date = String(formData.get("date") || "");
+  const timeOfDay = String(formData.get("timeOfDay") || "");
+  const reason = String(formData.get("reason") || "").trim();
+  if (!date || !VALID_TIME_OF_DAY.includes(timeOfDay)) throw new Error("Choisissez un jour et un créneau.");
+
+  await dbRun(`UPDATE availability_blocks SET date = ?, time_of_day = ?, reason = ? WHERE id = ?`, [
+    date,
+    timeOfDay,
+    reason || null,
+    id,
+  ]);
+
+  revalidatePath("/athlete/programmation");
+  revalidatePath("/athlete");
+  revalidatePath(`/athlete/day/${date}`);
+  if (date !== existing.date) revalidatePath(`/athlete/day/${existing.date}`);
 }
 
 export async function deleteAvailabilityBlockAction(id: string) {

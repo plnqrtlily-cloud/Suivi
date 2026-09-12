@@ -285,7 +285,7 @@ CREATE TABLE IF NOT EXISTS availability_blocks (
   id TEXT PRIMARY KEY,
   athlete_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   date TEXT NOT NULL,
-  time_of_day TEXT NOT NULL CHECK (time_of_day IN ('morning','midday','afternoon','evening')),
+  time_of_day TEXT NOT NULL CHECK (time_of_day IN ('morning','midday','afternoon','evening','full_day')),
   reason TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -322,8 +322,40 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE exercise_sets ADD COLUMN rpe INTEGER`,
 ];
 
+// SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER
+// TABLE : quand 'full_day' a été ajouté aux créneaux valides après le premier
+// déploiement de availability_blocks, les bases déjà créées avaient la
+// contrainte figée sans cette valeur. Reconstruit la table (renommer/copier/
+// supprimer) uniquement si nécessaire — vérifié via sqlite_master plutôt
+// qu'un indicateur séparé, donc sans risque à rejouer à chaque démarrage.
+async function migrateAvailabilityBlocksCheck(): Promise<void> {
+  try {
+    const info = await client.execute(
+      `SELECT sql FROM sqlite_master WHERE type='table' AND name='availability_blocks'`
+    );
+    const ddl = info.rows[0]?.sql as string | undefined;
+    if (!ddl || ddl.includes("full_day")) return; // table absente ou déjà migrée
+    await client.executeMultiple(`
+      CREATE TABLE IF NOT EXISTS availability_blocks_new (
+        id TEXT PRIMARY KEY,
+        athlete_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        date TEXT NOT NULL,
+        time_of_day TEXT NOT NULL CHECK (time_of_day IN ('morning','midday','afternoon','evening','full_day')),
+        reason TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO availability_blocks_new SELECT * FROM availability_blocks;
+      DROP TABLE availability_blocks;
+      ALTER TABLE availability_blocks_new RENAME TO availability_blocks;
+    `);
+  } catch {
+    // Best effort — en cas d'échec, la contrainte reste stricte mais aucune donnée n'est perdue.
+  }
+}
+
 async function init(): Promise<void> {
   await client.executeMultiple(SCHEMA_SQL);
+  await migrateAvailabilityBlocksCheck();
   for (const migration of MIGRATIONS) {
     try {
       await client.execute(migration);

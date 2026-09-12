@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getWorkoutsForAthlete, getImportedActivitiesForRange, getAvailabilityBlocksForRange } from "@/lib/queries";
 import { getWeekDates, getMonthGrid, monthLabel } from "@/lib/dates";
-import { TIME_OF_DAY_LABELS } from "@/lib/time-of-day";
+import { AVAILABILITY_SLOT_LABELS } from "@/lib/time-of-day";
 import { StatusBadge, sportLabel } from "@/components/ui";
 
 const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
@@ -105,7 +105,7 @@ async function CoachWeekView({ athleteId, offset, today, base }: { athleteId: st
                         <rect x="4" y="9" width="12" height="8" rx="1.5" />
                         <path d="M7 9V6a3 3 0 016 0v3" />
                       </svg>
-                      <b className="font-semibold">{TIME_OF_DAY_LABELS[b.time_of_day]}</b>
+                      <b className="font-semibold">{AVAILABILITY_SLOT_LABELS[b.time_of_day]}</b>
                       {b.reason && <span className="truncate text-white/70">— {b.reason}</span>}
                     </div>
                   ))}

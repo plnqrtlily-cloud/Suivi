@@ -1,6 +1,6 @@
 import { dbGet, dbAll } from "./db";
 import type { Checkin } from "./checkin-types";
-import type { TimeOfDay } from "./time-of-day";
+import type { AvailabilitySlot } from "./time-of-day";
 
 export interface AthleteLink {
   link_id: string;
@@ -220,7 +220,7 @@ export interface AvailabilityBlock {
   id: string;
   athlete_id: string;
   date: string;
-  time_of_day: TimeOfDay;
+  time_of_day: AvailabilitySlot;
   reason: string | null;
 }
 
