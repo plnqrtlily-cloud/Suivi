@@ -12,15 +12,16 @@ export function JoinCoachForm() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const form = e.currentTarget;
     setPending(true);
     setError(undefined);
-    const formData = new FormData(e.currentTarget);
+    const formData = new FormData(form);
     const result = await joinCoachWithCodeAction(formData);
     setPending(false);
     if (result?.error) {
       setError(result.error);
     } else {
-      e.currentTarget.reset();
+      form.reset();
       router.refresh();
     }
   }

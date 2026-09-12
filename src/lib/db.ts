@@ -113,7 +113,12 @@ CREATE TABLE IF NOT EXISTS workout_blocks (
   load TEXT,
   notes TEXT,
   resource_id TEXT REFERENCES resources(id) ON DELETE SET NULL,
-  order_index INTEGER NOT NULL DEFAULT 0
+  order_index INTEGER NOT NULL DEFAULT 0,
+  -- Qualité physique travaillée par ce bloc (force max / explosivité / force-
+  -- endurance / cardio) : détermine quels champs le coach renseigne par série
+  -- (cf. exercise_sets.rest_seconds/rpe) et comment l'athlète doit exécuter
+  -- l'exercice — un bloc "force max" et un bloc "cardio" ne se lisent pas pareil.
+  training_quality TEXT CHECK (training_quality IN ('force_max','explosivite','force_endurance','cardio'))
 );
 
 -- Fil de commentaires par séance (cf. prompt : "Communication")
@@ -201,6 +206,12 @@ CREATE TABLE IF NOT EXISTS imported_activities (
   duration_minutes INTEGER,
   distance_km REAL,
   avg_hr INTEGER,
+  -- Dénivelé (rando/vélo/course), puissance moyenne (vélo) et RPE ressenti :
+  -- sans RPE une activité importée ne comptait pour rien dans le bilan de
+  -- charge, alors qu'elle représente un vrai entraînement pour l'athlète.
+  elevation_gain_m INTEGER,
+  avg_power_w INTEGER,
+  rpe INTEGER,
   notes TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -262,6 +273,8 @@ CREATE TABLE IF NOT EXISTS exercise_sets (
   set_number INTEGER NOT NULL,
   reps TEXT,
   load TEXT,
+  rest_seconds INTEGER,
+  rpe INTEGER,
   order_index INTEGER NOT NULL DEFAULT 0
 );
 -- Discussion coach <-> athlète, indépendante d'une séance précise (cf. demande V3 :
@@ -287,7 +300,15 @@ let initialized: Promise<void> | null = null;
 // COLUMN ne touche à aucune ligne existante, il ajoute juste la colonne (vide) en
 // plus. Échoue silencieusement si la colonne existe déjà (base neuve ou migration
 // déjà appliquée), ce qui la rend sûre à ré-exécuter à chaque démarrage.
-const MIGRATIONS: string[] = [`ALTER TABLE imported_activities ADD COLUMN activity_time TEXT`];
+const MIGRATIONS: string[] = [
+  `ALTER TABLE imported_activities ADD COLUMN activity_time TEXT`,
+  `ALTER TABLE imported_activities ADD COLUMN elevation_gain_m INTEGER`,
+  `ALTER TABLE imported_activities ADD COLUMN avg_power_w INTEGER`,
+  `ALTER TABLE imported_activities ADD COLUMN rpe INTEGER`,
+  `ALTER TABLE workout_blocks ADD COLUMN training_quality TEXT`,
+  `ALTER TABLE exercise_sets ADD COLUMN rest_seconds INTEGER`,
+  `ALTER TABLE exercise_sets ADD COLUMN rpe INTEGER`,
+];
 
 async function init(): Promise<void> {
   await client.executeMultiple(SCHEMA_SQL);

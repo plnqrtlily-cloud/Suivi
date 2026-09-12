@@ -143,13 +143,22 @@ export async function joinCoachWithCodeAction(formData: FormData) {
 export interface SetInput {
   reps?: string;
   load?: string;
+  restSeconds?: number;
+  rpe?: number;
 }
+
+// Qualité physique travaillée — cf. periodisation classique (Bompa/NSCA) :
+// détermine quels champs sont pertinents par série (charge lourde + repos long
+// pour la force max, peu de reps pour l'explosivité, reps hautes + repos court
+// pour la force-endurance, durée/intensité plutôt que charge pour le cardio).
+export type TrainingQuality = "force_max" | "explosivite" | "force_endurance" | "cardio";
 
 export interface BlockInput {
   block_type: string;
   exercise_name: string;
   notes?: string;
   resource_id?: string;
+  training_quality?: TrainingQuality;
   sets?: SetInput[];
 }
 
@@ -220,17 +229,17 @@ export async function createWorkoutAction(params: {
       for (const b of resolvedBlocks) {
         const blockId = randomUUID();
         await dbRun(
-          `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, notes, resource_id, order_index)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [blockId, workoutId, b.block_type, b.exercise_name, b.notes || null, b.resourceId, idx]
+          `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, notes, resource_id, order_index, training_quality)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [blockId, workoutId, b.block_type, b.exercise_name, b.notes || null, b.resourceId, idx, b.training_quality || null]
         );
 
         let setIdx = 0;
         for (const s of b.sets || []) {
           if (s.reps || s.load) {
             await dbRun(
-              `INSERT INTO exercise_sets (id, block_id, set_number, reps, load, order_index) VALUES (?, ?, ?, ?, ?, ?)`,
-              [randomUUID(), blockId, setIdx + 1, s.reps || null, s.load || null, setIdx]
+              `INSERT INTO exercise_sets (id, block_id, set_number, reps, load, rest_seconds, rpe, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              [randomUUID(), blockId, setIdx + 1, s.reps || null, s.load || null, s.restSeconds || null, s.rpe || null, setIdx]
             );
           }
           setIdx++;
@@ -556,13 +565,29 @@ export async function addImportedActivityAction(formData: FormData) {
   const durationMinutes = formData.get("durationMinutes") ? Number(formData.get("durationMinutes")) : null;
   const distanceKm = formData.get("distanceKm") ? Number(formData.get("distanceKm")) : null;
   const avgHr = formData.get("avgHr") ? Number(formData.get("avgHr")) : null;
+  const elevationGainM = formData.get("elevationGainM") ? Number(formData.get("elevationGainM")) : null;
+  const avgPowerW = formData.get("avgPowerW") ? Number(formData.get("avgPowerW")) : null;
+  const rpe = formData.get("rpe") ? Number(formData.get("rpe")) : null;
   const notes = String(formData.get("notes") || "").trim();
   if (!activityDate || !sport) return;
 
   await dbRun(
-    `INSERT INTO imported_activities (id, athlete_id, source, activity_date, activity_time, sport, duration_minutes, distance_km, avg_hr, notes)
-     VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?)`,
-    [randomUUID(), user.id, activityDate, activityTime || null, sport, durationMinutes, distanceKm, avgHr, notes || null]
+    `INSERT INTO imported_activities (id, athlete_id, source, activity_date, activity_time, sport, duration_minutes, distance_km, avg_hr, elevation_gain_m, avg_power_w, rpe, notes)
+     VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      randomUUID(),
+      user.id,
+      activityDate,
+      activityTime || null,
+      sport,
+      durationMinutes,
+      distanceKm,
+      avgHr,
+      elevationGainM,
+      avgPowerW,
+      rpe,
+      notes || null,
+    ]
   );
 
   revalidatePath("/athlete/profile");

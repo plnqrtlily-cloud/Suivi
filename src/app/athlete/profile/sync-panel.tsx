@@ -75,13 +75,18 @@ function ConnectionRow({ connection }: { connection: ExternalConnection }) {
 export function SyncPanel({ connections, activities }: { connections: ExternalConnection[]; activities: any[] }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  const [importSport, setImportSport] = useState("running");
 
   async function handleImport(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const form = e.currentTarget;
     setPending(true);
-    await addImportedActivityAction(new FormData(e.currentTarget));
+    await addImportedActivityAction(new FormData(form));
     setPending(false);
-    e.currentTarget.reset();
+    // `e.currentTarget` est nettoyé par React après l'await (event synthétique) —
+    // la référence capturée avant reste la seule façon fiable de reset() ici.
+    form.reset();
+    setImportSport("running");
     router.refresh();
   }
 
@@ -102,7 +107,7 @@ export function SyncPanel({ connections, activities }: { connections: ExternalCo
         <form onSubmit={handleImport} className="grid grid-cols-2 gap-3">
           <Field label="Date" type="date" name="activityDate" required />
           <Field label="Heure (facultatif)" type="time" name="activityTime" />
-          <SelectField label="Sport" name="sport" defaultValue="running">
+          <SelectField label="Sport" name="sport" value={importSport} onChange={(e) => setImportSport(e.target.value)}>
             <option value="running">Course à pied</option>
             <option value="cycling">Vélo</option>
             <option value="hiking">Randonnée</option>
@@ -111,8 +116,13 @@ export function SyncPanel({ connections, activities }: { connections: ExternalCo
             <option value="strength">Musculation</option>
           </SelectField>
           <Field label="Durée (minutes)" type="number" name="durationMinutes" min={0} />
-          <Field label="Distance (km)" type="number" step="0.1" name="distanceKm" min={0} />
+          {importSport !== "strength" && <Field label="Distance (km)" type="number" step="0.1" name="distanceKm" min={0} />}
           <Field label="FC moyenne (bpm)" type="number" name="avgHr" min={0} />
+          {(importSport === "hiking" || importSport === "cycling" || importSport === "running") && (
+            <Field label="Dénivelé positif (m)" type="number" name="elevationGainM" min={0} />
+          )}
+          {importSport === "cycling" && <Field label="Puissance moyenne (W)" type="number" name="avgPowerW" min={0} />}
+          <Field label="RPE ressenti (facultatif)" type="number" name="rpe" min={1} max={10} placeholder="1 à 10" />
           <Field label="Notes" name="notes" />
           <div className="col-span-2">
             <Button type="submit" disabled={pending}>

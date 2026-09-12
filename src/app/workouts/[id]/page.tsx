@@ -19,6 +19,19 @@ const BLOCK_TITLES: Record<string, string> = {
   cooldown: "Retour au calme",
 };
 
+const QUALITY_LABELS: Record<string, string> = {
+  force_max: "Force maximale",
+  explosivite: "Explosivité / puissance",
+  force_endurance: "Force-endurance",
+  cardio: "Cardio / conditionnement",
+};
+const QUALITY_STYLES: Record<string, string> = {
+  force_max: "bg-moss/10 text-moss-dark",
+  explosivite: "bg-gold-light/15 text-gold-light",
+  force_endurance: "bg-status-postponed/15 text-status-postponed",
+  cardio: "bg-clay/15 text-clay",
+};
+
 export default async function WorkoutDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -77,7 +90,14 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
               {blocks.map((b) => (
                 <div key={b.id} className="border-l-2 border-moss/40 pl-3">
                   <p className="text-xs uppercase tracking-wide text-slate">{BLOCK_TITLES[b.block_type]}</p>
-                  <p className="font-medium text-ink">{b.exercise_name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-ink">{b.exercise_name}</p>
+                    {b.training_quality && (
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${QUALITY_STYLES[b.training_quality]}`}>
+                        {QUALITY_LABELS[b.training_quality]}
+                      </span>
+                    )}
+                  </div>
                   {b.exerciseSets?.length > 0 && (
                     <table className="mt-1 text-sm text-slate">
                       <tbody>
@@ -85,7 +105,9 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                           <tr key={s.id}>
                             <td className="pr-3 text-ink-soft">Série {s.set_number}</td>
                             <td className="pr-3">{s.reps || "—"}</td>
-                            <td>{s.load || "—"}</td>
+                            <td className="pr-3">{s.load || "—"}</td>
+                            {s.rest_seconds && <td className="pr-3 text-xs">Repos {s.rest_seconds}s</td>}
+                            {s.rpe && <td className="text-xs">RPE {s.rpe}</td>}
                           </tr>
                         ))}
                       </tbody>

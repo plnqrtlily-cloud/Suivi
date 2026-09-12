@@ -12,13 +12,14 @@ export function InviteForm() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const form = e.currentTarget;
     setPending(true);
-    const formData = new FormData(e.currentTarget);
+    const formData = new FormData(form);
     const { token } = await createInviteAction(formData);
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     setLink(`${origin}/invite/${token}`);
     setPending(false);
-    e.currentTarget.reset();
+    form.reset();
     router.refresh(); // sans ça, la liste "Invitation en attente" ci-dessous restait périmée
   }
 

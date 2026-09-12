@@ -101,12 +101,12 @@ export async function getBlocksForWorkout(workoutId: string) {
     [workoutId]
   );
 
-  const result = [];
-  for (const b of blocks) {
-    const exerciseSets = await dbAll(`SELECT * FROM exercise_sets WHERE block_id = ? ORDER BY order_index ASC`, [b.id]);
-    result.push({ ...b, exerciseSets });
-  }
-  return result;
+  return Promise.all(
+    blocks.map(async (b) => {
+      const exerciseSets = await dbAll(`SELECT * FROM exercise_sets WHERE block_id = ? ORDER BY order_index ASC`, [b.id]);
+      return { ...b, exerciseSets };
+    })
+  );
 }
 
 export async function getCommentsForWorkout(workoutId: string) {
@@ -185,6 +185,9 @@ export interface ImportedActivity {
   duration_minutes: number | null;
   distance_km: number | null;
   avg_hr: number | null;
+  elevation_gain_m: number | null;
+  avg_power_w: number | null;
+  rpe: number | null;
   notes: string | null;
 }
 

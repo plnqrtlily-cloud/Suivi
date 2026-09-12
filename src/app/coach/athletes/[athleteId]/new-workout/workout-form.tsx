@@ -74,7 +74,15 @@ export function WorkoutForm({
                 exercise_name: b.exercise_name,
                 notes: b.notes || undefined,
                 resource_id: b.resource_id || undefined,
-                sets: b.sets.filter((s) => s.reps || s.load),
+                training_quality: b.training_quality || undefined,
+                sets: b.sets
+                  .filter((s) => s.reps || s.load)
+                  .map((s) => ({
+                    reps: s.reps,
+                    load: s.load,
+                    restSeconds: s.restSeconds ? Number(s.restSeconds) : undefined,
+                    rpe: s.rpe ? Number(s.rpe) : undefined,
+                  })),
               }))
             : undefined,
       });

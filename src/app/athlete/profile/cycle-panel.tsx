@@ -40,10 +40,11 @@ export function CyclePanel({
 
   async function handleEntrySubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const form = e.currentTarget;
     setPending(true);
-    await addCycleEntryAction(new FormData(e.currentTarget));
+    await addCycleEntryAction(new FormData(form));
     setPending(false);
-    e.currentTarget.reset();
+    form.reset();
     router.refresh();
   }
 
