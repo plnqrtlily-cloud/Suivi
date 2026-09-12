@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { addAvailabilityBlockAction, updateAvailabilityBlockAction } from "@/lib/actions";
-import { Button, SelectField, Field, TextAreaField } from "@/components/ui";
+import { Button, SelectField, Field, TextAreaField, ErrorText } from "@/components/ui";
 import { AVAILABILITY_SLOT_LABELS, AVAILABILITY_SLOT_ORDER, type AvailabilitySlot } from "@/lib/time-of-day";
+import { DateRangePicker, dateRangeToList } from "@/components/date-range-picker";
 
 interface ExistingBlock {
   id: string;
@@ -13,15 +14,69 @@ interface ExistingBlock {
   reason: string | null;
 }
 
-function AvailabilityForm({
-  defaultDate,
-  existing,
-  onDone,
-}: {
-  defaultDate: string;
-  existing?: ExistingBlock;
-  onDone: () => void;
-}) {
+// Ajout : plage de dates façon Booking (une indisponibilité peut couvrir
+// plusieurs jours d'affilée, ex. des vacances) — un enregistrement par jour
+// créé côté serveur, cf. addAvailabilityBlockAction.
+function AddAvailabilityForm({ defaultDate, onDone }: { defaultDate: string; onDone: () => void }) {
+  const router = useRouter();
+  const [rangeStart, setRangeStart] = useState<string | null>(defaultDate);
+  const [rangeEnd, setRangeEnd] = useState<string | null>(defaultDate);
+  const [timeOfDay, setTimeOfDay] = useState<AvailabilitySlot>("morning");
+  const [error, setError] = useState<string | undefined>();
+  const [pending, setPending] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!rangeStart || !rangeEnd) {
+      setError("Choisissez au moins un jour.");
+      return;
+    }
+    setPending(true);
+    setError(undefined);
+    const formData = new FormData(e.currentTarget);
+    await addAvailabilityBlockAction({
+      dates: dateRangeToList(rangeStart, rangeEnd),
+      timeOfDay,
+      reason: String(formData.get("reason") || ""),
+    });
+    setPending(false);
+    onDone();
+    router.refresh();
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <div>
+        <span className="mb-1.5 block text-sm font-medium text-ink-soft">Jour(s)</span>
+        <DateRangePicker
+          start={rangeStart}
+          end={rangeEnd}
+          onChange={({ start, end }) => {
+            setRangeStart(start);
+            setRangeEnd(end);
+          }}
+        />
+      </div>
+      <SelectField label="Créneau" name="timeOfDay" value={timeOfDay} onChange={(e) => setTimeOfDay(e.target.value as AvailabilitySlot)}>
+        {AVAILABILITY_SLOT_ORDER.map((t) => (
+          <option key={t} value={t}>
+            {AVAILABILITY_SLOT_LABELS[t]}
+          </option>
+        ))}
+      </SelectField>
+      <TextAreaField label="Motif (facultatif)" name="reason" rows={2} placeholder="ex. Rendez-vous médical" />
+      <ErrorText>{error}</ErrorText>
+      <Button type="submit" disabled={pending} className="mt-1">
+        {pending ? "Enregistrement…" : "Ajouter"}
+      </Button>
+    </form>
+  );
+}
+
+// Édition : une brique existante reste un jour unique — déplacer une
+// indisponibilité déjà posée vers une plage n'aurait pas de sens (elle
+// deviendrait plusieurs briques distinctes, pas la même modifiée).
+function EditAvailabilityForm({ existing, onDone }: { existing: ExistingBlock; onDone: () => void }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
 
@@ -29,9 +84,7 @@ function AvailabilityForm({
     e.preventDefault();
     const form = e.currentTarget;
     setPending(true);
-    const formData = new FormData(form);
-    if (existing) await updateAvailabilityBlockAction(existing.id, formData);
-    else await addAvailabilityBlockAction(formData);
+    await updateAvailabilityBlockAction(existing.id, new FormData(form));
     setPending(false);
     form.reset();
     onDone();
@@ -40,17 +93,17 @@ function AvailabilityForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <Field label="Date" type="date" name="date" required defaultValue={existing?.date || defaultDate} />
-      <SelectField label="Créneau" name="timeOfDay" defaultValue={existing?.time_of_day || "morning"}>
+      <Field label="Date" type="date" name="date" required defaultValue={existing.date} />
+      <SelectField label="Créneau" name="timeOfDay" defaultValue={existing.time_of_day}>
         {AVAILABILITY_SLOT_ORDER.map((t) => (
           <option key={t} value={t}>
             {AVAILABILITY_SLOT_LABELS[t]}
           </option>
         ))}
       </SelectField>
-      <TextAreaField label="Motif (facultatif)" name="reason" rows={2} placeholder="ex. Rendez-vous médical" defaultValue={existing?.reason || ""} />
+      <TextAreaField label="Motif (facultatif)" name="reason" rows={2} placeholder="ex. Rendez-vous médical" defaultValue={existing.reason || ""} />
       <Button type="submit" disabled={pending} className="mt-1">
-        {pending ? "Enregistrement…" : existing ? "Enregistrer" : "Ajouter"}
+        {pending ? "Enregistrement…" : "Enregistrer"}
       </Button>
     </form>
   );
@@ -71,9 +124,9 @@ function Modal({ title, subtitle, onClose, children }: { title: string; subtitle
 }
 
 // Bouton "+" qui ouvre une fenêtre pour poser une indisponibilité personnelle
-// sur un créneau (matin/midi/aprem/soir/journée) d'un jour donné — ces blocs
-// s'affichent ensuite comme des briques sur le planning, pour que le coach
-// programme les séances autour plutôt qu'en plein dessus.
+// sur un créneau (matin/midi/aprem/soir/journée) d'un ou plusieurs jours — ces
+// blocs s'affichent ensuite comme des briques sur le planning, pour que le
+// coach programme les séances autour plutôt qu'en plein dessus.
 export function AddAvailabilityModal({ defaultDate }: { defaultDate: string }) {
   const [open, setOpen] = useState(false);
   return (
@@ -92,10 +145,10 @@ export function AddAvailabilityModal({ defaultDate }: { defaultDate: string }) {
       {open && (
         <Modal
           title="Indisponibilité"
-          subtitle="Un rendez-vous, une obligation personnelle… votre coach le verra pour planifier autour."
+          subtitle="Un rendez-vous, des vacances… votre coach le verra pour planifier autour. Cliquez un second jour pour couvrir toute une période."
           onClose={() => setOpen(false)}
         >
-          <AvailabilityForm defaultDate={defaultDate} onDone={() => setOpen(false)} />
+          <AddAvailabilityForm defaultDate={defaultDate} onDone={() => setOpen(false)} />
         </Modal>
       )}
     </>
@@ -116,7 +169,7 @@ export function EditAvailabilityModal({ block, className }: { block: ExistingBlo
 
       {open && (
         <Modal title="Modifier l'indisponibilité" subtitle="Ajustez le jour, le créneau ou le motif." onClose={() => setOpen(false)}>
-          <AvailabilityForm defaultDate={block.date} existing={block} onDone={() => setOpen(false)} />
+          <EditAvailabilityForm existing={block} onDone={() => setOpen(false)} />
         </Modal>
       )}
     </>

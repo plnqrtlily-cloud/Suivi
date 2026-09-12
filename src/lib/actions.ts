@@ -814,26 +814,33 @@ export async function deleteImportedActivityAction(id: string) {
 // contrairement au cycle menstruel : il ne s'agit pas d'une donnée de santé.
 const VALID_TIME_OF_DAY = ["morning", "midday", "afternoon", "evening", "full_day"];
 
-export async function addAvailabilityBlockAction(formData: FormData) {
+// Une même indisponibilité peut couvrir plusieurs jours d'affilée (sélecteur
+// de plage façon Booking, comme pour la création de séance côté coach) — un
+// enregistrement par jour, pour rester modifiable/supprimable jour par jour
+// ensuite plutôt que comme un bloc figé.
+export async function addAvailabilityBlockAction(params: { dates: string[]; timeOfDay: string; reason?: string }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+  if (!params.dates.length || !VALID_TIME_OF_DAY.includes(params.timeOfDay)) {
+    throw new Error("Choisissez au moins un jour et un créneau.");
+  }
+  const reason = params.reason?.trim() || null;
 
-  const date = String(formData.get("date") || "");
-  const timeOfDay = String(formData.get("timeOfDay") || "");
-  const reason = String(formData.get("reason") || "").trim();
-  if (!date || !VALID_TIME_OF_DAY.includes(timeOfDay)) throw new Error("Choisissez un jour et un créneau.");
-
-  await dbRun(`INSERT INTO availability_blocks (id, athlete_id, date, time_of_day, reason) VALUES (?, ?, ?, ?, ?)`, [
-    randomUUID(),
-    user.id,
-    date,
-    timeOfDay,
-    reason || null,
-  ]);
+  await Promise.all(
+    params.dates.map((date) =>
+      dbRun(`INSERT INTO availability_blocks (id, athlete_id, date, time_of_day, reason) VALUES (?, ?, ?, ?, ?)`, [
+        randomUUID(),
+        user.id,
+        date,
+        params.timeOfDay,
+        reason,
+      ])
+    )
+  );
 
   revalidatePath("/athlete/programmation");
   revalidatePath("/athlete");
-  revalidatePath(`/athlete/day/${date}`);
+  for (const date of params.dates) revalidatePath(`/athlete/day/${date}`);
 }
 
 export async function updateAvailabilityBlockAction(id: string, formData: FormData) {
