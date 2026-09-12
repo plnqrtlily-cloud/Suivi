@@ -5,6 +5,8 @@ import { getWorkoutsForAthlete, getImportedActivitiesForRange } from "@/lib/quer
 import { getWeekDates, getMonthGrid, monthLabel, todayISO } from "@/lib/dates";
 import { Nav } from "@/components/nav";
 import { sportLabel } from "@/components/ui";
+import { DayLink } from "@/components/day-link";
+import { MonthScrollNav } from "./month-scroll-nav";
 
 const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 const DAY_LETTERS = ["L", "M", "M", "J", "V", "S", "D"];
@@ -91,12 +93,12 @@ async function WeekView({ athleteId, offset, today }: { athleteId: string; offse
           return (
             <div key={date} className={`rounded-2xl border p-4 ${isToday ? "border-gold-light bg-gold-light/5" : "border-line bg-white"}`}>
               <div className="mb-2 flex items-center justify-between">
-                <Link href={`/athlete/day/${date}`} className="flex items-center gap-2 hover:underline">
+                <DayLink href={`/athlete/day/${date}`} className="flex items-center gap-2 hover:underline">
                   <span className={`flex h-7 w-7 items-center justify-center rounded-full font-display text-[13px] font-semibold ${isToday ? "bg-gold-light text-white" : "bg-paper-dim text-ink"}`}>
                     {date.slice(8, 10)}
                   </span>
                   <span className="text-sm font-semibold text-ink">{DAY_LABELS[idx]}</span>
-                </Link>
+                </DayLink>
                 {totalMinutes > 0 && (
                   <span className="text-[11px] font-semibold text-slate">
                     {Math.floor(totalMinutes / 60) > 0 ? `${Math.floor(totalMinutes / 60)}h` : ""}
@@ -165,39 +167,45 @@ async function MonthView({ athleteId, monthParam, today }: { athleteId: string; 
           ›
         </Link>
       </div>
+      <p className="mb-3 text-center text-[10.5px] text-slate">⌃ défiler pour changer de mois ⌄</p>
 
-      <div className="mb-2 grid grid-cols-7 px-1">
-        {DAY_LETTERS.map((l, i) => (
-          <span key={i} className="text-center text-[10px] uppercase text-slate">
-            {l}
-          </span>
-        ))}
-      </div>
+      <MonthScrollNav
+        prevHref={`/athlete/programmation?view=month&month=${prevMonth()}`}
+        nextHref={`/athlete/programmation?view=month&month=${nextMonth()}`}
+      >
+        <div className="mb-2 grid grid-cols-7 px-1">
+          {DAY_LETTERS.map((l, i) => (
+            <span key={i} className="text-center text-[10px] uppercase text-slate">
+              {l}
+            </span>
+          ))}
+        </div>
 
-      <div className="grid grid-cols-7 gap-y-3">
-        {grid.map((cell) => {
-          const dayWorkouts = workouts.filter((w) => w.date === cell.date);
-          const hasGoal = dayWorkouts.some((w) => w.category === "objectif" || w.category === "evenement");
-          const hasTraining = dayWorkouts.some((w) => w.category !== "objectif" && w.category !== "evenement");
-          const isToday = cell.date === today;
+        <div className="grid grid-cols-7 gap-y-3">
+          {grid.map((cell) => {
+            const dayWorkouts = workouts.filter((w) => w.date === cell.date);
+            const hasGoal = dayWorkouts.some((w) => w.category === "objectif" || w.category === "evenement");
+            const hasTraining = dayWorkouts.some((w) => w.category !== "objectif" && w.category !== "evenement");
+            const isToday = cell.date === today;
 
-          return (
-            <Link key={cell.date} href={`/athlete/day/${cell.date}`} className="flex flex-col items-center gap-1 py-1">
-              <span
-                className={`flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-semibold ${
-                  isToday ? "bg-gold-light text-white" : cell.inMonth ? "text-ink hover:bg-paper-dim" : "text-line"
-                }`}
-              >
-                {cell.day}
-              </span>
-              <span className="flex h-1.5 gap-0.5">
-                {hasTraining && <span className="h-1.5 w-1.5 rounded-full bg-moss" />}
-                {hasGoal && <span className="h-1.5 w-1.5 rounded-sm bg-gold-light" />}
-              </span>
-            </Link>
-          );
-        })}
-      </div>
+            return (
+              <DayLink key={cell.date} href={`/athlete/day/${cell.date}`} className="flex flex-col items-center gap-1 py-1">
+                <span
+                  className={`flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-semibold ${
+                    isToday ? "bg-gold-light text-white" : cell.inMonth ? "text-ink hover:bg-paper-dim" : "text-line"
+                  }`}
+                >
+                  {cell.day}
+                </span>
+                <span className="flex h-1.5 gap-0.5">
+                  {hasTraining && <span className="h-1.5 w-1.5 rounded-full bg-moss" />}
+                  {hasGoal && <span className="h-1.5 w-1.5 rounded-sm bg-gold-light" />}
+                </span>
+              </DayLink>
+            );
+          })}
+        </div>
+      </MonthScrollNav>
 
       <div className="mt-6 flex items-center gap-4 border-t border-line pt-4 text-[11px] text-slate">
         <span className="flex items-center gap-1.5">

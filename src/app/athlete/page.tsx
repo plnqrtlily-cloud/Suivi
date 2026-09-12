@@ -20,6 +20,7 @@ import { ReadinessSummary } from "./readiness-summary";
 import { CheckinModal } from "./checkin-modal";
 import { SessionCard } from "./session-card";
 import { CycleBadge } from "./cycle-badge";
+import { DayLink } from "@/components/day-link";
 
 const DAY_LABELS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -137,9 +138,9 @@ export default async function AthleteDashboard({
           </div>
 
           <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2 border-t border-line pt-4">
-            <Link href={`/athlete/day/${selectedDate}`} className="text-lg font-bold capitalize text-ink hover:underline">
+            <DayLink href={`/athlete/day/${selectedDate}`} className="text-lg font-bold capitalize text-ink hover:underline">
               {formattedSelectedDate}
-            </Link>
+            </DayLink>
             <div className="flex items-center gap-2">
               {cycleEstimate && <CycleBadge estimate={cycleEstimate} />}
               {isToday && (
@@ -150,14 +151,21 @@ export default async function AthleteDashboard({
             </div>
           </div>
 
-          <p className="mb-1 mt-5 text-[11px] font-bold uppercase tracking-wider text-slate">Résumé du jour</p>
-          {selectedCheckin ? (
-            <ReadinessSummary date={selectedDate} checkin={selectedCheckin} />
-          ) : (
-            <Card>
-              <p className="mb-3 text-sm text-slate">Aucune forme enregistrée pour ce jour.</p>
-              <DailyCheckin date={selectedDate} existing={selectedCheckin} />
-            </Card>
+          {/* Comme sur la page jour : la forme ne se propose que pour aujourd'hui
+              ou un jour passé déjà renseigné, jamais à l'avance ni à combler
+              rétroactivement. */}
+          {(isToday || selectedCheckin) && (
+            <>
+              <p className="mb-1 mt-5 text-[11px] font-bold uppercase tracking-wider text-slate">Résumé du jour</p>
+              {selectedCheckin ? (
+                <ReadinessSummary date={selectedDate} checkin={selectedCheckin} />
+              ) : (
+                <Card>
+                  <p className="mb-3 text-sm text-slate">Aucune forme enregistrée pour ce jour.</p>
+                  <DailyCheckin date={selectedDate} existing={selectedCheckin} />
+                </Card>
+              )}
+            </>
           )}
 
           <p className="mb-2 mt-5 text-[11px] font-bold uppercase tracking-wider text-slate">Séance prévue</p>

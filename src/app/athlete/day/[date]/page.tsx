@@ -143,17 +143,23 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
           )}
         </section>
 
-        <section>
-          <h2 className="mb-3 font-display text-xl text-ink">Forme du jour</h2>
-          {checkin ? (
-            <ReadinessSummary date={date} checkin={checkin} />
-          ) : (
-            <Card>
-              <p className="mb-3 text-sm text-slate">Aucune forme enregistrée pour ce jour.</p>
-              <DailyCheckin date={date} existing={checkin} />
-            </Card>
-          )}
-        </section>
+        {/* La forme du jour n'a de sens que pour aujourd'hui (à renseigner) ou un
+            jour passé déjà renseigné (à consulter) — on ne la propose jamais à
+            l'avance pour un jour futur, et on n'invite pas à combler
+            rétroactivement un jour passé resté vide. */}
+        {(isToday || checkin) && (
+          <section>
+            <h2 className="mb-3 font-display text-xl text-ink">Forme du jour</h2>
+            {checkin ? (
+              <ReadinessSummary date={date} checkin={checkin} />
+            ) : (
+              <Card>
+                <p className="mb-3 text-sm text-slate">Aucune forme enregistrée pour ce jour.</p>
+                <DailyCheckin date={date} existing={checkin} />
+              </Card>
+            )}
+          </section>
+        )}
       </main>
     </div>
   );
