@@ -139,6 +139,54 @@ export function computeSportSummaries(workouts: Workout[], imports: ImportedActi
     .sort((a, b) => b.count - a.count);
 }
 
+export interface AcwrResult {
+  acuteLoad: number;
+  chronicWeeklyLoad: number;
+  ratio: number | null;
+  status: "high_risk" | "low" | "normal" | "insufficient_data";
+}
+
+// Ratio charge aiguë (7 derniers jours) / charge chronique (moyenne
+// hebdomadaire sur 28 jours) — indicateur classique en préparation physique
+// pour repérer une hausse brutale de charge, facteur de risque de blessure
+// documenté (Gabbett et al.). >=1.5 = hausse à risque, <=0.8 = sous-charge
+// (perte de forme), entre les deux = dans la norme. Sans historique de
+// charge suffisant sur les 28 jours, le ratio ne veut rien dire — on
+// l'indique plutôt que d'afficher un chiffre trompeur.
+export function computeAcwr(workouts: Workout[], imports: ImportedActivity[], today: string): AcwrResult {
+  const todayMs = new Date(`${today}T00:00:00`).getTime();
+  function daysAgo(dateStr: string): number {
+    return Math.round((todayMs - new Date(`${dateStr}T00:00:00`).getTime()) / 86400000);
+  }
+
+  let acute = 0;
+  let chronic = 0;
+
+  for (const w of workouts) {
+    if (w.status !== "done" && w.status !== "partial") continue;
+    const age = daysAgo(w.date);
+    if (age < 0 || age > 27) continue;
+    const load = sessionLoad(w.actual_duration_minutes ?? w.duration_minutes, w.rpe);
+    if (age <= 6) acute += load;
+    chronic += load;
+  }
+  for (const a of imports) {
+    const age = daysAgo(a.activity_date);
+    if (age < 0 || age > 27) continue;
+    const load = sessionLoad(a.duration_minutes, a.rpe);
+    if (age <= 6) acute += load;
+    chronic += load;
+  }
+
+  const chronicWeeklyLoad = chronic / 4;
+  if (chronicWeeklyLoad < 50) {
+    return { acuteLoad: Math.round(acute), chronicWeeklyLoad: Math.round(chronicWeeklyLoad), ratio: null, status: "insufficient_data" };
+  }
+  const ratio = Math.round((acute / chronicWeeklyLoad) * 100) / 100;
+  const status = ratio >= 1.5 ? "high_risk" : ratio <= 0.8 ? "low" : "normal";
+  return { acuteLoad: Math.round(acute), chronicWeeklyLoad: Math.round(chronicWeeklyLoad), ratio, status };
+}
+
 export interface PeriodSummary {
   totalSessions: number; // séances déjà passées sur la période (tout statut confondu)
   completedSessions: number; // faites ou partielles, parmi les séances passées

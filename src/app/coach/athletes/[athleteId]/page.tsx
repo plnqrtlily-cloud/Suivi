@@ -25,6 +25,7 @@ import { RevokeButton } from "@/app/coach/revoke-button";
 import { todayISO, toISODate } from "@/lib/dates";
 import { AthleteCalendar } from "./athlete-calendar";
 import { TrainingInsights } from "./training-insights";
+import { computeAcwr } from "@/lib/training-stats";
 import { ExerciseMaxesPanel } from "./exercise-maxes-panel";
 
 // "Bloc" et "cycle" reprennent le vocabulaire de périodisation de l'entraînement
@@ -72,6 +73,12 @@ export default async function AthleteDetailPage({
   const statsFrom = new Date();
   statsFrom.setDate(statsFrom.getDate() - bilanPeriod.days);
   const statsFromISO = toISODate(statsFrom);
+  // Fenêtre fixe à 28 jours pour l'alerte de charge (ACWR), indépendante du
+  // filtre de période choisi pour le bilan — sinon le ratio changerait de
+  // sens selon l'onglet actif.
+  const acwrFrom = new Date();
+  acwrFrom.setDate(acwrFrom.getDate() - 27);
+  const acwrFromISO = toISODate(acwrFrom);
 
   // Requêtes indépendantes parties en parallèle plutôt qu'en série — la fiche
   // athlète est la page la plus lourde en aller-retours vers la base distante,
@@ -91,6 +98,7 @@ export default async function AthleteDetailPage({
     recentImports,
     exerciseMaxes,
     exerciseSuggestions,
+    acwrImports,
   ] = await Promise.all([
     findUserById(athleteId),
     getUserAvatar(athleteId),
@@ -106,11 +114,13 @@ export default async function AthleteDetailPage({
     getImportedActivitiesForRange(athleteId, statsFromISO, today),
     getExerciseMaxes(athleteId),
     getCoachExerciseHistory(user.id),
+    getImportedActivitiesForRange(athleteId, acwrFromISO, today),
   ]);
   if (!athlete) notFound();
 
   const link = links.find((l) => l.athlete_id === athleteId);
   const journal = journalAll.slice(0, 3);
+  const acwr = computeAcwr(allWorkouts, acwrImports, today);
   const cycleEstimate =
     athleteGender === "female" && cycleSettings.share_with_coaches ? await estimateCyclePhase(athleteId) : null;
   const latestCheckin = recentCheckins[0];
@@ -127,6 +137,16 @@ export default async function AthleteDetailPage({
                 {athlete.first_name} {athlete.last_name}
               </h1>
               <p className="text-slate">{athlete.email}</p>
+              {acwr.status !== "insufficient_data" && acwr.status !== "normal" && (
+                <span
+                  className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${
+                    acwr.status === "high_risk" ? "bg-clay/15 text-clay" : "bg-status-postponed/15 text-status-postponed"
+                  }`}
+                  title={`Charge aiguë (7j) ${acwr.acuteLoad} u.a. vs charge chronique (moy./sem sur 28j) ${acwr.chronicWeeklyLoad} u.a.`}
+                >
+                  {acwr.status === "high_risk" ? "⚠ Charge en forte hausse" : "Charge en net repli"} — ratio {acwr.ratio}
+                </span>
+              )}
             </div>
           </div>
           <div className="flex gap-2">
