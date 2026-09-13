@@ -149,6 +149,45 @@ export async function getLatestMeasurements(athleteId: string) {
   return latest;
 }
 
+export interface WorkoutTemplate {
+  id: string;
+  coach_id: string;
+  name: string;
+  sport: string;
+  category: string;
+  duration_minutes: number | null;
+  description: string | null;
+  color: string;
+  blocks_json: string | null;
+}
+
+export async function getWorkoutTemplatesForCoach(coachId: string): Promise<WorkoutTemplate[]> {
+  return dbAll(`SELECT * FROM workout_templates WHERE coach_id = ? ORDER BY name ASC`, [coachId]);
+}
+
+export interface ExerciseMax {
+  id: string;
+  athlete_id: string;
+  exercise_name: string;
+  value_kg: number;
+  tested_at: string;
+}
+
+export async function getExerciseMaxes(athleteId: string): Promise<ExerciseMax[]> {
+  return dbAll(`SELECT * FROM exercise_maxes WHERE athlete_id = ? ORDER BY tested_at DESC`, [athleteId]);
+}
+
+// Dernier max connu par exercice — sert à convertir une charge prescrite en
+// pourcentage ("80%") en kilos dans le générateur de séance musculation.
+export async function getLatestExerciseMaxes(athleteId: string): Promise<Record<string, number>> {
+  const rows = await getExerciseMaxes(athleteId);
+  const latest: Record<string, number> = {};
+  for (const r of rows) {
+    if (!(r.exercise_name in latest)) latest[r.exercise_name] = r.value_kg;
+  }
+  return latest;
+}
+
 export async function getInjuriesForAthlete(athleteId: string) {
   return dbAll(`SELECT * FROM injuries WHERE athlete_id = ? ORDER BY date_start DESC`, [athleteId]);
 }

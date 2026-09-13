@@ -1,8 +1,9 @@
 import { redirect, notFound } from "next/navigation";
 import { getCurrentUser, isCoachLinkedToAthlete, findUserById } from "@/lib/auth";
-import { getResourcesForCoach, getCoachExerciseHistory } from "@/lib/queries";
+import { getResourcesForCoach, getCoachExerciseHistory, getLatestExerciseMaxes, getWorkoutTemplatesForCoach } from "@/lib/queries";
 import { Nav } from "@/components/nav";
-import { WorkoutForm } from "./workout-form";
+import { WorkoutForm, type WorkoutTemplateOption } from "./workout-form";
+import { TemplateList } from "./template-list";
 
 export default async function NewWorkoutPage({
   params,
@@ -18,9 +19,23 @@ export default async function NewWorkoutPage({
   const athlete = await findUserById(athleteId);
   if (!athlete) notFound();
 
-  const rawResources = await getResourcesForCoach(user.id);
+  const [rawResources, exerciseHistory, exerciseMaxes, rawTemplates] = await Promise.all([
+    getResourcesForCoach(user.id),
+    getCoachExerciseHistory(user.id),
+    getLatestExerciseMaxes(athleteId),
+    getWorkoutTemplatesForCoach(user.id),
+  ]);
   const resources = rawResources.map((r) => ({ id: r.id, title: r.title, type: r.type }));
-  const exerciseHistory = await getCoachExerciseHistory(user.id);
+  const templates: WorkoutTemplateOption[] = rawTemplates.map((t) => ({
+    id: t.id,
+    name: t.name,
+    sport: t.sport,
+    category: t.category,
+    duration_minutes: t.duration_minutes,
+    description: t.description,
+    color: t.color,
+    blocks: t.blocks_json ? JSON.parse(t.blocks_json) : [],
+  }));
 
   return (
     <div className="min-h-screen bg-paper">
@@ -30,7 +45,14 @@ export default async function NewWorkoutPage({
         <p className="mb-8 text-slate">
           Pour {athlete.first_name} {athlete.last_name}
         </p>
-        <WorkoutForm athleteId={athleteId} resources={resources} exerciseHistory={exerciseHistory} />
+        <TemplateList templates={templates} />
+        <WorkoutForm
+          athleteId={athleteId}
+          resources={resources}
+          exerciseHistory={exerciseHistory}
+          exerciseMaxes={exerciseMaxes}
+          templates={templates}
+        />
       </main>
     </div>
   );

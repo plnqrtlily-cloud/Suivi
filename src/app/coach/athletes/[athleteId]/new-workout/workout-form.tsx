@@ -1,11 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createWorkoutAction, updateWorkoutAction } from "@/lib/actions";
+import { createWorkoutAction, updateWorkoutAction, saveWorkoutTemplateAction } from "@/lib/actions";
 import { Field, SelectField, TextAreaField, Button, ErrorText } from "@/components/ui";
 import { DateRangePicker, dateRangeToList } from "@/components/date-range-picker";
 import { StrengthBuilder, BlockRow, LibraryResource } from "./strength-builder";
+
+interface TemplateBlockInput {
+  block_type: string;
+  exercise_name: string;
+  notes?: string;
+  resource_id?: string;
+  training_quality?: string;
+  sets?: { reps?: string; load?: string; restSeconds?: number; rpe?: number }[];
+}
+
+export interface WorkoutTemplateOption {
+  id: string;
+  name: string;
+  sport: string;
+  category: string;
+  duration_minutes: number | null;
+  description: string | null;
+  color: string;
+  blocks: TemplateBlockInput[];
+}
 
 const SPORTS = [
   { value: "running", label: "Course à pied" },
@@ -44,14 +64,19 @@ export function WorkoutForm({
   athleteId,
   resources,
   exerciseHistory,
+  exerciseMaxes,
+  templates,
   initial,
 }: {
   athleteId: string;
   resources: LibraryResource[];
   exerciseHistory: string[];
+  exerciseMaxes?: Record<string, number>;
+  templates?: WorkoutTemplateOption[];
   initial?: WorkoutFormInitial;
 }) {
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const [sport, setSport] = useState(initial?.sport ?? "running");
   const [category, setCategory] = useState(initial?.category ?? "entrainement");
   const [color, setColor] = useState(initial?.color ?? COLORS[0]);
@@ -60,6 +85,60 @@ export function WorkoutForm({
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   const [error, setError] = useState<string | undefined>();
   const [pending, setPending] = useState(false);
+  // Charger un modèle réécrit sport/catégorie/couleur (état contrôlé) et force
+  // le remontage des champs non contrôlés (titre, durée, description, blocs)
+  // via ce compteur utilisé comme clé — leur `defaultValue` ne se réappliquerait
+  // pas sinon après le montage initial.
+  const [appliedTemplate, setAppliedTemplate] = useState<WorkoutTemplateOption | null>(null);
+  const [templateKey, setTemplateKey] = useState(0);
+  const [templatePending, setTemplatePending] = useState(false);
+
+  function applyTemplate(id: string) {
+    const tpl = templates?.find((t) => t.id === id);
+    if (!tpl) return;
+    setAppliedTemplate(tpl);
+    setSport(tpl.sport);
+    setCategory(tpl.category);
+    setColor(tpl.color);
+    setBlocks(
+      tpl.blocks.map((b) => ({
+        key: crypto.randomUUID(),
+        block_type: b.block_type,
+        exercise_name: b.exercise_name,
+        notes: b.notes || "",
+        resource_id: b.resource_id || "",
+        training_quality: (b.training_quality as BlockRow["training_quality"]) || "",
+        sets: (b.sets && b.sets.length ? b.sets : [{}]).map((s) => ({
+          reps: s.reps || "",
+          load: s.load || "",
+          restSeconds: s.restSeconds ? String(s.restSeconds) : "",
+          rpe: s.rpe ? String(s.rpe) : "",
+        })),
+      }))
+    );
+    setTemplateKey((k) => k + 1);
+  }
+
+  async function handleSaveAsTemplate() {
+    const name = window.prompt("Nom du modèle (ex. \"Bloc force bas du corps\") :");
+    if (!name || !formRef.current) return;
+    setTemplatePending(true);
+    const formData = new FormData(formRef.current);
+    try {
+      await saveWorkoutTemplateAction({
+        name,
+        sport,
+        category,
+        durationMinutes: formData.get("duration") ? Number(formData.get("duration")) : undefined,
+        description: String(formData.get("description") || ""),
+        color,
+        blocks: blocksPayload(),
+      });
+      router.refresh();
+    } finally {
+      setTemplatePending(false);
+    }
+  }
 
   function blocksPayload() {
     return sport === "strength"
@@ -144,7 +223,18 @@ export function WorkoutForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+    <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-5">
+      {!initial && templates && templates.length > 0 && (
+        <SelectField label="Charger un modèle (facultatif)" value={appliedTemplate?.id ?? ""} onChange={(e) => applyTemplate(e.target.value)}>
+          <option value="">Partir de zéro</option>
+          {templates.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </SelectField>
+      )}
+
       <SelectField label="Sport" value={sport} onChange={(e) => setSport(e.target.value)}>
         {SPORTS.map((s) => (
           <option key={s.value} value={s.value}>
@@ -154,7 +244,14 @@ export function WorkoutForm({
       </SelectField>
 
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Titre de la séance" name="title" required placeholder="ex. Sortie longue endurance" defaultValue={initial?.title} />
+        <Field
+          key={`title-${templateKey}`}
+          label="Titre de la séance"
+          name="title"
+          required
+          placeholder="ex. Sortie longue endurance"
+          defaultValue={appliedTemplate?.name ?? initial?.title}
+        />
         <SelectField label="Catégorie" value={category} onChange={(e) => setCategory(e.target.value)}>
           {CATEGORIES.map((c) => (
             <option key={c.value} value={c.value}>
@@ -192,7 +289,14 @@ export function WorkoutForm({
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Heure (facultatif)" type="time" name="time" defaultValue={initial?.time ?? ""} />
-        <Field label="Durée prévue (minutes)" type="number" name="duration" min={0} defaultValue={initial?.durationMinutes ?? ""} />
+        <Field
+          key={`duration-${templateKey}`}
+          label="Durée prévue (minutes)"
+          type="number"
+          name="duration"
+          min={0}
+          defaultValue={appliedTemplate?.duration_minutes ?? initial?.durationMinutes ?? ""}
+        />
       </div>
 
       <label className="flex flex-col gap-1.5 text-sm">
@@ -214,23 +318,36 @@ export function WorkoutForm({
       {sport === "strength" ? (
         <div>
           <p className="mb-3 text-sm font-medium text-ink-soft">Structure de la séance</p>
-          <StrengthBuilder onChange={setBlocks} resources={resources} exerciseHistory={exerciseHistory} initialBlocks={initial?.blocks} />
+          <StrengthBuilder
+            key={`sb-${templateKey}`}
+            onChange={setBlocks}
+            resources={resources}
+            exerciseHistory={exerciseHistory}
+            initialBlocks={blocks}
+            exerciseMaxes={exerciseMaxes}
+          />
         </div>
       ) : (
         <TextAreaField
+          key={`description-${templateKey}`}
           label="Description de la séance"
           name="description"
           rows={5}
           placeholder="Détail des allures, intervalles, parcours, consignes techniques…"
-          defaultValue={initial?.description ?? ""}
+          defaultValue={appliedTemplate?.description ?? initial?.description ?? ""}
         />
       )}
 
       <ErrorText>{error}</ErrorText>
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <Button type="submit" disabled={pending}>
           {pending ? (initial ? "Enregistrement…" : "Envoi…") : initial ? "Enregistrer les modifications" : "Envoyer la séance"}
         </Button>
+        {!initial && (
+          <Button type="button" variant="ghost" onClick={handleSaveAsTemplate} disabled={templatePending}>
+            {templatePending ? "Enregistrement…" : "Enregistrer comme modèle"}
+          </Button>
+        )}
       </div>
     </form>
   );

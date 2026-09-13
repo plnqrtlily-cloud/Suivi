@@ -146,6 +146,38 @@ CREATE TABLE IF NOT EXISTS athlete_measurements (
   recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Modèles de séance réutilisables par le coach (cf. prompt : gagner le temps
+-- perdu à recréer la même structure de séance semaine après semaine ou
+-- athlète après athlète). Les blocs de musculation sont stockés en JSON
+-- plutôt que relationnellement : un modèle n'est jamais lié à un workout_id,
+-- inutile de dupliquer tout le schéma workout_blocks/exercise_sets pour ça.
+CREATE TABLE IF NOT EXISTS workout_templates (
+  id TEXT PRIMARY KEY,
+  coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  sport TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'entrainement',
+  duration_minutes INTEGER,
+  description TEXT,
+  color TEXT NOT NULL DEFAULT '#1B4B4F',
+  blocks_json TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Charges de référence (1RM ou équivalent) par exercice, saisies par le coach
+-- à l'issue d'un test — permet de prescrire une charge en % plutôt qu'en kg
+-- absolu, et de suivre la progression d'un max dans le temps (contrairement
+-- au champ "load" en texte libre de exercise_sets, qui décrit une charge
+-- prescrite pour une séance donnée, pas un repère testé).
+CREATE TABLE IF NOT EXISTS exercise_maxes (
+  id TEXT PRIMARY KEY,
+  athlete_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  exercise_name TEXT NOT NULL,
+  value_kg REAL NOT NULL,
+  tested_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Antécédents de blessures
 CREATE TABLE IF NOT EXISTS injuries (
   id TEXT PRIMARY KEY,

@@ -1,12 +1,13 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
-import { getWorkoutById, getBlocksForWorkout, getCommentsForWorkout } from "@/lib/queries";
+import { getWorkoutById, getBlocksForWorkout, getCommentsForWorkout, getAthletesForCoach } from "@/lib/queries";
 import { Nav } from "@/components/nav";
 import { Card, StatusBadge, sportLabel } from "@/components/ui";
 import { StatusForm } from "./status-form";
 import { CommentForm } from "./comment-form";
 import { CancelWorkoutButton } from "./cancel-button";
+import { DuplicateWorkoutButton } from "./duplicate-workout-modal";
 
 const BLOCK_TITLES: Record<string, string> = {
   warmup_mobility: "Échauffement — Mobilité",
@@ -46,8 +47,16 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
     notFound();
   }
 
-  const blocks = await getBlocksForWorkout(id);
-  const comments = await getCommentsForWorkout(id);
+  const [blocks, comments, coachAthletes] = await Promise.all([
+    getBlocksForWorkout(id),
+    getCommentsForWorkout(id),
+    user.role === "coach" ? getAthletesForCoach(user.id) : Promise.resolve([]),
+  ]);
+  const otherAthletes = coachAthletes
+    .filter((a): a is typeof a & { athlete_id: string; first_name: string; last_name: string } =>
+      !!a.athlete_id && a.athlete_id !== workout.athlete_id && a.status === "active"
+    )
+    .map((a) => ({ athlete_id: a.athlete_id, first_name: a.first_name, last_name: a.last_name }));
 
   return (
     <div className="min-h-screen bg-paper">
@@ -79,6 +88,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                 <Link href={`/workouts/${workout.id}/edit`} className="text-sm font-semibold text-moss-dark hover:underline">
                   Modifier
                 </Link>
+                <DuplicateWorkoutButton workoutId={workout.id} athleteId={workout.athlete_id} otherAthletes={otherAthletes} />
                 <CancelWorkoutButton workoutId={workout.id} />
               </div>
             )}

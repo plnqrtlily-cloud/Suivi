@@ -1,6 +1,6 @@
 import { redirect, notFound } from "next/navigation";
 import { getCurrentUser, findUserById } from "@/lib/auth";
-import { getWorkoutById, getBlocksForWorkout, getResourcesForCoach, getCoachExerciseHistory } from "@/lib/queries";
+import { getWorkoutById, getBlocksForWorkout, getResourcesForCoach, getCoachExerciseHistory, getLatestExerciseMaxes } from "@/lib/queries";
 import { Nav } from "@/components/nav";
 import { WorkoutForm } from "@/app/coach/athletes/[athleteId]/new-workout/workout-form";
 import type { BlockRow } from "@/app/coach/athletes/[athleteId]/new-workout/strength-builder";
@@ -15,11 +15,12 @@ export default async function EditWorkoutPage({ params }: { params: Promise<{ id
   if (!workout) notFound();
   if (workout.coach_id !== user.id) notFound();
 
-  const [rawBlocks, athlete, rawResources, exerciseHistory] = await Promise.all([
+  const [rawBlocks, athlete, rawResources, exerciseHistory, exerciseMaxes] = await Promise.all([
     getBlocksForWorkout(id),
     findUserById(workout.athlete_id),
     getResourcesForCoach(user.id),
     getCoachExerciseHistory(user.id),
+    getLatestExerciseMaxes(workout.athlete_id),
   ]);
   const resources = rawResources.map((r) => ({ id: r.id, title: r.title, type: r.type }));
 
@@ -53,6 +54,7 @@ export default async function EditWorkoutPage({ params }: { params: Promise<{ id
           athleteId={workout.athlete_id}
           resources={resources}
           exerciseHistory={exerciseHistory}
+          exerciseMaxes={exerciseMaxes}
           initial={{
             workoutId: workout.id,
             sport: workout.sport,

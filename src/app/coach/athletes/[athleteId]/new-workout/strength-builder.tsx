@@ -122,16 +122,30 @@ function defaultSet(): SetRow {
   return { reps: "8-10", load: "", restSeconds: "", rpe: "" };
 }
 
+// Convertit une charge prescrite en pourcentage ("80%", "80 %") en kilos à
+// partir du dernier max testé pour cet exercice — simple indication affichée
+// à côté du champ, la valeur saisie reste du texte libre (un coach peut aussi
+// bien écrire "80%" que "60 kg" ou "barre + 2 disques").
+function computeLoadFromPercent(load: string, maxKg: number | undefined): string | null {
+  if (!maxKg) return null;
+  const match = load.trim().match(/^(\d+(?:[.,]\d+)?)\s*%$/);
+  if (!match) return null;
+  const pct = parseFloat(match[1].replace(",", "."));
+  return `${Math.round(maxKg * (pct / 100) * 2) / 2} kg`;
+}
+
 export function StrengthBuilder({
   onChange,
   resources,
   exerciseHistory,
   initialBlocks,
+  exerciseMaxes,
 }: {
   onChange: (blocks: BlockRow[]) => void;
   resources: LibraryResource[];
   exerciseHistory: string[];
   initialBlocks?: BlockRow[];
+  exerciseMaxes?: Record<string, number>;
 }) {
   const [rows, setRows] = useState<BlockRow[]>(initialBlocks ?? []);
   const attachable = resources.filter((r) => r.type === "video" || r.type === "photo");
@@ -234,7 +248,12 @@ export function StrengthBuilder({
                       </div>
                       <div className="col-span-6">
                         <label className="flex flex-col gap-1.5 text-sm">
-                          <span className="font-medium text-ink-soft">Exercice</span>
+                          <span className="font-medium text-ink-soft">
+                            Exercice
+                            {exerciseMaxes?.[row.exercise_name] && (
+                              <span className="ml-1.5 font-normal text-slate">— max {exerciseMaxes[row.exercise_name]} kg</span>
+                            )}
+                          </span>
                           <input
                             list="exercise-suggestions"
                             value={row.exercise_name}
@@ -288,12 +307,19 @@ export function StrengthBuilder({
                             placeholder={fields.repsPlaceholder}
                             className="col-span-3 rounded border border-line px-2 py-1 text-sm"
                           />
-                          <input
-                            value={s.load}
-                            onChange={(e) => updateSet(row.key, idx, { load: e.target.value })}
-                            placeholder={fields.loadPlaceholder}
-                            className="col-span-3 rounded border border-line px-2 py-1 text-sm"
-                          />
+                          <div className="col-span-3 flex flex-col gap-0.5">
+                            <input
+                              value={s.load}
+                              onChange={(e) => updateSet(row.key, idx, { load: e.target.value })}
+                              placeholder={fields.loadPlaceholder}
+                              className="w-full rounded border border-line px-2 py-1 text-sm"
+                            />
+                            {computeLoadFromPercent(s.load, exerciseMaxes?.[row.exercise_name]) && (
+                              <span className="text-[10px] text-moss-dark">
+                                ≈ {computeLoadFromPercent(s.load, exerciseMaxes?.[row.exercise_name])} (max {exerciseMaxes?.[row.exercise_name]} kg)
+                              </span>
+                            )}
+                          </div>
                           <input
                             type="number"
                             min={0}

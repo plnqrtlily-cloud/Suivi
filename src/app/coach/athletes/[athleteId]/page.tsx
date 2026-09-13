@@ -12,6 +12,8 @@ import {
   getUserAvatar,
   getUpcomingGoals,
   getImportedActivitiesForRange,
+  getExerciseMaxes,
+  getCoachExerciseHistory,
 } from "@/lib/queries";
 import { UpcomingGoals } from "@/components/upcoming-goals";
 import { getCycleSettings, estimateCyclePhase, PHASE_LABELS } from "@/lib/cycle";
@@ -23,6 +25,7 @@ import { RevokeButton } from "@/app/coach/revoke-button";
 import { todayISO, toISODate } from "@/lib/dates";
 import { AthleteCalendar } from "./athlete-calendar";
 import { TrainingInsights } from "./training-insights";
+import { ExerciseMaxesPanel } from "./exercise-maxes-panel";
 
 // "Bloc" et "cycle" reprennent le vocabulaire de périodisation de l'entraînement
 // (mésocycle ~4 semaines, bloc plus large regroupant plusieurs cycles) plutôt
@@ -86,6 +89,8 @@ export default async function AthleteDetailPage({
     recentCheckins,
     upcomingGoals,
     recentImports,
+    exerciseMaxes,
+    exerciseSuggestions,
   ] = await Promise.all([
     findUserById(athleteId),
     getUserAvatar(athleteId),
@@ -99,6 +104,8 @@ export default async function AthleteDetailPage({
     getRecentCheckins(athleteId, 1),
     getUpcomingGoals(athleteId),
     getImportedActivitiesForRange(athleteId, statsFromISO, today),
+    getExerciseMaxes(athleteId),
+    getCoachExerciseHistory(user.id),
   ]);
   if (!athlete) notFound();
 
@@ -203,6 +210,14 @@ export default async function AthleteDetailPage({
             </ul>
           </Card>
         </div>
+
+        <h2 className="mb-3 font-display text-xl text-ink">Charges de référence</h2>
+        <p className="mb-3 text-sm text-slate">
+          Renseignez un max testé pour prescrire une charge en % dans le générateur de séance musculation.
+        </p>
+        <Card className="mb-8 rounded-3xl">
+          <ExerciseMaxesPanel athleteId={athleteId} maxes={exerciseMaxes} exerciseSuggestions={exerciseSuggestions} />
+        </Card>
 
         <h2 className="mb-3 font-display text-xl text-ink">Prochains objectifs</h2>
         <div className="mb-8">

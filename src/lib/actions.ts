@@ -22,7 +22,7 @@ import {
 } from "./auth";
 import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES } from "./storage";
 import { parseGpx, simplifyRoute } from "./gpx";
-import { getResourceById } from "./queries";
+import { getResourceById, getBlocksForWorkout } from "./queries";
 import { createNotification, markNotificationRead, markAllNotificationsRead } from "./notifications";
 import { saveSubscription, removeSubscription } from "./push";
 
@@ -443,6 +443,96 @@ export async function updateWorkoutStatusAction(params: {
   }
 }
 
+// ---------- MODÈLES DE SÉANCE ----------
+// Gagner le temps perdu à recréer la même structure de séance chaque semaine
+// ou pour chaque athlète — le modèle capture sport/catégorie/durée/description
+// et, pour la musculation, la structure de blocs complète.
+
+export async function saveWorkoutTemplateAction(params: {
+  name: string;
+  sport: string;
+  category: string;
+  durationMinutes?: number;
+  description?: string;
+  color?: string;
+  blocks?: BlockInput[];
+}) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  const name = params.name.trim();
+  if (!name) throw new Error("Nom du modèle requis.");
+
+  await dbRun(
+    `INSERT INTO workout_templates (id, coach_id, name, sport, category, duration_minutes, description, color, blocks_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      randomUUID(),
+      user.id,
+      name,
+      params.sport,
+      params.category,
+      params.durationMinutes ?? null,
+      params.description ?? null,
+      params.color || "#1B4B4F",
+      params.blocks?.length ? JSON.stringify(params.blocks) : null,
+    ]
+  );
+}
+
+export async function deleteWorkoutTemplateAction(id: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const tpl = await dbGet<any>(`SELECT coach_id FROM workout_templates WHERE id = ?`, [id]);
+  if (!tpl || tpl.coach_id !== user.id) throw new Error("Non autorisé.");
+
+  await dbRun(`DELETE FROM workout_templates WHERE id = ?`, [id]);
+}
+
+// Duplique une séance déjà créée (avec sa structure de blocs le cas échéant)
+// vers un autre jour et/ou un autre athlète du même coach — s'appuie sur
+// createWorkoutAction plutôt que de dupliquer sa logique d'insertion.
+export async function duplicateWorkoutAction(params: { workoutId: string; targetDate: string; targetAthleteId?: string }) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [params.workoutId]);
+  if (!workout) throw new Error("Séance introuvable.");
+  if (workout.coach_id !== user.id) throw new Error("Non autorisé.");
+
+  const targetAthleteId = params.targetAthleteId || workout.athlete_id;
+  if (!(await isCoachLinkedToAthlete(user.id, targetAthleteId))) throw new Error("Non autorisé.");
+
+  const blocks = workout.sport === "strength" ? await getBlocksForWorkout(params.workoutId) : [];
+  const blockInputs: BlockInput[] = blocks.map((b: any) => ({
+    block_type: b.block_type,
+    exercise_name: b.exercise_name,
+    notes: b.notes || undefined,
+    resource_id: b.resource_id || undefined,
+    training_quality: b.training_quality || undefined,
+    sets: (b.exerciseSets || []).map((s: any) => ({
+      reps: s.reps || undefined,
+      load: s.load || undefined,
+      restSeconds: s.rest_seconds || undefined,
+      rpe: s.rpe || undefined,
+    })),
+  }));
+
+  return createWorkoutAction({
+    athleteId: targetAthleteId,
+    sport: workout.sport,
+    category: workout.category,
+    priority: workout.priority || undefined,
+    title: workout.title,
+    dates: [params.targetDate],
+    time: workout.time || undefined,
+    durationMinutes: workout.duration_minutes || undefined,
+    description: workout.description || undefined,
+    color: workout.color,
+    blocks: blockInputs.length ? blockInputs : undefined,
+  });
+}
+
 // Annulation d'une séance par le coach (cf. prompt : "séance modifiée/annulée" parmi
 // les événements devant déclencher une notification).
 export async function cancelWorkoutAction(workoutId: string) {
@@ -533,6 +623,41 @@ export async function addInjuryAction(formData: FormData) {
   );
 
   revalidatePath("/athlete/profile");
+}
+
+// ---------- CHARGES DE RÉFÉRENCE (1RM) ----------
+// Saisies par le coach à l'issue d'un test — sert à prescrire une charge en
+// pourcentage plutôt qu'en kg absolu (cf. StrengthBuilder).
+
+export async function addExerciseMaxAction(athleteId: string, formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+
+  const exerciseName = String(formData.get("exerciseName") || "").trim();
+  const valueKg = Number(formData.get("valueKg") || 0);
+  const testedAt = String(formData.get("testedAt") || "");
+  if (!exerciseName || !valueKg || !testedAt) throw new Error("Exercice, charge et date requis.");
+
+  await dbRun(`INSERT INTO exercise_maxes (id, athlete_id, exercise_name, value_kg, tested_at) VALUES (?, ?, ?, ?, ?)`, [
+    randomUUID(),
+    athleteId,
+    exerciseName,
+    valueKg,
+    testedAt,
+  ]);
+
+  revalidatePath(`/coach/athletes/${athleteId}`);
+  revalidatePath(`/coach/athletes/${athleteId}/new-workout`);
+}
+
+export async function deleteExerciseMaxAction(id: string, athleteId: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+
+  await dbRun(`DELETE FROM exercise_maxes WHERE id = ? AND athlete_id = ?`, [id, athleteId]);
+  revalidatePath(`/coach/athletes/${athleteId}`);
 }
 
 export async function addJournalEntryAction(formData: FormData) {
