@@ -9,6 +9,7 @@ import { Card } from "@/components/ui";
 import { Avatar } from "@/components/avatar";
 import { InviteForm } from "./invite-form";
 import { RevokeButton } from "./revoke-button";
+import { BroadcastMessageModal } from "./broadcast-message-modal";
 
 interface RosterSignals {
   acwrHighRisk: boolean;
@@ -73,10 +74,15 @@ export default async function CoachDashboard() {
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
       <main className="mx-auto max-w-5xl px-6 py-10">
-        <h1 className="mb-1 font-display text-3xl text-ink">Mes athlètes</h1>
-        <p className="mb-8 text-slate">
-          {active.length} athlète{active.length === 1 ? "" : "s"} suivi{active.length === 1 ? "" : "s"}
-        </p>
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="mb-1 font-display text-3xl text-ink">Mes athlètes</h1>
+            <p className="text-slate">
+              {active.length} athlète{active.length === 1 ? "" : "s"} suivi{active.length === 1 ? "" : "s"}
+            </p>
+          </div>
+          <BroadcastMessageModal athleteCount={active.length} />
+        </div>
 
         <Card className="mb-8 rounded-3xl">
           <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Inviter un athlète</h2>

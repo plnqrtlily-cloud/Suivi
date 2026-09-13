@@ -3,7 +3,7 @@
 import { randomUUID } from "crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { dbGet, dbRun } from "./db";
+import { dbGet, dbRun, dbAll } from "./db";
 import { todayISO } from "./dates";
 import {
   createUser,
@@ -1188,6 +1188,44 @@ export async function deleteAvatarAction() {
 }
 
 // ---------- MESSAGERIE COACH <-> ATHLÈTE (V3) ----------
+
+// Annonce envoyée en une fois à tous les athlètes actifs du coach (ex. "séance
+// annulée demain, trop de vent") — une ligne par fil de discussion existant,
+// pas de table séparée : chaque athlète la voit dans son fil habituel avec ce
+// coach, comme un message individuel ordinaire.
+export async function sendBroadcastMessageAction(body: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  const trimmed = body.trim();
+  if (!trimmed) throw new Error("Message vide.");
+
+  const links = await dbAll<{ athlete_id: string }>(
+    `SELECT athlete_id FROM coach_athlete_links WHERE coach_id = ? AND status = 'active'`,
+    [user.id]
+  );
+  if (links.length === 0) throw new Error("Aucun athlète actif à qui envoyer ce message.");
+
+  await Promise.all(
+    links.map(async (l) => {
+      await dbRun(`INSERT INTO messages (id, coach_id, athlete_id, sender_id, body) VALUES (?, ?, ?, ?, ?)`, [
+        randomUUID(),
+        user.id,
+        l.athlete_id,
+        user.id,
+        trimmed,
+      ]);
+      await createNotification({
+        userId: l.athlete_id,
+        type: "message",
+        title: `Message de ${user.first_name}`,
+        body: trimmed.slice(0, 80),
+        link: `/athlete/messages/${user.id}`,
+      });
+    })
+  );
+
+  revalidatePath("/coach");
+}
 
 export async function sendMessageAction(formData: FormData) {
   const user = await getCurrentUser();
