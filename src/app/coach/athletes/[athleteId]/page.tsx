@@ -26,6 +26,9 @@ import { todayISO, toISODate } from "@/lib/dates";
 import { AthleteCalendar } from "./athlete-calendar";
 import { TrainingInsights } from "./training-insights";
 import { computeAcwr } from "@/lib/training-stats";
+import { computeHrZones } from "@/lib/hr-zones";
+import { computePowerZones } from "@/lib/power-zones";
+import { computePaceZones, formatPace } from "@/lib/pace-zones";
 import { ExerciseMaxesPanel } from "./exercise-maxes-panel";
 
 // "Bloc" et "cycle" reprennent le vocabulaire de périodisation de l'entraînement
@@ -121,6 +124,10 @@ export default async function AthleteDetailPage({
   const link = links.find((l) => l.athlete_id === athleteId);
   const journal = journalAll.slice(0, 3);
   const acwr = computeAcwr(allWorkouts, acwrImports, today);
+  const hrZones =
+    measurements.fc_repos && measurements.fc_max ? computeHrZones(measurements.fc_repos.value, measurements.fc_max.value) : null;
+  const powerZones = measurements.ftp ? computePowerZones(measurements.ftp.value) : null;
+  const paceZones = measurements.pma_vma ? computePaceZones(measurements.pma_vma.value) : null;
   const cycleEstimate =
     athleteGender === "female" && cycleSettings.share_with_coaches ? await estimateCyclePhase(athleteId) : null;
   const latestCheckin = recentCheckins[0];
@@ -230,6 +237,66 @@ export default async function AthleteDetailPage({
             </ul>
           </Card>
         </div>
+
+        {(hrZones || powerZones || paceZones) && (
+          <>
+            <h2 className="mb-3 font-display text-xl text-ink">Zones d&apos;entraînement</h2>
+            <p className="mb-3 text-sm text-slate">Calculées à partir des dernières mesures renseignées — un repère par discipline plutôt que la seule fréquence cardiaque.</p>
+            <div className="mb-8 grid gap-4 md:grid-cols-3">
+              {hrZones && (
+                <Card className="rounded-3xl">
+                  <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Fréquence cardiaque</h3>
+                  <ul className="space-y-1.5 text-sm">
+                    {hrZones.map((z) => (
+                      <li key={z.zone} className="flex items-center justify-between gap-2">
+                        <span className="text-ink-soft">
+                          Z{z.zone} — {z.label}
+                        </span>
+                        <span className="font-medium text-ink">
+                          {z.minBpm}-{z.maxBpm}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              )}
+              {powerZones && (
+                <Card className="rounded-3xl">
+                  <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Puissance (vélo)</h3>
+                  <ul className="space-y-1.5 text-sm">
+                    {powerZones.map((z) => (
+                      <li key={z.zone} className="flex items-center justify-between gap-2">
+                        <span className="text-ink-soft">
+                          Z{z.zone} — {z.label}
+                        </span>
+                        <span className="font-medium text-ink">
+                          {z.minW}-{z.maxW} W
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              )}
+              {paceZones && (
+                <Card className="rounded-3xl">
+                  <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Allure (course à pied)</h3>
+                  <ul className="space-y-1.5 text-sm">
+                    {paceZones.map((z) => (
+                      <li key={z.zone} className="flex items-center justify-between gap-2">
+                        <span className="text-ink-soft">
+                          Z{z.zone} — {z.label}
+                        </span>
+                        <span className="font-medium text-ink">
+                          {formatPace(z.minPaceMinPerKm)} à {formatPace(z.maxPaceMinPerKm)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              )}
+            </div>
+          </>
+        )}
 
         <h2 className="mb-3 font-display text-xl text-ink">Charges de référence</h2>
         <p className="mb-3 text-sm text-slate">
