@@ -195,7 +195,11 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
             {comments.map((c) => (
               <div key={c.id} className="rounded-md bg-paper-dim p-2 text-sm">
                 <p className="text-ink">{c.body}</p>
-                <p className="text-xs text-slate">
+                {c.video_path && (
+                  // eslint-disable-next-line jsx-a11y/media-has-caption
+                  <video controls className="mt-2 max-w-xs rounded-md bg-ink" src={`/api/workout-comments/${c.id}/video`} />
+                )}
+                <p className="mt-1 text-xs text-slate">
                   {c.first_name} {c.last_name} · {c.role === "coach" ? "coach" : "athlète"} · {c.created_at.slice(0, 16)}
                 </p>
               </div>

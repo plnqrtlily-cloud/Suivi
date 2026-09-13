@@ -557,10 +557,16 @@ export async function cancelWorkoutAction(workoutId: string) {
   redirect(`/coach/athletes/${workout.athlete_id}`);
 }
 
-export async function addWorkoutCommentAction(workoutId: string, body: string) {
+// Une vidéo (exécution d'un mouvement côté athlète, correction côté coach)
+// peut accompagner ou remplacer le texte — mêmes contraintes de format/
+// taille que la bibliothèque de ressources, même stockage (cf. storage.ts).
+export async function addWorkoutCommentAction(workoutId: string, formData: FormData) {
   const user = await getCurrentUser();
   if (!user) throw new Error("Non autorisé.");
-  if (!body.trim()) return;
+
+  const body = String(formData.get("body") || "").trim();
+  const file = formData.get("video") as File | null;
+  if (!body && (!file || file.size === 0)) return;
 
   const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [workoutId]);
   if (!workout) throw new Error("Séance introuvable.");
@@ -568,11 +574,22 @@ export async function addWorkoutCommentAction(workoutId: string, body: string) {
     throw new Error("Non autorisé.");
   }
 
-  await dbRun(`INSERT INTO workout_comments (id, workout_id, author_id, body) VALUES (?, ?, ?, ?)`, [
+  let videoPath: string | null = null;
+  if (file && file.size > 0) {
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) throw new Error("Format de vidéo non supporté.");
+    if (file.size > MAX_FILE_SIZE_BYTES) throw new Error("Vidéo trop volumineuse (50 Mo max).");
+    const saved = await saveUploadedFile(file);
+    videoPath = saved.storedName;
+  }
+
+  const finalBody = body || "Vidéo jointe";
+
+  await dbRun(`INSERT INTO workout_comments (id, workout_id, author_id, body, video_path) VALUES (?, ?, ?, ?, ?)`, [
     randomUUID(),
     workoutId,
     user.id,
-    body.trim(),
+    finalBody,
+    videoPath,
   ]);
 
   revalidatePath(`/workouts/${workoutId}`);
@@ -582,7 +599,7 @@ export async function addWorkoutCommentAction(workoutId: string, body: string) {
     userId: recipientId,
     type: "comment",
     title: "Nouveau commentaire",
-    body: `${user.first_name} : ${body.trim().slice(0, 80)}`,
+    body: `${user.first_name} : ${finalBody.slice(0, 80)}`,
     link: `/workouts/${workoutId}`,
   });
 }

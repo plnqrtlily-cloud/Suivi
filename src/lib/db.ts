@@ -134,6 +134,10 @@ CREATE TABLE IF NOT EXISTS workout_comments (
   workout_id TEXT NOT NULL REFERENCES workouts(id) ON DELETE CASCADE,
   author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   body TEXT NOT NULL,
+  -- Vidéo d'exécution jointe par l'athlète (ou vidéo de correction par le
+  -- coach) — mêmes contraintes de format/taille que la bibliothèque de
+  -- ressources (cf. src/lib/storage.ts), stockage identique.
+  video_path TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -379,6 +383,7 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE workouts ADD COLUMN avg_hr INTEGER`,
   `ALTER TABLE workouts ADD COLUMN elevation_gain_m INTEGER`,
   `ALTER TABLE workouts ADD COLUMN avg_power_w INTEGER`,
+  `ALTER TABLE workout_comments ADD COLUMN video_path TEXT`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER
