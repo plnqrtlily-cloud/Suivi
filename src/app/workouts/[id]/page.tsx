@@ -125,52 +125,77 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
           <Card className="mb-6">
             <h2 className="mb-3 text-sm font-medium text-ink-soft">Structure de la séance</h2>
             <div className="flex flex-col gap-3">
-              {blocks.map((b) => (
-                <div key={b.id} className="border-l-2 border-moss/40 pl-3">
-                  <p className="text-xs uppercase tracking-wide text-slate">{BLOCK_TITLES[b.block_type]}</p>
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-ink">{b.exercise_name}</p>
-                    {b.training_quality && (
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${QUALITY_STYLES[b.training_quality]}`}>
-                        {QUALITY_LABELS[b.training_quality]}
-                      </span>
+              {(() => {
+                const segments: { circuitId: string | null; rounds?: number; blocks: any[] }[] = [];
+                for (const b of blocks) {
+                  const last = segments[segments.length - 1];
+                  if (b.circuit_id && last && last.circuitId === b.circuit_id) {
+                    last.blocks.push(b);
+                  } else {
+                    segments.push({ circuitId: b.circuit_id || null, rounds: b.circuit_rounds, blocks: [b] });
+                  }
+                }
+
+                const renderBlock = (b: any) => (
+                  <div key={b.id} className="border-l-2 border-moss/40 pl-3">
+                    <p className="text-xs uppercase tracking-wide text-slate">{BLOCK_TITLES[b.block_type]}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-ink">{b.exercise_name}</p>
+                      {b.training_quality && (
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${QUALITY_STYLES[b.training_quality]}`}>
+                          {QUALITY_LABELS[b.training_quality]}
+                        </span>
+                      )}
+                    </div>
+                    {b.exerciseSets?.length > 0 && (
+                      <table className="mt-1 text-sm text-slate">
+                        <tbody>
+                          {b.exerciseSets.map((s: any) => (
+                            <tr key={s.id}>
+                              <td className="pr-3 text-ink-soft">Série {s.set_number}</td>
+                              <td className="pr-3">
+                                {b.rep_type === "time" ? "⏱ " : ""}
+                                {s.reps || "—"}
+                              </td>
+                              <td className="pr-3">{s.load || "—"}</td>
+                              {s.rest_seconds && <td className="pr-3 text-xs">Repos {s.rest_seconds}s</td>}
+                              {s.rpe && <td className="text-xs">RPE {s.rpe}</td>}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                    {b.notes && <p className="text-sm text-ink-soft">{b.notes}</p>}
+                    {b.resource_id && (
+                      <div className="mt-2 max-w-xs overflow-hidden rounded-md border border-line">
+                        {b.resource_type === "video" ? (
+                          <video controls className="aspect-video w-full bg-ink">
+                            <source src={`/api/resources/file/${b.resource_id}`} type={b.resource_mime_type} />
+                          </video>
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={`/api/resources/file/${b.resource_id}`}
+                            alt={b.resource_title}
+                            className="aspect-video w-full object-cover"
+                          />
+                        )}
+                        <p className="bg-paper-dim px-2 py-1 text-xs text-slate">{b.resource_title}</p>
+                      </div>
                     )}
                   </div>
-                  {b.exerciseSets?.length > 0 && (
-                    <table className="mt-1 text-sm text-slate">
-                      <tbody>
-                        {b.exerciseSets.map((s: any) => (
-                          <tr key={s.id}>
-                            <td className="pr-3 text-ink-soft">Série {s.set_number}</td>
-                            <td className="pr-3">{b.rep_type === "time" ? "⏱ " : ""}{s.reps || "—"}</td>
-                            <td className="pr-3">{s.load || "—"}</td>
-                            {s.rest_seconds && <td className="pr-3 text-xs">Repos {s.rest_seconds}s</td>}
-                            {s.rpe && <td className="text-xs">RPE {s.rpe}</td>}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                  {b.notes && <p className="text-sm text-ink-soft">{b.notes}</p>}
-                  {b.resource_id && (
-                    <div className="mt-2 max-w-xs overflow-hidden rounded-md border border-line">
-                      {b.resource_type === "video" ? (
-                        <video controls className="aspect-video w-full bg-ink">
-                          <source src={`/api/resources/file/${b.resource_id}`} type={b.resource_mime_type} />
-                        </video>
-                      ) : (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={`/api/resources/file/${b.resource_id}`}
-                          alt={b.resource_title}
-                          className="aspect-video w-full object-cover"
-                        />
-                      )}
-                      <p className="bg-paper-dim px-2 py-1 text-xs text-slate">{b.resource_title}</p>
+                );
+
+                return segments.map((segment, i) => {
+                  if (!segment.circuitId) return <div key={`s${i}`}>{segment.blocks.map(renderBlock)}</div>;
+                  return (
+                    <div key={segment.circuitId} className="rounded-xl border-2 border-dashed border-moss/40 p-3">
+                      <p className="mb-2 text-sm font-semibold text-moss-dark">🔁 Circuit — {segment.rounds || 3} tours</p>
+                      <div className="flex flex-col gap-3">{segment.blocks.map(renderBlock)}</div>
                     </div>
-                  )}
-                </div>
-              ))}
+                  );
+                });
+              })()}
             </div>
           </Card>
         )}

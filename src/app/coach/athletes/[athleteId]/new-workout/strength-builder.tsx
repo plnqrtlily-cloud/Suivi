@@ -107,6 +107,8 @@ export interface BlockRow {
   resource_id: string;
   training_quality: TrainingQuality | "";
   rep_type: "reps" | "time"; // répétitions comptées ou minutées (façon Garmin/Hevy)
+  circuit_id?: string; // exercices partageant le même id = un circuit, enchaînés sans repos
+  circuit_rounds?: number;
   sets: SetRow[];
 }
 
@@ -173,6 +175,67 @@ export function StrengthBuilder({
         sets: [defaultSet()],
       },
     ]);
+  }
+
+  // Un circuit = plusieurs exercices enchaînés sans repos entre eux, répétés
+  // ensemble N fois (ex. "circuit training" : 4 exercices x 3 tours) — plutôt
+  // que le repos classique entre chaque série d'un même exercice.
+  function addCircuit(defaultType: string) {
+    const circuitId = crypto.randomUUID();
+    update([
+      ...rows,
+      {
+        key: crypto.randomUUID(),
+        block_type: defaultType,
+        exercise_name: "",
+        notes: "",
+        resource_id: "",
+        training_quality: "",
+        rep_type: "reps",
+        circuit_id: circuitId,
+        circuit_rounds: 3,
+        sets: [defaultSet()],
+      },
+      {
+        key: crypto.randomUUID(),
+        block_type: defaultType,
+        exercise_name: "",
+        notes: "",
+        resource_id: "",
+        training_quality: "",
+        rep_type: "reps",
+        circuit_id: circuitId,
+        circuit_rounds: 3,
+        sets: [defaultSet()],
+      },
+    ]);
+  }
+
+  function addToCircuit(circuitId: string, defaultType: string, rounds: number) {
+    update([
+      ...rows,
+      {
+        key: crypto.randomUUID(),
+        block_type: defaultType,
+        exercise_name: "",
+        notes: "",
+        resource_id: "",
+        training_quality: "",
+        rep_type: "reps",
+        circuit_id: circuitId,
+        circuit_rounds: rounds,
+        sets: [defaultSet()],
+      },
+    ]);
+  }
+
+  function updateCircuitRounds(circuitId: string, rounds: number) {
+    update(rows.map((r) => (r.circuit_id === circuitId ? { ...r, circuit_rounds: rounds } : r)));
+  }
+
+  function removeFromCircuit(key: string) {
+    // Retire l'exercice du circuit sans le supprimer — redevient un exercice normal.
+    update(rows.map((r) => (r.key === key ? { ...r, circuit_id: undefined, circuit_rounds: undefined } : r)));
   }
 
   function updateRow(key: string, patch: Partial<BlockRow>) {
@@ -246,204 +309,263 @@ export function StrengthBuilder({
           <div key={group.title} className="rounded-3xl border border-line p-4">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate">{group.title}</h3>
-              <Button type="button" variant="secondary" onClick={() => addRow(group.types[0].value)}>
-                + Exercice
-              </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="secondary" onClick={() => addRow(group.types[0].value)}>
+                  + Exercice
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => addCircuit(group.types[0].value)}>
+                  + Circuit
+                </Button>
+              </div>
             </div>
             <div className="flex flex-col gap-4">
-              {groupRows.map((row) => {
-                const fields = QUALITY_FIELDS[row.training_quality || "default"];
-                const repsLabel = row.rep_type === "time" ? "Durée" : fields.repsLabel;
-                const repsPlaceholder = row.rep_type === "time" ? "45 sec ou 1 min 30" : fields.repsPlaceholder;
-                return (
-                  <div key={row.key} className="rounded-2xl bg-paper-dim p-3">
-                    <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-12">
-                      <div className="sm:col-span-4">
+              {(() => {
+                // Regroupe les exercices consécutifs partageant le même circuit_id, pour
+                // les afficher ensemble dans un encadré "Circuit x N tours" plutôt que
+                // comme des exercices isolés.
+                const segments: { circuitId: string | null; rows: BlockRow[] }[] = [];
+                for (const row of groupRows) {
+                  const last = segments[segments.length - 1];
+                  if (row.circuit_id && last && last.circuitId === row.circuit_id) {
+                    last.rows.push(row);
+                  } else {
+                    segments.push({ circuitId: row.circuit_id || null, rows: [row] });
+                  }
+                }
+
+                const renderRow = (row: BlockRow) => {
+                  const fields = QUALITY_FIELDS[row.training_quality || "default"];
+                  const repsLabel = row.rep_type === "time" ? "Durée" : fields.repsLabel;
+                  const repsPlaceholder = row.rep_type === "time" ? "45 sec ou 1 min 30" : fields.repsPlaceholder;
+                  return (
+                    <div key={row.key} className="rounded-2xl bg-paper-dim p-3">
+                      <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-12">
+                        <div className="sm:col-span-4">
+                          <SelectField
+                            label="Sous-type"
+                            value={row.block_type}
+                            onChange={(e) => updateRow(row.key, { block_type: e.target.value })}
+                          >
+                            {group.types.map((t) => (
+                              <option key={t.value} value={t.value}>
+                                {t.label}
+                              </option>
+                            ))}
+                          </SelectField>
+                        </div>
+                        <div className="sm:col-span-6">
+                          <label className="flex flex-col gap-1.5 text-sm">
+                            <span className="font-medium text-ink-soft">
+                              Exercice
+                              {exerciseMaxes?.[row.exercise_name] && (
+                                <span className="ml-1.5 font-normal text-slate">— max {exerciseMaxes[row.exercise_name]} kg</span>
+                              )}
+                            </span>
+                            <input
+                              list="exercise-suggestions"
+                              value={row.exercise_name}
+                              onChange={(e) => updateRow(row.key, { exercise_name: e.target.value })}
+                              placeholder="Rechercher ou saisir un exercice…"
+                              className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
+                            />
+                          </label>
+                        </div>
+                        <div className="flex items-end gap-1 sm:col-span-2">
+                          <button
+                            type="button"
+                            onClick={() => moveRow(row.key, "up")}
+                            disabled={groupRows[0]?.key === row.key}
+                            className="rounded border border-line px-1.5 py-1.5 text-xs text-ink-soft hover:border-moss disabled:opacity-30"
+                            aria-label="Monter cet exercice"
+                            title="Monter"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveRow(row.key, "down")}
+                            disabled={groupRows[groupRows.length - 1]?.key === row.key}
+                            className="rounded border border-line px-1.5 py-1.5 text-xs text-ink-soft hover:border-moss disabled:opacity-30"
+                            aria-label="Descendre cet exercice"
+                            title="Descendre"
+                          >
+                            ↓
+                          </button>
+                          <Button type="button" variant="ghost" onClick={() => removeRow(row.key)}>
+                            Retirer
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="mb-3">
                         <SelectField
-                          label="Sous-type"
-                          value={row.block_type}
-                          onChange={(e) => updateRow(row.key, { block_type: e.target.value })}
+                          label="Qualité travaillée (facultatif)"
+                          value={row.training_quality}
+                          onChange={(e) => updateRow(row.key, { training_quality: e.target.value as TrainingQuality | "" })}
                         >
-                          {group.types.map((t) => (
-                            <option key={t.value} value={t.value}>
-                              {t.label}
+                          <option value="">Non précisée</option>
+                          {QUALITY_OPTIONS.map((q) => (
+                            <option key={q.value} value={q.value}>
+                              {q.label}
                             </option>
                           ))}
                         </SelectField>
                       </div>
-                      <div className="sm:col-span-6">
-                        <label className="flex flex-col gap-1.5 text-sm">
-                          <span className="font-medium text-ink-soft">
-                            Exercice
-                            {exerciseMaxes?.[row.exercise_name] && (
-                              <span className="ml-1.5 font-normal text-slate">— max {exerciseMaxes[row.exercise_name]} kg</span>
-                            )}
-                          </span>
-                          <input
-                            list="exercise-suggestions"
-                            value={row.exercise_name}
-                            onChange={(e) => updateRow(row.key, { exercise_name: e.target.value })}
-                            placeholder="Rechercher ou saisir un exercice…"
-                            className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
-                          />
-                        </label>
-                      </div>
-                      <div className="flex items-end gap-1 sm:col-span-2">
-                        <button
-                          type="button"
-                          onClick={() => moveRow(row.key, "up")}
-                          disabled={groupRows[0]?.key === row.key}
-                          className="rounded border border-line px-1.5 py-1.5 text-xs text-ink-soft hover:border-moss disabled:opacity-30"
-                          aria-label="Monter cet exercice"
-                          title="Monter"
-                        >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveRow(row.key, "down")}
-                          disabled={groupRows[groupRows.length - 1]?.key === row.key}
-                          className="rounded border border-line px-1.5 py-1.5 text-xs text-ink-soft hover:border-moss disabled:opacity-30"
-                          aria-label="Descendre cet exercice"
-                          title="Descendre"
-                        >
-                          ↓
-                        </button>
-                        <Button type="button" variant="ghost" onClick={() => removeRow(row.key)}>
-                          Retirer
-                        </Button>
-                      </div>
-                    </div>
 
-                    <div className="mb-3">
+                      {/* Répétitions comptées ou minutées (ex. gainage "45 sec", corde à
+                          sauter "1 min") — façon Garmin Connect / Hevy, qui distinguent les
+                          deux plutôt que de tout forcer en répétitions. */}
+                      <div className="mb-3 flex items-center gap-2">
+                        <span className="text-xs font-medium text-ink-soft">Cet exercice se prescrit en :</span>
+                        <div className="flex overflow-hidden rounded-full border border-line text-xs">
+                          <button
+                            type="button"
+                            onClick={() => updateRow(row.key, { rep_type: "reps" })}
+                            className={`px-3 py-1 ${row.rep_type === "reps" ? "bg-moss text-white" : "text-ink-soft"}`}
+                          >
+                            Répétitions
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateRow(row.key, { rep_type: "time" })}
+                            className={`px-3 py-1 ${row.rep_type === "time" ? "bg-moss text-white" : "text-ink-soft"}`}
+                          >
+                            Durée
+                          </button>
+                        </div>
+                        {row.circuit_id && (
+                          <button
+                            type="button"
+                            onClick={() => removeFromCircuit(row.key)}
+                            className="ml-auto text-xs text-clay hover:underline"
+                          >
+                            Sortir du circuit
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Séries détaillées, façon Strong/Hevy : chaque série a ses propres
+                          répétitions/charge/repos/RPE (utile pour les séries pyramidales,
+                          montées en charge…), avec copie automatique de la dernière série à
+                          l'ajout. Les intitulés s'adaptent à la qualité travaillée ci-dessus. */}
+                      <div className="mb-3 overflow-hidden rounded-2xl border border-line bg-white">
+                        <div className="grid grid-cols-12 gap-1.5 border-b border-line bg-paper-dim px-2 py-1 text-[11px] font-medium text-ink-soft">
+                          <span className="col-span-1">#</span>
+                          <span className="col-span-3">{repsLabel}</span>
+                          <span className="col-span-3">{fields.loadLabel}</span>
+                          <span className="col-span-2">Repos (s)</span>
+                          <span className="col-span-2">{fields.rpeLabel}</span>
+                          <span className="col-span-1"></span>
+                        </div>
+                        {row.sets.map((s, idx) => (
+                          <div key={idx} className="grid grid-cols-12 items-center gap-1.5 border-b border-line px-2 py-1.5 last:border-0">
+                            <span className="col-span-1 text-sm text-ink-soft">{idx + 1}</span>
+                            <input
+                              value={s.reps}
+                              onChange={(e) => updateSet(row.key, idx, { reps: e.target.value })}
+                              placeholder={repsPlaceholder}
+                              className="col-span-3 rounded border border-line px-2 py-1 text-sm"
+                            />
+                            <div className="col-span-3 flex flex-col gap-0.5">
+                              <input
+                                value={s.load}
+                                onChange={(e) => updateSet(row.key, idx, { load: e.target.value })}
+                                placeholder={fields.loadPlaceholder}
+                                className="w-full rounded border border-line px-2 py-1 text-sm"
+                              />
+                              {computeLoadFromPercent(s.load, exerciseMaxes?.[row.exercise_name]) && (
+                                <span className="text-[10px] text-moss-dark">
+                                  ≈ {computeLoadFromPercent(s.load, exerciseMaxes?.[row.exercise_name])} (max {exerciseMaxes?.[row.exercise_name]} kg)
+                                </span>
+                              )}
+                            </div>
+                            <input
+                              type="number"
+                              min={0}
+                              value={s.restSeconds}
+                              onChange={(e) => updateSet(row.key, idx, { restSeconds: e.target.value })}
+                              placeholder={fields.restPlaceholder}
+                              className="col-span-2 rounded border border-line px-2 py-1 text-sm"
+                            />
+                            <input
+                              type="number"
+                              min={1}
+                              max={10}
+                              value={s.rpe}
+                              onChange={(e) => updateSet(row.key, idx, { rpe: e.target.value })}
+                              placeholder="1-10"
+                              className="col-span-2 rounded border border-line px-2 py-1 text-sm"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeSet(row.key, idx)}
+                              className="col-span-1 text-xs text-slate hover:text-clay"
+                              aria-label="Retirer la série"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => addSet(row.key)}
+                          className="w-full border-t border-line px-2 py-1.5 text-left text-xs font-medium text-moss-dark hover:bg-paper-dim"
+                        >
+                          + Série (copie la précédente)
+                        </button>
+                      </div>
+
                       <SelectField
-                        label="Qualité travaillée (facultatif)"
-                        value={row.training_quality}
-                        onChange={(e) => updateRow(row.key, { training_quality: e.target.value as TrainingQuality | "" })}
+                        label="Vidéo ou photo de la bibliothèque (facultatif)"
+                        value={row.resource_id}
+                        onChange={(e) => updateRow(row.key, { resource_id: e.target.value })}
                       >
-                        <option value="">Non précisée</option>
-                        {QUALITY_OPTIONS.map((q) => (
-                          <option key={q.value} value={q.value}>
-                            {q.label}
+                        <option value="">Aucune</option>
+                        {attachable.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.type === "video" ? "🎬" : "🖼"} {r.title}
                           </option>
                         ))}
                       </SelectField>
+                      {attachable.length === 0 && (
+                        <p className="mt-1 text-xs text-slate">
+                          Aucune vidéo/photo dans votre bibliothèque — ajoutez-en depuis « Bibliothèque » dans le menu.
+                        </p>
+                      )}
                     </div>
+                  );
+                };
 
-                    {/* Répétitions comptées ou minutées (ex. gainage "45 sec", corde à
-                        sauter "1 min") — façon Garmin Connect / Hevy, qui distinguent les
-                        deux plutôt que de tout forcer en répétitions. */}
-                    <div className="mb-3 flex items-center gap-2">
-                      <span className="text-xs font-medium text-ink-soft">Cet exercice se prescrit en :</span>
-                      <div className="flex overflow-hidden rounded-full border border-line text-xs">
-                        <button
-                          type="button"
-                          onClick={() => updateRow(row.key, { rep_type: "reps" })}
-                          className={`px-3 py-1 ${row.rep_type === "reps" ? "bg-moss text-white" : "text-ink-soft"}`}
-                        >
-                          Répétitions
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => updateRow(row.key, { rep_type: "time" })}
-                          className={`px-3 py-1 ${row.rep_type === "time" ? "bg-moss text-white" : "text-ink-soft"}`}
-                        >
-                          Durée
-                        </button>
+                return segments.map((segment, segIdx) => {
+                  if (!segment.circuitId) return <div key={`s${segIdx}`}>{segment.rows.map(renderRow)}</div>;
+                  const rounds = segment.rows[0]?.circuit_rounds || 3;
+                  return (
+                    <div key={segment.circuitId} className="rounded-2xl border-2 border-dashed border-moss/50 p-3">
+                      <div className="mb-3 flex items-center gap-2">
+                        <span className="text-sm font-semibold text-moss-dark">🔁 Circuit</span>
+                        <span className="text-xs text-ink-soft">— enchaîné sans repos, répété</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={rounds}
+                          onChange={(e) => updateCircuitRounds(segment.circuitId!, Number(e.target.value))}
+                          className="w-14 rounded border border-line px-2 py-1 text-sm"
+                        />
+                        <span className="text-xs text-ink-soft">tours</span>
                       </div>
-                    </div>
-
-                    {/* Séries détaillées, façon Strong/Hevy : chaque série a ses propres
-                        répétitions/charge/repos/RPE (utile pour les séries pyramidales,
-                        montées en charge…), avec copie automatique de la dernière série à
-                        l'ajout. Les intitulés s'adaptent à la qualité travaillée ci-dessus. */}
-                    <div className="mb-3 overflow-hidden rounded-2xl border border-line bg-white">
-                      <div className="grid grid-cols-12 gap-1.5 border-b border-line bg-paper-dim px-2 py-1 text-[11px] font-medium text-ink-soft">
-                        <span className="col-span-1">#</span>
-                        <span className="col-span-3">{repsLabel}</span>
-                        <span className="col-span-3">{fields.loadLabel}</span>
-                        <span className="col-span-2">Repos (s)</span>
-                        <span className="col-span-2">{fields.rpeLabel}</span>
-                        <span className="col-span-1"></span>
-                      </div>
-                      {row.sets.map((s, idx) => (
-                        <div key={idx} className="grid grid-cols-12 items-center gap-1.5 border-b border-line px-2 py-1.5 last:border-0">
-                          <span className="col-span-1 text-sm text-ink-soft">{idx + 1}</span>
-                          <input
-                            value={s.reps}
-                            onChange={(e) => updateSet(row.key, idx, { reps: e.target.value })}
-                            placeholder={repsPlaceholder}
-                            className="col-span-3 rounded border border-line px-2 py-1 text-sm"
-                          />
-                          <div className="col-span-3 flex flex-col gap-0.5">
-                            <input
-                              value={s.load}
-                              onChange={(e) => updateSet(row.key, idx, { load: e.target.value })}
-                              placeholder={fields.loadPlaceholder}
-                              className="w-full rounded border border-line px-2 py-1 text-sm"
-                            />
-                            {computeLoadFromPercent(s.load, exerciseMaxes?.[row.exercise_name]) && (
-                              <span className="text-[10px] text-moss-dark">
-                                ≈ {computeLoadFromPercent(s.load, exerciseMaxes?.[row.exercise_name])} (max {exerciseMaxes?.[row.exercise_name]} kg)
-                              </span>
-                            )}
-                          </div>
-                          <input
-                            type="number"
-                            min={0}
-                            value={s.restSeconds}
-                            onChange={(e) => updateSet(row.key, idx, { restSeconds: e.target.value })}
-                            placeholder={fields.restPlaceholder}
-                            className="col-span-2 rounded border border-line px-2 py-1 text-sm"
-                          />
-                          <input
-                            type="number"
-                            min={1}
-                            max={10}
-                            value={s.rpe}
-                            onChange={(e) => updateSet(row.key, idx, { rpe: e.target.value })}
-                            placeholder="1-10"
-                            className="col-span-2 rounded border border-line px-2 py-1 text-sm"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeSet(row.key, idx)}
-                            className="col-span-1 text-xs text-slate hover:text-clay"
-                            aria-label="Retirer la série"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ))}
+                      <div className="flex flex-col gap-3">{segment.rows.map(renderRow)}</div>
                       <button
                         type="button"
-                        onClick={() => addSet(row.key)}
-                        className="w-full border-t border-line px-2 py-1.5 text-left text-xs font-medium text-moss-dark hover:bg-paper-dim"
+                        onClick={() => addToCircuit(segment.circuitId!, group.types[0].value, rounds)}
+                        className="mt-3 text-xs font-medium text-moss-dark hover:underline"
                       >
-                        + Série (copie la précédente)
+                        + Exercice dans ce circuit
                       </button>
                     </div>
-
-                    <SelectField
-                      label="Vidéo ou photo de la bibliothèque (facultatif)"
-                      value={row.resource_id}
-                      onChange={(e) => updateRow(row.key, { resource_id: e.target.value })}
-                    >
-                      <option value="">Aucune</option>
-                      {attachable.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.type === "video" ? "🎬" : "🖼"} {r.title}
-                        </option>
-                      ))}
-                    </SelectField>
-                    {attachable.length === 0 && (
-                      <p className="mt-1 text-xs text-slate">
-                        Aucune vidéo/photo dans votre bibliothèque — ajoutez-en depuis « Bibliothèque » dans le menu.
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
+                  );
+                });
+              })()}
             </div>
           </div>
         );

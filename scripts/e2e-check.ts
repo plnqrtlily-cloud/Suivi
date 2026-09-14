@@ -594,6 +594,29 @@ async function main() {
   const timedBlock = await dbGet<any>(`SELECT rep_type FROM workout_blocks WHERE id = ?`, [timedBlockId]);
   assert(timedBlock?.rep_type === "time", "Un exercice peut être prescrit en durée plutôt qu'en répétitions");
 
+  // 38. Circuits d'exercices : plusieurs exercices partagent un circuit_id et un
+  // nombre de tours commun, enchaînés sans repos entre eux.
+  const circuitWorkoutId = randomUUID();
+  await dbRun(
+    `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, title, date) VALUES (?, ?, ?, 'strength', 'entrainement', 'Circuit training', '2027-01-12')`,
+    [circuitWorkoutId, coach.id, athlete.id]
+  );
+  const circuitId = randomUUID();
+  await dbRun(
+    `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, circuit_id, circuit_rounds, order_index) VALUES (?, ?, 'main', 'Burpees', ?, 4, 0)`,
+    [randomUUID(), circuitWorkoutId, circuitId]
+  );
+  await dbRun(
+    `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, circuit_id, circuit_rounds, order_index) VALUES (?, ?, 'main', 'Mountain climbers', ?, 4, 1)`,
+    [randomUUID(), circuitWorkoutId, circuitId]
+  );
+  const circuitBlocks = await dbAll<any>(`SELECT * FROM workout_blocks WHERE circuit_id = ? ORDER BY order_index`, [circuitId]);
+  assert(circuitBlocks.length === 2, "Les deux exercices du circuit sont bien enregistrés avec le même circuit_id");
+  assert(
+    circuitBlocks.every((b) => b.circuit_rounds === 4),
+    "Le nombre de tours est bien partagé entre tous les exercices du circuit"
+  );
+
   console.log("\nTest end-to-end terminé.");
 }
 

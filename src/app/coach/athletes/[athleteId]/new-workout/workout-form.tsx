@@ -124,6 +124,8 @@ export function WorkoutForm({
         resource_id: b.resource_id || "",
         training_quality: (b.training_quality as BlockRow["training_quality"]) || "",
         rep_type: (b as any).rep_type === "time" ? "time" : "reps",
+        circuit_id: (b as any).circuit_id || undefined,
+        circuit_rounds: (b as any).circuit_rounds || undefined,
         sets: (b.sets && b.sets.length ? b.sets : [{}]).map((s) => ({
           reps: s.reps || "",
           load: s.load || "",

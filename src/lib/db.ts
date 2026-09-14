@@ -382,6 +382,8 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE workouts ADD COLUMN distance_km REAL`,
   `ALTER TABLE workout_blocks ADD COLUMN rep_type TEXT DEFAULT 'reps'`,
   `ALTER TABLE workouts ADD COLUMN intervals_json TEXT`,
+  `ALTER TABLE workout_blocks ADD COLUMN circuit_id TEXT`,
+  `ALTER TABLE workout_blocks ADD COLUMN circuit_rounds INTEGER`,
   `ALTER TABLE workouts ADD COLUMN avg_hr INTEGER`,
   `ALTER TABLE workouts ADD COLUMN elevation_gain_m INTEGER`,
   `ALTER TABLE workouts ADD COLUMN avg_power_w INTEGER`,
