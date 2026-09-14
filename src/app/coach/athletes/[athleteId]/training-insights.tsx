@@ -195,7 +195,7 @@ function PeriodSummaryRow({ summary }: { summary: ReturnType<typeof computePerio
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <StatTile label="Volume hebdo moyen" value={hours > 0 ? `${hours}h${mins.toString().padStart(2, "0")}` : `${mins} min`} />
       <StatTile
-        label="Respect du plan"
+        label="Adhérence"
         value={summary.adherenceRate !== null ? `${summary.adherenceRate}%` : "—"}
         sub={summary.totalSessions > 0 ? `${summary.completedSessions}/${summary.totalSessions} séances` : "Aucune séance passée"}
       />

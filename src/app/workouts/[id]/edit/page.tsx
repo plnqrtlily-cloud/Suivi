@@ -31,6 +31,7 @@ export default async function EditWorkoutPage({ params }: { params: Promise<{ id
     notes: b.notes || "",
     resource_id: b.resource_id || "",
     training_quality: b.training_quality || "",
+    rep_type: b.rep_type === "time" ? "time" : "reps",
     sets:
       b.exerciseSets.length > 0
         ? b.exerciseSets.map((s: any) => ({

@@ -106,6 +106,7 @@ export interface BlockRow {
   notes: string;
   resource_id: string;
   training_quality: TrainingQuality | "";
+  rep_type: "reps" | "time"; // répétitions comptées ou minutées (façon Garmin/Hevy)
   sets: SetRow[];
 }
 
@@ -168,6 +169,7 @@ export function StrengthBuilder({
         notes: "",
         resource_id: "",
         training_quality: "",
+        rep_type: "reps",
         sets: [defaultSet()],
       },
     ]);
@@ -179,6 +181,27 @@ export function StrengthBuilder({
 
   function removeRow(key: string) {
     update(rows.filter((r) => r.key !== key));
+  }
+
+  // Déplace un exercice vers le haut/bas, uniquement parmi les exercices du même
+  // groupe (échauffement / corps de séance / gainage / retour au calme) — l'ordre
+  // entre groupes reste fixe, seul l'ordre à l'intérieur d'un groupe est modifiable.
+  function moveRow(key: string, direction: "up" | "down") {
+    const row = rows.find((r) => r.key === key);
+    if (!row) return;
+    const groupTypes = BLOCK_GROUPS.find((g) => g.types.some((t) => t.value === row.block_type))?.types.map(
+      (t) => t.value
+    );
+    if (!groupTypes) return;
+    const groupIndices = rows.map((r, i) => ({ r, i })).filter((x) => groupTypes.includes(x.r.block_type)).map((x) => x.i);
+    const i1 = rows.indexOf(row);
+    const posInGroup = groupIndices.indexOf(i1);
+    const targetPos = direction === "up" ? posInGroup - 1 : posInGroup + 1;
+    if (targetPos < 0 || targetPos >= groupIndices.length) return;
+    const i2 = groupIndices[targetPos];
+    const newRows = [...rows];
+    [newRows[i1], newRows[i2]] = [newRows[i2], newRows[i1]];
+    update(newRows);
   }
 
   function addSet(rowKey: string) {
@@ -230,10 +253,12 @@ export function StrengthBuilder({
             <div className="flex flex-col gap-4">
               {groupRows.map((row) => {
                 const fields = QUALITY_FIELDS[row.training_quality || "default"];
+                const repsLabel = row.rep_type === "time" ? "Durée" : fields.repsLabel;
+                const repsPlaceholder = row.rep_type === "time" ? "45 sec ou 1 min 30" : fields.repsPlaceholder;
                 return (
                   <div key={row.key} className="rounded-2xl bg-paper-dim p-3">
-                    <div className="mb-3 grid grid-cols-12 gap-2">
-                      <div className="col-span-4">
+                    <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-12">
+                      <div className="sm:col-span-4">
                         <SelectField
                           label="Sous-type"
                           value={row.block_type}
@@ -246,7 +271,7 @@ export function StrengthBuilder({
                           ))}
                         </SelectField>
                       </div>
-                      <div className="col-span-6">
+                      <div className="sm:col-span-6">
                         <label className="flex flex-col gap-1.5 text-sm">
                           <span className="font-medium text-ink-soft">
                             Exercice
@@ -263,7 +288,27 @@ export function StrengthBuilder({
                           />
                         </label>
                       </div>
-                      <div className="col-span-2 flex items-end">
+                      <div className="flex items-end gap-1 sm:col-span-2">
+                        <button
+                          type="button"
+                          onClick={() => moveRow(row.key, "up")}
+                          disabled={groupRows[0]?.key === row.key}
+                          className="rounded border border-line px-1.5 py-1.5 text-xs text-ink-soft hover:border-moss disabled:opacity-30"
+                          aria-label="Monter cet exercice"
+                          title="Monter"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveRow(row.key, "down")}
+                          disabled={groupRows[groupRows.length - 1]?.key === row.key}
+                          className="rounded border border-line px-1.5 py-1.5 text-xs text-ink-soft hover:border-moss disabled:opacity-30"
+                          aria-label="Descendre cet exercice"
+                          title="Descendre"
+                        >
+                          ↓
+                        </button>
                         <Button type="button" variant="ghost" onClick={() => removeRow(row.key)}>
                           Retirer
                         </Button>
@@ -285,6 +330,29 @@ export function StrengthBuilder({
                       </SelectField>
                     </div>
 
+                    {/* Répétitions comptées ou minutées (ex. gainage "45 sec", corde à
+                        sauter "1 min") — façon Garmin Connect / Hevy, qui distinguent les
+                        deux plutôt que de tout forcer en répétitions. */}
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="text-xs font-medium text-ink-soft">Cet exercice se prescrit en :</span>
+                      <div className="flex overflow-hidden rounded-full border border-line text-xs">
+                        <button
+                          type="button"
+                          onClick={() => updateRow(row.key, { rep_type: "reps" })}
+                          className={`px-3 py-1 ${row.rep_type === "reps" ? "bg-moss text-white" : "text-ink-soft"}`}
+                        >
+                          Répétitions
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateRow(row.key, { rep_type: "time" })}
+                          className={`px-3 py-1 ${row.rep_type === "time" ? "bg-moss text-white" : "text-ink-soft"}`}
+                        >
+                          Durée
+                        </button>
+                      </div>
+                    </div>
+
                     {/* Séries détaillées, façon Strong/Hevy : chaque série a ses propres
                         répétitions/charge/repos/RPE (utile pour les séries pyramidales,
                         montées en charge…), avec copie automatique de la dernière série à
@@ -292,7 +360,7 @@ export function StrengthBuilder({
                     <div className="mb-3 overflow-hidden rounded-2xl border border-line bg-white">
                       <div className="grid grid-cols-12 gap-1.5 border-b border-line bg-paper-dim px-2 py-1 text-[11px] font-medium text-ink-soft">
                         <span className="col-span-1">#</span>
-                        <span className="col-span-3">{fields.repsLabel}</span>
+                        <span className="col-span-3">{repsLabel}</span>
                         <span className="col-span-3">{fields.loadLabel}</span>
                         <span className="col-span-2">Repos (s)</span>
                         <span className="col-span-2">{fields.rpeLabel}</span>
@@ -304,7 +372,7 @@ export function StrengthBuilder({
                           <input
                             value={s.reps}
                             onChange={(e) => updateSet(row.key, idx, { reps: e.target.value })}
-                            placeholder={fields.repsPlaceholder}
+                            placeholder={repsPlaceholder}
                             className="col-span-3 rounded border border-line px-2 py-1 text-sm"
                           />
                           <div className="col-span-3 flex flex-col gap-0.5">

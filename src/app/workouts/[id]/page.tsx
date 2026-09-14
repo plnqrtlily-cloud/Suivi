@@ -134,7 +134,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                         {b.exerciseSets.map((s: any) => (
                           <tr key={s.id}>
                             <td className="pr-3 text-ink-soft">Série {s.set_number}</td>
-                            <td className="pr-3">{s.reps || "—"}</td>
+                            <td className="pr-3">{b.rep_type === "time" ? "⏱ " : ""}{s.reps || "—"}</td>
                             <td className="pr-3">{s.load || "—"}</td>
                             {s.rest_seconds && <td className="pr-3 text-xs">Repos {s.rest_seconds}s</td>}
                             {s.rpe && <td className="text-xs">RPE {s.rpe}</td>}
