@@ -5,7 +5,8 @@ import { getWorkoutsForAthlete, getImportedActivitiesForRange, getAvailabilityBl
 import { getWeekDates, getMonthGrid, monthLabel, todayISO, toISODate, type MonthCell } from "@/lib/dates";
 import { AVAILABILITY_SLOT_LABELS } from "@/lib/time-of-day";
 import { Nav } from "@/components/nav";
-import { sportLabel } from "@/components/ui";
+import { sportLabel, StatusBadge } from "@/components/ui";
+import { sportIconPath } from "@/lib/sport-icons";
 import { DayLink } from "@/components/day-link";
 import { DeleteAvailabilityButton } from "@/components/delete-availability-button";
 import { SnapScrollNav } from "@/components/snap-scroll-nav";
@@ -48,9 +49,12 @@ function MonthGridBody({ grid, workouts, blocks, today }: { grid: MonthCell[]; w
       {grid.map((cell) => {
         const dayWorkouts = workouts.filter((w) => w.date === cell.date);
         const hasGoal = dayWorkouts.some((w) => w.category === "objectif" || w.category === "evenement");
-        const hasTraining = dayWorkouts.some((w) => w.category !== "objectif" && w.category !== "evenement");
         const hasBlock = blocks.some((b) => b.date === cell.date);
         const isToday = cell.date === today;
+        const trainingWorkouts = dayWorkouts.filter((w) => w.category !== "objectif" && w.category !== "evenement");
+        const primaryTraining = trainingWorkouts[0];
+        const extraTrainingCount = trainingWorkouts.length - (primaryTraining ? 1 : 0);
+        const extraCount = extraTrainingCount + (hasGoal ? 0 : 0);
 
         return (
           <DayLink key={cell.date} href={`/athlete/day/${cell.date}`} className="flex flex-col items-center gap-1 py-1">
@@ -61,10 +65,17 @@ function MonthGridBody({ grid, workouts, blocks, today }: { grid: MonthCell[]; w
             >
               {cell.day}
             </span>
-            <span className="flex h-1.5 gap-0.5">
-              {hasTraining && <span className="h-1.5 w-1.5 rounded-full bg-moss" />}
+            <span className="flex h-3.5 items-center gap-1">
+              {primaryTraining ? (
+                <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke={primaryTraining.color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d={sportIconPath(primaryTraining.sport)} />
+                </svg>
+              ) : (
+                <span className="h-1.5 w-1.5" />
+              )}
               {hasGoal && <span className="h-1.5 w-1.5 rounded-sm bg-gold-light" />}
               {hasBlock && <span className="h-1.5 w-1.5 rounded-sm bg-ink" />}
+              {extraCount > 0 && <span className="text-[8px] font-bold leading-none text-slate">+{extraCount}</span>}
             </span>
           </DayLink>
         );
@@ -198,13 +209,14 @@ async function WeekView({ athleteId, offset, today }: { athleteId: string; offse
               ) : (
                 <div className="flex flex-col gap-1.5 pl-9">
                   {dayWorkouts.map((w) => (
-                    <Link key={w.id} href={`/workouts/${w.id}`} className="flex items-center gap-2 text-sm hover:underline">
+                    <Link key={w.id} href={`/workouts/${w.id}`} className="flex flex-wrap items-center gap-2 text-sm hover:underline">
                       <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: w.color }} />
                       <span className="text-ink">{w.title}</span>
                       <span className="text-xs text-slate">
                         {w.time ? `${w.time} · ` : ""}
                         {sportLabel(w.sport)}
                       </span>
+                      {w.status !== "planned" && <StatusBadge status={w.status} />}
                     </Link>
                   ))}
                   {dayImports.map((a) => (

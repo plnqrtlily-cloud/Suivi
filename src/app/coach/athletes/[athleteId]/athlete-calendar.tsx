@@ -3,6 +3,7 @@ import { getWorkoutsForAthlete, getImportedActivitiesForRange, getAvailabilityBl
 import { getWeekDates, getMonthGrid, monthLabel } from "@/lib/dates";
 import { AVAILABILITY_SLOT_LABELS } from "@/lib/time-of-day";
 import { StatusBadge, sportLabel } from "@/components/ui";
+import { sportIconPath } from "@/lib/sport-icons";
 
 const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 const DAY_LETTERS = ["L", "M", "M", "J", "V", "S", "D"];
@@ -194,7 +195,8 @@ async function CoachMonthView({ athleteId, monthParam, today, base }: { athleteI
         {grid.map((cell) => {
           const dayWorkouts = workouts.filter((w) => w.date === cell.date);
           const hasGoal = dayWorkouts.some((w) => w.category === "objectif" || w.category === "evenement");
-          const hasTraining = dayWorkouts.some((w) => w.category !== "objectif" && w.category !== "evenement");
+          const trainingWorkouts = dayWorkouts.filter((w) => w.category !== "objectif" && w.category !== "evenement");
+          const primaryTraining = trainingWorkouts[0];
           const hasBlock = blocks.some((b) => b.date === cell.date);
           const isToday = cell.date === today;
 
@@ -207,10 +209,17 @@ async function CoachMonthView({ athleteId, monthParam, today, base }: { athleteI
               >
                 {cell.day}
               </span>
-              <span className="flex h-1.5 gap-0.5">
-                {hasTraining && <span className="h-1.5 w-1.5 rounded-full bg-moss" />}
+              <span className="flex h-3.5 items-center gap-1">
+                {primaryTraining ? (
+                  <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke={primaryTraining.color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={sportIconPath(primaryTraining.sport)} />
+                  </svg>
+                ) : (
+                  <span className="h-1.5 w-1.5" />
+                )}
                 {hasGoal && <span className="h-1.5 w-1.5 rounded-sm bg-gold-light" />}
                 {hasBlock && <span className="h-1.5 w-1.5 rounded-sm bg-ink" />}
+                {trainingWorkouts.length > 1 && <span className="text-[8px] font-bold leading-none text-slate">+{trainingWorkouts.length - 1}</span>}
               </span>
             </Link>
           );

@@ -87,7 +87,12 @@ export async function Nav({ user }: { user: User }) {
 
   const navItems: { href: string; label: string; icon: NavIconName }[] = [
     { href: homeHref, icon: "home", label: user.role === "coach" ? "Mes athlètes" : "Aujourd'hui" },
-    ...(user.role === "coach" ? [{ href: "/coach/resources", icon: "library" as const, label: "Bibliothèque" }] : []),
+    ...(user.role === "coach"
+      ? [
+          { href: "/coach/resources", icon: "library" as const, label: "Bibliothèque" },
+          { href: "/coach/calendar", icon: "calendar" as const, label: "Calendrier" },
+        ]
+      : []),
     ...(user.role === "athlete"
       ? [
           { href: "/athlete/programmation", icon: "calendar" as const, label: "Calendrier" },
