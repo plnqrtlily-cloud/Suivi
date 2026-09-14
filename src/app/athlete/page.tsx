@@ -236,26 +236,25 @@ export default async function AthleteDashboard({
           ) : (
             <p className="text-sm text-slate">Aucune séance prévue ni activité enregistrée ce jour-là.</p>
           )}
-        </section>
 
-        <div className="mt-10">
-          <Card className="rounded-3xl">
-            <h2 className="mb-4 text-[11px] font-bold uppercase tracking-wider text-slate">Journal de bord</h2>
-            <ul className="mb-4 space-y-2 text-sm">
-              {journal.map((j) => (
-                <JournalEntry key={j.id} entry={j} />
-              ))}
-              {journal.length === 0 && <p className="text-slate">Aucune entrée pour l&apos;instant.</p>}
-            </ul>
-            <form action={addJournalEntryAction} className="flex flex-col gap-3">
-              <Field label="Date" type="date" name="entryDate" required defaultValue={todayISO()} />
-              <TextAreaField label="Note" name="content" rows={3} required placeholder="Sensations du jour, fatigue, contexte particulier…" />
-              <div>
-                <Button type="submit">Ajouter une entrée</Button>
-              </div>
-            </form>
-          </Card>
-        </div>
+          {/* Journal de bord regroupé ici avec le reste des informations du jour
+              (forme, séance) plutôt qu'en bloc séparé plus bas — tout ce qui
+              concerne la journée en cours se lit d'un seul tenant. */}
+          <p className="mb-2 mt-5 text-[11px] font-bold uppercase tracking-wider text-slate">Journal de bord</p>
+          <ul className="mb-4 space-y-2 text-sm">
+            {journal.map((j) => (
+              <JournalEntry key={j.id} entry={j} />
+            ))}
+            {journal.length === 0 && <p className="text-slate">Aucune entrée pour l&apos;instant.</p>}
+          </ul>
+          <form action={addJournalEntryAction} className="flex flex-col gap-3">
+            <Field label="Date" type="date" name="entryDate" required defaultValue={selectedDate} />
+            <TextAreaField label="Note" name="content" rows={3} required placeholder="Sensations du jour, fatigue, contexte particulier…" />
+            <div>
+              <Button type="submit">Ajouter une entrée</Button>
+            </div>
+          </form>
+        </section>
       </main>
     </div>
   );
