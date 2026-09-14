@@ -1290,6 +1290,28 @@ export async function setAthleteSportsAction(formData: FormData) {
   revalidatePath(`/coach/athletes/${user.id}`);
 }
 
+// Notes privées du coach sur un athlète (points forts/faibles) — jamais
+// visibles par l'athlète, ni par un autre coach du même athlète.
+export async function upsertCoachNotesAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const athleteId = String(formData.get("athleteId") || "");
+  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+
+  const strengths = String(formData.get("strengths") || "").trim();
+  const weaknesses = String(formData.get("weaknesses") || "").trim();
+
+  await dbRun(
+    `INSERT INTO coach_athlete_notes (coach_id, athlete_id, strengths, weaknesses, updated_at)
+     VALUES (?, ?, ?, ?, datetime('now'))
+     ON CONFLICT(coach_id, athlete_id) DO UPDATE SET strengths = excluded.strengths, weaknesses = excluded.weaknesses, updated_at = excluded.updated_at`,
+    [user.id, athleteId, strengths || null, weaknesses || null]
+  );
+
+  revalidatePath(`/coach/athletes/${athleteId}`);
+}
+
 // ---------- CHECK-IN QUOTIDIEN DE FORME (V2) ----------
 
 export async function upsertCheckinAction(formData: FormData) {

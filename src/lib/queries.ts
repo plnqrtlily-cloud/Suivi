@@ -461,6 +461,21 @@ export async function getAthleteSports(userId: string): Promise<string[]> {
   }
 }
 
+// Notes privées d'un coach sur un athlète — jamais exposées à l'athlète, ni à
+// un autre coach (cf. src/lib/db.ts pour la contrainte de propriété).
+export interface CoachNotes {
+  strengths: string | null;
+  weaknesses: string | null;
+  updated_at: string;
+}
+
+export async function getCoachNotes(coachId: string, athleteId: string): Promise<CoachNotes | undefined> {
+  return dbGet(`SELECT strengths, weaknesses, updated_at FROM coach_athlete_notes WHERE coach_id = ? AND athlete_id = ?`, [
+    coachId,
+    athleteId,
+  ]);
+}
+
 export async function getCheckinForDate(athleteId: string, date: string): Promise<Checkin | undefined> {
   return dbGet(`SELECT * FROM daily_checkins WHERE athlete_id = ? AND check_date = ?`, [athleteId, date]);
 }

@@ -626,6 +626,28 @@ async function main() {
     "Les sports pratiqués par l'athlète sont bien enregistrés"
   );
 
+  // 40. Notes privées du coach sur un athlète — jamais visibles par l'athlète
+  // ni par un autre coach du même athlète.
+  await dbRun(
+    `INSERT INTO coach_athlete_notes (coach_id, athlete_id, strengths, weaknesses) VALUES (?, ?, ?, ?)
+     ON CONFLICT(coach_id, athlete_id) DO UPDATE SET strengths = excluded.strengths, weaknesses = excluded.weaknesses`,
+    [coach.id, athlete.id, "Très régulier, bonne technique de course", "Manque de force du haut du corps"]
+  );
+  const notes = await dbGet<any>(`SELECT * FROM coach_athlete_notes WHERE coach_id = ? AND athlete_id = ?`, [coach.id, athlete.id]);
+  assert(notes?.strengths?.includes("régulier") && notes?.weaknesses?.includes("force"), "Les notes privées du coach sont bien enregistrées");
+
+  const notesForOtherCoach = await dbGet(`SELECT * FROM coach_athlete_notes WHERE coach_id = ? AND athlete_id = ?`, [otherCoach.id, athlete.id]);
+  assert(!notesForOtherCoach, "Un autre coach du même athlète n'a AUCUNE note — cloisonnées par coach, jamais partagées");
+
+  // Un deuxième enregistrement doit écraser le premier (upsert), pas empiler de doublon.
+  await dbRun(
+    `INSERT INTO coach_athlete_notes (coach_id, athlete_id, strengths, weaknesses) VALUES (?, ?, ?, ?)
+     ON CONFLICT(coach_id, athlete_id) DO UPDATE SET strengths = excluded.strengths, weaknesses = excluded.weaknesses`,
+    [coach.id, athlete.id, "Mise à jour", "Mise à jour aussi"]
+  );
+  const allNotesRows = await dbAll(`SELECT * FROM coach_athlete_notes WHERE coach_id = ? AND athlete_id = ?`, [coach.id, athlete.id]);
+  assert(allNotesRows.length === 1, "Une seule ligne de notes par paire coach/athlète (mise à jour sur place, pas de doublon)");
+
   console.log("\nTest end-to-end terminé.");
 }
 

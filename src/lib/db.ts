@@ -359,6 +359,19 @@ CREATE TABLE IF NOT EXISTS messages (
   read_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Notes privées d'un coach sur un athlète (points forts/faibles, axes de
+-- travail) — jamais visibles par l'athlète, ni par un autre coach du même
+-- athlète : propres au coach qui les écrit. Une ligne par paire coach/athlète,
+-- mise à jour sur place plutôt qu'un historique d'entrées séparées.
+CREATE TABLE IF NOT EXISTS coach_athlete_notes (
+  coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  athlete_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  strengths TEXT,
+  weaknesses TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (coach_id, athlete_id)
+);
 `;
 
 let initialized: Promise<void> | null = null;
