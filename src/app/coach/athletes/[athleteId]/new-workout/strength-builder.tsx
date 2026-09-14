@@ -151,6 +151,12 @@ export function StrengthBuilder({
   exerciseMaxes?: Record<string, number>;
 }) {
   const [rows, setRows] = useState<BlockRow[]>(initialBlocks ?? []);
+  // Mode "Réorganiser" : bascule un groupe (échauffement / corps de séance / …) vers
+  // une liste compacte et glissable, façon Finder — plutôt que de faire glisser les
+  // grandes cartes détaillées avec toutes leurs séries.
+  const [reorderMode, setReorderMode] = useState<Record<string, boolean>>({});
+  const [draggedKey, setDraggedKey] = useState<string | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
   const attachable = resources.filter((r) => r.type === "video" || r.type === "photo");
   // Les exercices déjà utilisés par ce coach apparaissent en premier dans l'autocomplétion,
   // avant la bibliothèque générique — cf. demande de s'inspirer des meilleures apps.
@@ -267,6 +273,25 @@ export function StrengthBuilder({
     update(newRows);
   }
 
+  // Glisser-déposer : dépose "draggedKey" juste devant "targetKey", façon Finder
+  // (on lâche un fichier au-dessus d'un autre pour le placer avant lui). Limité aux
+  // exercices d'un même groupe — l'ordre entre échauffement/corps de séance/gainage/
+  // retour au calme reste fixe.
+  function reorderByDrag(draggedKeyArg: string, targetKey: string) {
+    if (draggedKeyArg === targetKey) return;
+    const dragged = rows.find((r) => r.key === draggedKeyArg);
+    const target = rows.find((r) => r.key === targetKey);
+    if (!dragged || !target) return;
+    const draggedGroup = BLOCK_GROUPS.find((g) => g.types.some((t) => t.value === dragged.block_type));
+    const targetGroup = BLOCK_GROUPS.find((g) => g.types.some((t) => t.value === target.block_type));
+    if (draggedGroup !== targetGroup) return;
+
+    const withoutDragged = rows.filter((r) => r.key !== draggedKeyArg);
+    const targetIdx = withoutDragged.findIndex((r) => r.key === targetKey);
+    withoutDragged.splice(targetIdx, 0, dragged);
+    update(withoutDragged);
+  }
+
   function addSet(rowKey: string) {
     update(
       rows.map((r) => {
@@ -310,6 +335,15 @@ export function StrengthBuilder({
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate">{group.title}</h3>
               <div className="flex gap-2">
+                {groupRows.length > 1 && (
+                  <Button
+                    type="button"
+                    variant={reorderMode[group.title] ? "primary" : "secondary"}
+                    onClick={() => setReorderMode((m) => ({ ...m, [group.title]: !m[group.title] }))}
+                  >
+                    {reorderMode[group.title] ? "Terminé" : "↕ Réorganiser"}
+                  </Button>
+                )}
                 <Button type="button" variant="secondary" onClick={() => addRow(group.types[0].value)}>
                   + Exercice
                 </Button>
@@ -318,6 +352,45 @@ export function StrengthBuilder({
                 </Button>
               </div>
             </div>
+            {reorderMode[group.title] ? (
+              // Vue compacte, glissable façon Finder : on prend une ligne par sa
+              // poignée et on la dépose au-dessus de celle où on veut la placer.
+              <ul className="flex flex-col gap-1.5">
+                {groupRows.map((row) => (
+                  <li
+                    key={row.key}
+                    draggable
+                    onDragStart={() => setDraggedKey(row.key)}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (dragOverKey !== row.key) setDragOverKey(row.key);
+                    }}
+                    onDragLeave={() => setDragOverKey((k) => (k === row.key ? null : k))}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedKey) reorderByDrag(draggedKey, row.key);
+                      setDraggedKey(null);
+                      setDragOverKey(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedKey(null);
+                      setDragOverKey(null);
+                    }}
+                    className={`flex cursor-grab items-center gap-2 rounded-xl border bg-paper-dim px-3 py-2 text-sm transition-colors active:cursor-grabbing ${
+                      draggedKey === row.key ? "opacity-40" : ""
+                    } ${dragOverKey === row.key && draggedKey !== row.key ? "border-moss bg-moss/10" : "border-line"}`}
+                  >
+                    <span className="text-slate" aria-hidden>
+                      ⠿
+                    </span>
+                    <span className="font-medium text-ink">{row.exercise_name || "(exercice sans nom)"}</span>
+                    <span className="ml-auto text-xs text-slate">
+                      {group.types.find((t) => t.value === row.block_type)?.label}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
             <div className="flex flex-col gap-4">
               {(() => {
                 // Regroupe les exercices consécutifs partageant le même circuit_id, pour
@@ -567,6 +640,7 @@ export function StrengthBuilder({
                 });
               })()}
             </div>
+            )}
           </div>
         );
       })}
