@@ -30,6 +30,7 @@ import { computeHrZones } from "@/lib/hr-zones";
 import { computePowerZones } from "@/lib/power-zones";
 import { computePaceZones, formatPace } from "@/lib/pace-zones";
 import { ExerciseMaxesPanel } from "./exercise-maxes-panel";
+import { CopyWeekForm } from "./copy-week-form";
 
 // "Bloc" et "cycle" reprennent le vocabulaire de périodisation de l'entraînement
 // (mésocycle ~4 semaines, bloc plus large regroupant plusieurs cycles) plutôt
@@ -168,6 +169,10 @@ export default async function AthleteDetailPage({
             </LinkButton>
             {link && <RevokeButton linkId={link.link_id} label="Retirer cet athlète" />}
           </div>
+        </div>
+
+        <div className="mb-8">
+          <CopyWeekForm athleteId={athleteId} />
         </div>
 
         <div className="mb-8 grid gap-6 md:grid-cols-3">

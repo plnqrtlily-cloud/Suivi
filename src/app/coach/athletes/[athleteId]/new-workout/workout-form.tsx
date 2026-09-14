@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createWorkoutAction, updateWorkoutAction, saveWorkoutTemplateAction } from "@/lib/actions";
+import { createWorkoutAction, updateWorkoutAction, saveWorkoutTemplateAction, createWorkoutBulkAction } from "@/lib/actions";
 import { Field, SelectField, TextAreaField, Button, ErrorText } from "@/components/ui";
 import { DateRangePicker, dateRangeToList } from "@/components/date-range-picker";
 import { StrengthBuilder, BlockRow, LibraryResource } from "./strength-builder";
@@ -60,12 +60,18 @@ export interface WorkoutFormInitial {
   blocks: BlockRow[];
 }
 
+export interface OtherAthleteOption {
+  id: string;
+  name: string;
+}
+
 export function WorkoutForm({
   athleteId,
   resources,
   exerciseHistory,
   exerciseMaxes,
   templates,
+  otherAthletes,
   initial,
 }: {
   athleteId: string;
@@ -73,6 +79,7 @@ export function WorkoutForm({
   exerciseHistory: string[];
   exerciseMaxes?: Record<string, number>;
   templates?: WorkoutTemplateOption[];
+  otherAthletes?: OtherAthleteOption[];
   initial?: WorkoutFormInitial;
 }) {
   const router = useRouter();
@@ -83,6 +90,11 @@ export function WorkoutForm({
   const [blocks, setBlocks] = useState<BlockRow[]>(initial?.blocks ?? []);
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
+  // Filtre facultatif appliqué à la plage de dates : ex. cocher Lun/Mer/Ven sur
+  // une plage de 4 semaines pour ne créer la séance que ces jours-là plutôt que
+  // tous les jours consécutifs de la plage.
+  const [weekdayFilter, setWeekdayFilter] = useState<number[]>([]);
+  const [alsoSendTo, setAlsoSendTo] = useState<string[]>([]);
   const [error, setError] = useState<string | undefined>();
   const [pending, setPending] = useState(false);
   // Charger un modèle réécrit sport/catégorie/couleur (état contrôlé) et force
@@ -200,7 +212,17 @@ export function WorkoutForm({
     }
     setPending(true);
     setError(undefined);
-    const dates = dateRangeToList(rangeStart, rangeEnd);
+    let dates = dateRangeToList(rangeStart, rangeEnd);
+    // N'applique le filtre que si au moins un jour est coché ET que la plage
+    // couvre plusieurs jours — sur un jour unique, le filtre n'aurait pas de sens.
+    if (weekdayFilter.length > 0 && dates.length > 1) {
+      dates = dates.filter((d) => weekdayFilter.includes(new Date(`${d}T00:00:00`).getDay()));
+      if (dates.length === 0) {
+        setError("Aucun jour de la plage sélectionnée ne correspond aux jours de semaine cochés.");
+        setPending(false);
+        return;
+      }
+    }
     try {
       const result = await createWorkoutAction({
         athleteId,
@@ -215,7 +237,22 @@ export function WorkoutForm({
         color,
         blocks: blocksPayload(),
       });
-      router.push(dates.length === 1 ? `/workouts/${result.workoutIds[0]}` : `/coach/athletes/${athleteId}`);
+      if (alsoSendTo.length > 0) {
+        await createWorkoutBulkAction({
+          athleteIds: alsoSendTo,
+          sport,
+          category,
+          priority: String(formData.get("priority") || ""),
+          title: String(formData.get("title")),
+          dates,
+          time: String(formData.get("time") || ""),
+          durationMinutes: formData.get("duration") ? Number(formData.get("duration")) : undefined,
+          description: String(formData.get("description") || ""),
+          color,
+          blocks: blocksPayload(),
+        });
+      }
+      router.push(dates.length === 1 && alsoSendTo.length === 0 ? `/workouts/${result.workoutIds[0]}` : `/coach/athletes/${athleteId}`);
     } catch (err: any) {
       setError(err.message || "Une erreur est survenue.");
       setPending(false);
@@ -284,6 +321,58 @@ export function WorkoutForm({
             (comme sur Booking pour un séjour).
           </p>
           <DateRangePicker start={rangeStart} end={rangeEnd} onChange={({ start, end }) => { setRangeStart(start); setRangeEnd(end); }} />
+
+          {rangeStart && rangeEnd && rangeStart !== rangeEnd && (
+            <div className="mt-3">
+              <p className="mb-1.5 text-xs font-medium text-ink-soft">
+                Ne répéter que certains jours de la semaine (facultatif — sinon tous les jours de la plage)
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: 1, label: "Lun" },
+                  { value: 2, label: "Mar" },
+                  { value: 3, label: "Mer" },
+                  { value: 4, label: "Jeu" },
+                  { value: 5, label: "Ven" },
+                  { value: 6, label: "Sam" },
+                  { value: 0, label: "Dim" },
+                ].map((d) => (
+                  <button
+                    key={d.value}
+                    type="button"
+                    onClick={() =>
+                      setWeekdayFilter((prev) => (prev.includes(d.value) ? prev.filter((x) => x !== d.value) : [...prev, d.value]))
+                    }
+                    className={`rounded-full border px-3 py-1 text-xs ${
+                      weekdayFilter.includes(d.value) ? "border-gold-light bg-gold-light/10 text-ink" : "border-line text-slate"
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {otherAthletes && otherAthletes.length > 0 && (
+            <div className="mt-3">
+              <p className="mb-1.5 text-xs font-medium text-ink-soft">Envoyer aussi à d&apos;autres athlètes (facultatif)</p>
+              <div className="flex flex-wrap gap-2">
+                {otherAthletes.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => setAlsoSendTo((prev) => (prev.includes(a.id) ? prev.filter((x) => x !== a.id) : [...prev, a.id]))}
+                    className={`rounded-full border px-3 py-1 text-xs ${
+                      alsoSendTo.includes(a.id) ? "border-gold-light bg-gold-light/10 text-ink" : "border-line text-slate"
+                    }`}
+                  >
+                    {a.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

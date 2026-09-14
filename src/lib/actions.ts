@@ -533,6 +533,102 @@ export async function duplicateWorkoutAction(params: { workoutId: string; target
   });
 }
 
+// Envoi de la même séance à plusieurs athlètes d'un coup (cf. besoin coach : une
+// séance collective). Réutilise createWorkoutAction athlète par athlète plutôt que
+// de dupliquer sa logique d'insertion — un athlète non lié est ignoré silencieusement
+// (pas d'échec en cascade pour tout le monde à cause d'un seul athlète invalide).
+export async function createWorkoutBulkAction(params: {
+  athleteIds: string[];
+  sport: string;
+  category: string;
+  priority?: string;
+  title: string;
+  dates: string[];
+  time?: string;
+  durationMinutes?: number;
+  description?: string;
+  color?: string;
+  blocks?: BlockInput[];
+}) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  if (!params.athleteIds.length) return { count: 0 };
+
+  let count = 0;
+  for (const athleteId of params.athleteIds) {
+    if (!(await isCoachLinkedToAthlete(user.id, athleteId))) continue;
+    await createWorkoutAction({ ...params, athleteId });
+    count++;
+  }
+  return { count };
+}
+
+// Copie toute une semaine de séances d'un athlète vers une autre semaine (cf.
+// besoin coach : reconduire un microcycle qui a bien fonctionné). Uniquement les
+// séances créées par CE coach (pas celles d'un autre coach du même athlète) —
+// même règle que "chaque coach ne voit/modifie que ses propres séances".
+export async function copyWeekAction(params: {
+  athleteId: string;
+  sourceWeekStart: string; // lundi de la semaine source, YYYY-MM-DD
+  targetWeekStart: string; // lundi de la semaine cible
+}) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  if (!(await isCoachLinkedToAthlete(user.id, params.athleteId))) {
+    throw new Error("Ce coach n'est pas lié à cet athlète.");
+  }
+
+  const sourceStart = new Date(`${params.sourceWeekStart}T00:00:00`);
+  const sourceEnd = new Date(sourceStart);
+  sourceEnd.setDate(sourceEnd.getDate() + 6);
+  const dayOffset = Math.round(
+    (new Date(`${params.targetWeekStart}T00:00:00`).getTime() - sourceStart.getTime()) / 86400000
+  );
+
+  const sourceWorkouts = await dbAll<any>(
+    `SELECT * FROM workouts WHERE athlete_id = ? AND coach_id = ? AND date BETWEEN ? AND ?`,
+    [params.athleteId, user.id, params.sourceWeekStart, sourceEnd.toISOString().slice(0, 10)]
+  );
+
+  let count = 0;
+  for (const w of sourceWorkouts) {
+    const blocks = w.sport === "strength" ? await getBlocksForWorkout(w.id) : [];
+    const blockInputs: BlockInput[] = blocks.map((b: any) => ({
+      block_type: b.block_type,
+      exercise_name: b.exercise_name,
+      notes: b.notes || undefined,
+      resource_id: b.resource_id || undefined,
+      training_quality: b.training_quality || undefined,
+      sets: (b.exerciseSets || []).map((s: any) => ({
+        reps: s.reps || undefined,
+        load: s.load || undefined,
+        restSeconds: s.rest_seconds || undefined,
+        rpe: s.rpe || undefined,
+      })),
+    }));
+
+    const newDate = new Date(`${w.date}T00:00:00`);
+    newDate.setDate(newDate.getDate() + dayOffset);
+
+    await createWorkoutAction({
+      athleteId: params.athleteId,
+      sport: w.sport,
+      category: w.category,
+      priority: w.priority || undefined,
+      title: w.title,
+      dates: [newDate.toISOString().slice(0, 10)],
+      time: w.time || undefined,
+      durationMinutes: w.duration_minutes || undefined,
+      description: w.description || undefined,
+      color: w.color,
+      blocks: blockInputs.length ? blockInputs : undefined,
+    });
+    count++;
+  }
+
+  return { count };
+}
+
 // Annulation d'une séance par le coach (cf. prompt : "séance modifiée/annulée" parmi
 // les événements devant déclencher une notification).
 export async function cancelWorkoutAction(workoutId: string) {

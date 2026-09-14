@@ -1,6 +1,6 @@
 import { redirect, notFound } from "next/navigation";
 import { getCurrentUser, isCoachLinkedToAthlete, findUserById } from "@/lib/auth";
-import { getResourcesForCoach, getCoachExerciseHistory, getLatestExerciseMaxes, getWorkoutTemplatesForCoach } from "@/lib/queries";
+import { getResourcesForCoach, getCoachExerciseHistory, getLatestExerciseMaxes, getWorkoutTemplatesForCoach, getAthletesForCoach } from "@/lib/queries";
 import { Nav } from "@/components/nav";
 import { WorkoutForm, type WorkoutTemplateOption } from "./workout-form";
 import { TemplateList } from "./template-list";
@@ -19,11 +19,12 @@ export default async function NewWorkoutPage({
   const athlete = await findUserById(athleteId);
   if (!athlete) notFound();
 
-  const [rawResources, exerciseHistory, exerciseMaxes, rawTemplates] = await Promise.all([
+  const [rawResources, exerciseHistory, exerciseMaxes, rawTemplates, allAthletes] = await Promise.all([
     getResourcesForCoach(user.id),
     getCoachExerciseHistory(user.id),
     getLatestExerciseMaxes(athleteId),
     getWorkoutTemplatesForCoach(user.id),
+    getAthletesForCoach(user.id),
   ]);
   const resources = rawResources.map((r) => ({ id: r.id, title: r.title, type: r.type }));
   const templates: WorkoutTemplateOption[] = rawTemplates.map((t) => ({
@@ -36,6 +37,10 @@ export default async function NewWorkoutPage({
     color: t.color,
     blocks: t.blocks_json ? JSON.parse(t.blocks_json) : [],
   }));
+  // Pour l'envoi groupé de la même séance à plusieurs athlètes d'un coup.
+  const otherAthletes = allAthletes
+    .filter((a: any) => a.status === "active" && a.athlete_id && a.athlete_id !== athleteId)
+    .map((a: any) => ({ id: a.athlete_id as string, name: `${a.first_name} ${a.last_name}` }));
 
   return (
     <div className="min-h-screen bg-paper">
@@ -52,6 +57,7 @@ export default async function NewWorkoutPage({
           exerciseHistory={exerciseHistory}
           exerciseMaxes={exerciseMaxes}
           templates={templates}
+          otherAthletes={otherAthletes}
         />
       </main>
     </div>

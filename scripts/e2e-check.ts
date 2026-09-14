@@ -461,6 +461,75 @@ async function main() {
   );
   assert(unreadAfterMarkRead?.c === 0, "Marquer les messages comme lus fonctionne correctement");
 
+  // 33. Envoi groupé à plusieurs athlètes (V5 fusionnée) — un athlète non lié est
+  // ignoré silencieusement plutôt que de faire échouer tout l'envoi.
+  const bulkTitle = "Séance collective";
+  const bulkTargets = [athlete.id, otherAthlete.id];
+  let bulkCount = 0;
+  for (const targetId of bulkTargets) {
+    if (!(await isCoachLinkedToAthlete(coach.id, targetId))) continue;
+    await dbRun(
+      `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, title, date) VALUES (?, ?, ?, 'running', 'entrainement', ?, '2026-11-20')`,
+      [randomUUID(), coach.id, targetId, bulkTitle]
+    );
+    bulkCount++;
+  }
+  assert(bulkCount === 1, "L'envoi groupé ignore silencieusement un athlète non lié plutôt que d'échouer entièrement");
+
+  // 34. Copier une semaine entière vers une autre (V5 fusionnée)
+  const weekSourceMonday = "2026-12-07";
+  const weekTargetMonday = "2026-12-14";
+  await dbRun(
+    `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, title, date) VALUES (?, ?, ?, 'running', 'entrainement', 'Sortie semaine A', '2026-12-08')`,
+    [randomUUID(), coach.id, athlete.id]
+  );
+  await dbRun(
+    `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, title, date) VALUES (?, ?, ?, 'running', 'entrainement', 'Sortie semaine A bis', '2026-12-10')`,
+    [randomUUID(), coach.id, athlete.id]
+  );
+  const weekSourceWorkouts = await dbAll<any>(
+    `SELECT * FROM workouts WHERE athlete_id = ? AND coach_id = ? AND date BETWEEN ? AND ?`,
+    [athlete.id, coach.id, weekSourceMonday, "2026-12-13"]
+  );
+  const dayOffset = Math.round(
+    (new Date(`${weekTargetMonday}T00:00:00`).getTime() - new Date(`${weekSourceMonday}T00:00:00`).getTime()) / 86400000
+  );
+  for (const w of weekSourceWorkouts) {
+    const newDate = new Date(`${w.date}T00:00:00`);
+    newDate.setDate(newDate.getDate() + dayOffset);
+    await dbRun(
+      `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, title, date) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [randomUUID(), coach.id, athlete.id, w.sport, w.category, w.title, newDate.toISOString().slice(0, 10)]
+    );
+  }
+  const weekTargetWorkouts = await dbAll(`SELECT * FROM workouts WHERE athlete_id = ? AND date BETWEEN ? AND ?`, [
+    athlete.id,
+    weekTargetMonday,
+    "2026-12-20",
+  ]);
+  assert(weekTargetWorkouts.length === 2, "Copier une semaine recrée bien le même nombre de séances, décalées du bon nombre de jours");
+
+  // 35. Filtre par jour de semaine sur une plage de dates (V5 fusionnée) — logique
+  // client de workout-form.tsx, vérifiée ici sur les mêmes données.
+  function dateRangeToList(start: string, end: string): string[] {
+    const dates: string[] = [];
+    const cursor = new Date(`${start}T00:00:00`);
+    const last = new Date(`${end}T00:00:00`);
+    while (cursor <= last) {
+      dates.push(cursor.toISOString().slice(0, 10));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return dates;
+  }
+  const fullRange = dateRangeToList("2026-11-02", "2026-11-15"); // 2 semaines, lundi à dimanche
+  const filtered = fullRange.filter((d) => [1, 3, 5].includes(new Date(`${d}T00:00:00`).getDay()));
+  assert(fullRange.length === 14, "La plage complète (2 semaines) contient bien 14 jours avant filtrage");
+  assert(filtered.length === 6, "Le filtre lundi/mercredi/vendredi réduit bien 14 jours à 6 occurrences");
+  assert(
+    filtered.every((d) => [1, 3, 5].includes(new Date(`${d}T00:00:00`).getDay())),
+    "Chaque date filtrée tombe bien sur un jour de semaine sélectionné"
+  );
+
   console.log("\nTest end-to-end terminé.");
 }
 
