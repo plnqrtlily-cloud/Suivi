@@ -8,6 +8,7 @@ import { StatusForm } from "./status-form";
 import { CommentForm } from "./comment-form";
 import { CancelWorkoutButton } from "./cancel-button";
 import { DuplicateWorkoutButton } from "./duplicate-workout-modal";
+import { IntervalList } from "./interval-list";
 
 const BLOCK_TITLES: Record<string, string> = {
   warmup_mobility: "Échauffement — Mobilité",
@@ -106,6 +107,13 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
             )}
           </div>
         </div>
+
+        {workout.intervals_json && (
+          <Card className="mb-6">
+            <h2 className="mb-3 text-sm font-medium text-ink-soft">Structure de la séance</h2>
+            <IntervalList json={workout.intervals_json} />
+          </Card>
+        )}
 
         {workout.description && (
           <Card className="mb-6">

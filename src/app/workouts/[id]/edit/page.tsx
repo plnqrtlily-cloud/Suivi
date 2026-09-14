@@ -4,6 +4,7 @@ import { getWorkoutById, getBlocksForWorkout, getResourcesForCoach, getCoachExer
 import { Nav } from "@/components/nav";
 import { WorkoutForm } from "@/app/coach/athletes/[athleteId]/new-workout/workout-form";
 import type { BlockRow } from "@/app/coach/athletes/[athleteId]/new-workout/strength-builder";
+import type { IntervalItem } from "@/app/coach/athletes/[athleteId]/new-workout/interval-builder";
 
 export default async function EditWorkoutPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -43,6 +44,13 @@ export default async function EditWorkoutPage({ params }: { params: Promise<{ id
         : [{ reps: "", load: "", restSeconds: "", rpe: "" }],
   }));
 
+  let intervals: IntervalItem[] = [];
+  try {
+    intervals = workout.intervals_json ? JSON.parse(workout.intervals_json) : [];
+  } catch {
+    intervals = []; // JSON corrompu ou vide — repart d'une structure neuve plutôt que de faire planter la page
+  }
+
   return (
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
@@ -68,6 +76,7 @@ export default async function EditWorkoutPage({ params }: { params: Promise<{ id
             description: workout.description,
             color: workout.color,
             blocks,
+            intervals,
           }}
         />
       </main>

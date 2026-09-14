@@ -551,6 +551,49 @@ async function main() {
   const deletedEntry = await dbGet(`SELECT * FROM journal_entries WHERE id = ?`, [journalEntryId]);
   assert(!deletedEntry, "Une entrée de journal peut être supprimée");
 
+  // 37. Séance structurée par intervalles (façon Garmin) et répétitions/durée par exercice
+  const intervalStructure = [
+    { id: "s1", kind: "step", stepType: "warmup", durationType: "time", durationValue: "10:00", target: { type: "hr_zone", zone: 2 } },
+    {
+      id: "r1",
+      kind: "repeat",
+      count: 6,
+      steps: [
+        { id: "s2", kind: "step", stepType: "work", durationType: "distance", durationValue: "400", target: { type: "pace_zone", zone: 4 } },
+        { id: "s3", kind: "step", stepType: "recovery", durationType: "time", durationValue: "01:30", target: { type: "none" } },
+      ],
+    },
+    { id: "s4", kind: "step", stepType: "cooldown", durationType: "time", durationValue: "10:00", target: { type: "none" } },
+  ];
+  const intervalWorkoutId = randomUUID();
+  await dbRun(
+    `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, title, date, intervals_json) VALUES (?, ?, ?, 'running', 'entrainement', 'Séance fractionné', '2027-01-10', ?)`,
+    [intervalWorkoutId, coach.id, athlete.id, JSON.stringify(intervalStructure)]
+  );
+  const savedInterval = await dbGet<any>(`SELECT intervals_json FROM workouts WHERE id = ?`, [intervalWorkoutId]);
+  const parsedInterval = JSON.parse(savedInterval?.intervals_json || "[]");
+  assert(parsedInterval.length === 3, "La structure d'intervalles (échauffement, groupe répété, retour au calme) est bien enregistrée");
+  assert(parsedInterval[1].kind === "repeat" && parsedInterval[1].count === 6, "Le groupe répété conserve bien son nombre de répétitions");
+  assert(parsedInterval[1].steps.length === 2, "Le groupe répété contient bien ses étapes imbriquées (effort + récupération)");
+  assert(parsedInterval[1].steps[0].target.type === "pace_zone" && parsedInterval[1].steps[0].target.zone === 4, "La cible en zone d'allure est bien conservée");
+
+  const timedBlockWorkoutId = randomUUID();
+  await dbRun(
+    `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, title, date) VALUES (?, ?, ?, 'strength', 'entrainement', 'Gainage minuté', '2027-01-11')`,
+    [timedBlockWorkoutId, coach.id, athlete.id]
+  );
+  const timedBlockId = randomUUID();
+  await dbRun(
+    `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, rep_type, order_index) VALUES (?, ?, 'core', 'Planche', 'time', 0)`,
+    [timedBlockId, timedBlockWorkoutId]
+  );
+  await dbRun(`INSERT INTO exercise_sets (id, block_id, set_number, reps, order_index) VALUES (?, ?, 1, '45 sec', 0)`, [
+    randomUUID(),
+    timedBlockId,
+  ]);
+  const timedBlock = await dbGet<any>(`SELECT rep_type FROM workout_blocks WHERE id = ?`, [timedBlockId]);
+  assert(timedBlock?.rep_type === "time", "Un exercice peut être prescrit en durée plutôt qu'en répétitions");
+
   console.log("\nTest end-to-end terminé.");
 }
 

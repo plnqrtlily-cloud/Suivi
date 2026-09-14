@@ -177,6 +177,7 @@ export async function createWorkoutAction(params: {
   description?: string;
   color?: string;
   blocks?: BlockInput[];
+  intervalsJson?: string;
 }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
@@ -210,8 +211,8 @@ export async function createWorkoutAction(params: {
     params.dates.map(async (date) => {
       const workoutId = randomUUID();
       await dbRun(
-        `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, priority, title, date, time, duration_minutes, description, color)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, priority, title, date, time, duration_minutes, description, color, intervals_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           workoutId,
           user.id,
@@ -225,6 +226,7 @@ export async function createWorkoutAction(params: {
           params.durationMinutes || null,
           params.description || null,
           color,
+          params.sport !== "strength" ? params.intervalsJson || null : null,
         ]
       );
 
@@ -289,6 +291,7 @@ export async function updateWorkoutAction(params: {
   description?: string;
   color?: string;
   blocks?: BlockInput[];
+  intervalsJson?: string;
 }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
@@ -318,7 +321,7 @@ export async function updateWorkoutAction(params: {
   const color = params.color || "#1B4B4F";
 
   await dbRun(
-    `UPDATE workouts SET sport = ?, category = ?, priority = ?, title = ?, date = ?, time = ?, duration_minutes = ?, description = ?, color = ?
+    `UPDATE workouts SET sport = ?, category = ?, priority = ?, title = ?, date = ?, time = ?, duration_minutes = ?, description = ?, color = ?, intervals_json = ?
      WHERE id = ?`,
     [
       params.sport,
@@ -330,6 +333,7 @@ export async function updateWorkoutAction(params: {
       params.durationMinutes || null,
       params.description || null,
       color,
+      params.sport !== "strength" ? params.intervalsJson || null : null,
       params.workoutId,
     ]
   );
@@ -532,6 +536,7 @@ export async function duplicateWorkoutAction(params: { workoutId: string; target
     description: workout.description || undefined,
     color: workout.color,
     blocks: blockInputs.length ? blockInputs : undefined,
+    intervalsJson: workout.intervals_json || undefined,
   });
 }
 
@@ -551,6 +556,7 @@ export async function createWorkoutBulkAction(params: {
   description?: string;
   color?: string;
   blocks?: BlockInput[];
+  intervalsJson?: string;
 }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
@@ -625,6 +631,7 @@ export async function copyWeekAction(params: {
       description: w.description || undefined,
       color: w.color,
       blocks: blockInputs.length ? blockInputs : undefined,
+      intervalsJson: w.intervals_json || undefined,
     });
     count++;
   }

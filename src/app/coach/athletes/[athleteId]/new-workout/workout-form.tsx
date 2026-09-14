@@ -6,6 +6,7 @@ import { createWorkoutAction, updateWorkoutAction, saveWorkoutTemplateAction, cr
 import { Field, SelectField, TextAreaField, Button, ErrorText } from "@/components/ui";
 import { DateRangePicker, dateRangeToList } from "@/components/date-range-picker";
 import { StrengthBuilder, BlockRow, LibraryResource } from "./strength-builder";
+import { IntervalBuilder, IntervalItem } from "./interval-builder";
 
 interface TemplateBlockInput {
   block_type: string;
@@ -58,6 +59,7 @@ export interface WorkoutFormInitial {
   description: string | null;
   color: string;
   blocks: BlockRow[];
+  intervals: IntervalItem[];
 }
 
 export interface OtherAthleteOption {
@@ -88,6 +90,7 @@ export function WorkoutForm({
   const [category, setCategory] = useState(initial?.category ?? "entrainement");
   const [color, setColor] = useState(initial?.color ?? COLORS[0]);
   const [blocks, setBlocks] = useState<BlockRow[]>(initial?.blocks ?? []);
+  const [intervals, setIntervals] = useState<IntervalItem[]>(initial?.intervals ?? []);
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   // Filtre facultatif appliqué à la plage de dates : ex. cocher Lun/Mer/Ven sur
@@ -198,6 +201,7 @@ export function WorkoutForm({
           description: String(formData.get("description") || ""),
           color,
           blocks: blocksPayload(),
+          intervalsJson: sport !== "strength" ? JSON.stringify(intervals) : undefined,
         });
         router.push(`/workouts/${initial.workoutId}`);
       } catch (err: any) {
@@ -237,6 +241,7 @@ export function WorkoutForm({
         description: String(formData.get("description") || ""),
         color,
         blocks: blocksPayload(),
+        intervalsJson: sport !== "strength" ? JSON.stringify(intervals) : undefined,
       });
       if (alsoSendTo.length > 0) {
         await createWorkoutBulkAction({
@@ -251,6 +256,7 @@ export function WorkoutForm({
           description: String(formData.get("description") || ""),
           color,
           blocks: blocksPayload(),
+          intervalsJson: sport !== "strength" ? JSON.stringify(intervals) : undefined,
         });
       }
       router.push(dates.length === 1 && alsoSendTo.length === 0 ? `/workouts/${result.workoutIds[0]}` : `/coach/athletes/${athleteId}`);
@@ -418,15 +424,20 @@ export function WorkoutForm({
           />
         </div>
       ) : (
-        <TextAreaField
-          key={`description-${templateKey}`}
-          label="Description de la séance"
-          name="description"
-          rows={5}
-          placeholder="Détail des allures, intervalles, parcours, consignes techniques…"
-          defaultValue={appliedTemplate?.description ?? initial?.description ?? ""}
-        />
+        <div>
+          <p className="mb-3 text-sm font-medium text-ink-soft">Structure de la séance (facultatif)</p>
+          <IntervalBuilder items={intervals} onChange={setIntervals} />
+        </div>
       )}
+
+      <TextAreaField
+        key={`description-${templateKey}`}
+        label="Notes complémentaires (facultatif)"
+        name="description"
+        rows={3}
+        placeholder="Parcours, consignes techniques, contexte particulier…"
+        defaultValue={appliedTemplate?.description ?? initial?.description ?? ""}
+      />
 
       <ErrorText>{error}</ErrorText>
       <div className="flex flex-wrap gap-3">
