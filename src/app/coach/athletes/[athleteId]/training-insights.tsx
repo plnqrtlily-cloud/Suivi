@@ -192,7 +192,7 @@ function PeriodSummaryRow({ summary }: { summary: ReturnType<typeof computePerio
   const hours = Math.floor(summary.avgWeeklyMinutes / 60);
   const mins = summary.avgWeeklyMinutes % 60;
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <StatTile label="Volume hebdo moyen" value={hours > 0 ? `${hours}h${mins.toString().padStart(2, "0")}` : `${mins} min`} />
       <StatTile
         label="Respect du plan"

@@ -25,8 +25,8 @@ export function InviteForm() {
 
   return (
     <div className="flex flex-col gap-3">
-      <form onSubmit={handleSubmit} className="flex items-end gap-2">
-        <div className="flex-1">
+      <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
+        <div className="w-full sm:flex-1">
           <Field label="Email de l'athlète à inviter (facultatif)" type="email" name="email" placeholder="athlete@exemple.com" />
         </div>
         <Button type="submit" disabled={pending}>

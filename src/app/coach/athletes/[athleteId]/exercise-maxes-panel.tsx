@@ -60,8 +60,8 @@ export function ExerciseMaxesPanel({
         ))}
         {maxes.length === 0 && <p className="text-slate">Aucun max testé pour l&apos;instant.</p>}
       </ul>
-      <form onSubmit={handleSubmit} className="grid grid-cols-3 items-end gap-2">
-        <label className="col-span-3 flex flex-col gap-1.5 text-sm sm:col-span-1">
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 items-end gap-2 sm:grid-cols-3">
+        <label className="col-span-full flex flex-col gap-1.5 text-sm sm:col-span-1">
           <span className="font-medium text-ink-soft">Exercice</span>
           <input
             list="max-exercise-suggestions"
@@ -73,7 +73,7 @@ export function ExerciseMaxesPanel({
         </label>
         <Field label="Charge (kg)" type="number" step="0.5" name="valueKg" required min={0} />
         <Field label="Date du test" type="date" name="testedAt" required defaultValue={todayISO()} />
-        <div className="col-span-3">
+        <div className="col-span-full">
           <Button type="submit" disabled={pending}>
             {pending ? "Ajout…" : "Ajouter"}
           </Button>

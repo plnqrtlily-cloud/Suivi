@@ -94,7 +94,7 @@ export default async function CoachDashboard() {
             const signals = signalsByAthlete.get(link.athlete_id!);
             return (
               <Link key={link.link_id} href={`/coach/athletes/${link.athlete_id}`}>
-                <Card className="flex items-center justify-between rounded-2xl transition-colors hover:border-moss">
+                <Card className="flex flex-wrap items-center justify-between gap-2 rounded-2xl transition-colors hover:border-moss">
                   <div className="flex items-center gap-3">
                     <Avatar userId={link.athlete_id!} firstName={link.first_name || "?"} hasAvatar={!!link.avatar_path} />
                     <div>

@@ -137,7 +137,7 @@ export default async function AthleteDetailPage({
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
       <main className="mx-auto max-w-5xl px-6 py-10">
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Avatar userId={athleteId} firstName={athlete.first_name} hasAvatar={!!athleteAvatar?.avatar_path} size="lg" />
             <div>
@@ -157,7 +157,7 @@ export default async function AthleteDetailPage({
               )}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <LinkButton href={`/coach/athletes/${athleteId}/new-workout`}>+ Nouvelle séance</LinkButton>
             <LinkButton href={`/coach/athletes/${athleteId}/messages`} variant="secondary">
               <span className="flex items-center gap-1.5">
