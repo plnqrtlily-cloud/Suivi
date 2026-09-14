@@ -393,6 +393,7 @@ export default async function AthleteDetailPage({
               <Link
                 key={p.value}
                 href={`/coach/athletes/${athleteId}?bilan=${p.value}`}
+                scroll={false}
                 className={`rounded-xl px-3.5 py-1.5 text-center text-sm font-semibold transition-colors ${
                   bilanPeriod.value === p.value ? "bg-white text-ink shadow-sm" : "text-slate"
                 }`}

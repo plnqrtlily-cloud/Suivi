@@ -8,7 +8,7 @@ import type { TrainingQuality } from "@/lib/actions";
 // Structuration en blocs de la musculation (cf. prompt) :
 // échauffement (mobilité / plyométrie / proprioception) -> corps de séance
 // (principal / secondaire / complémentaire / spécifique) -> gainage -> retour au calme.
-const BLOCK_GROUPS: { title: string; types: { value: string; label: string }[] }[] = [
+export const BLOCK_GROUPS: { title: string; types: { value: string; label: string }[] }[] = [
   {
     title: "Échauffement",
     types: [
@@ -646,4 +646,15 @@ export function StrengthBuilder({
       })}
     </div>
   );
+}
+
+// Trie les blocs dans l'ordre canonique des groupes (échauffement -> corps de
+// séance -> gainage -> retour au calme), plutôt que dans leur ordre d'AJOUT —
+// sans ça, un exercice de gainage ajouté avant un exercice d'échauffement
+// (par ex. après avoir réorganisé, ou juste ajouté dans un ordre différent)
+// se retrouvait enregistré et réaffiché dans le mauvais ordre. Tri stable :
+// l'ordre relatif à l'intérieur d'un même groupe est conservé.
+export function sortBlocksByGroupOrder(blocks: BlockRow[]): BlockRow[] {
+  const groupIndexOf = (blockType: string) => BLOCK_GROUPS.findIndex((g) => g.types.some((t) => t.value === blockType));
+  return [...blocks].sort((a, b) => groupIndexOf(a.block_type) - groupIndexOf(b.block_type));
 }

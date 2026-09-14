@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createWorkoutAction, updateWorkoutAction, saveWorkoutTemplateAction, createWorkoutBulkAction } from "@/lib/actions";
 import { Field, SelectField, TextAreaField, Button, ErrorText } from "@/components/ui";
 import { DateRangePicker, dateRangeToList } from "@/components/date-range-picker";
-import { StrengthBuilder, BlockRow, LibraryResource } from "./strength-builder";
+import { StrengthBuilder, BlockRow, LibraryResource, sortBlocksByGroupOrder } from "./strength-builder";
 import { IntervalBuilder, IntervalItem } from "./interval-builder";
 
 interface TemplateBlockInput {
@@ -160,7 +160,7 @@ export function WorkoutForm({
 
   function blocksPayload() {
     return sport === "strength"
-      ? blocks.map((b) => ({
+      ? sortBlocksByGroupOrder(blocks).map((b) => ({
           block_type: b.block_type,
           exercise_name: b.exercise_name,
           notes: b.notes || undefined,

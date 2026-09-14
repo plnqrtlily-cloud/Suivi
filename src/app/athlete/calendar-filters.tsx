@@ -49,7 +49,7 @@ export function CalendarFilters({
           {SPORTS.map((s) => (
             <Link
               key={s}
-              href={`/athlete?week=${offset}&sport=${sport === s ? "" : s}${category ? `&category=${category}` : ""}`}
+              href={`/athlete?week=${offset}&sport=${sport === s ? "" : s}${category ? `&category=${category}` : ""}`} scroll={false}
               className={`rounded-full border px-2.5 py-0.5 ${sport === s ? "border-moss bg-moss/10 text-moss-dark" : "border-line text-slate"}`}
             >
               {sportLabel(s)}
@@ -59,14 +59,14 @@ export function CalendarFilters({
           {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
             <Link
               key={value}
-              href={`/athlete?week=${offset}&category=${category === value ? "" : value}${sport ? `&sport=${sport}` : ""}`}
+              href={`/athlete?week=${offset}&category=${category === value ? "" : value}${sport ? `&sport=${sport}` : ""}`} scroll={false}
               className={`rounded-full border px-2.5 py-0.5 ${category === value ? "border-clay bg-clay/10 text-clay" : "border-line text-slate"}`}
             >
               {label}
             </Link>
           ))}
           {activeCount > 0 && (
-            <Link href={`/athlete?week=${offset}`} className="ml-2 text-xs text-slate underline">
+            <Link href={`/athlete?week=${offset}`} scroll={false} className="ml-2 text-xs text-slate underline">
               Réinitialiser
             </Link>
           )}

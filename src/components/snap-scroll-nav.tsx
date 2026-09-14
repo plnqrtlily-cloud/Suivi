@@ -72,10 +72,10 @@ export function SnapScrollNav({
       const center = pos + unit / 2;
       if (center < unit) {
         navigating.current = true;
-        router.push(prevHref);
+        router.push(prevHref, { scroll: false });
       } else if (center > unit * 2) {
         navigating.current = true;
-        router.push(nextHref);
+        router.push(nextHref, { scroll: false });
       }
     }, SETTLE_MS);
   }

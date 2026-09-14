@@ -70,14 +70,14 @@ async function CoachWeekView({ athleteId, offset, today, base }: { athleteId: st
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <Link href={`${base}?view=week&week=${offset - 1}`} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
+        <Link href={`${base}?view=week&week=${offset - 1}`} scroll={false} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
           ‹
         </Link>
         <p className="text-sm font-semibold text-ink-soft">
           Semaine du {weekDates[0].slice(8, 10)} au {weekDates[6].slice(8, 10)}{" "}
           {new Date(`${weekDates[6]}T00:00:00`).toLocaleDateString("fr-FR", { month: "long" })}
         </p>
-        <Link href={`${base}?view=week&week=${offset + 1}`} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
+        <Link href={`${base}?view=week&week=${offset + 1}`} scroll={false} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
           ›
         </Link>
       </div>
@@ -174,11 +174,11 @@ async function CoachMonthView({ athleteId, monthParam, today, base }: { athleteI
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <Link href={`${base}?view=month&month=${prevMonth()}`} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
+        <Link href={`${base}?view=month&month=${prevMonth()}`} scroll={false} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
           ‹
         </Link>
         <p className="text-sm font-semibold capitalize text-ink-soft">{monthLabel(year, month)}</p>
-        <Link href={`${base}?view=month&month=${nextMonth()}`} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
+        <Link href={`${base}?view=month&month=${nextMonth()}`} scroll={false} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
           ›
         </Link>
       </div>

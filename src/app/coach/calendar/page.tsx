@@ -40,14 +40,14 @@ export default async function CoachCalendarPage({
         <div className="mb-6 flex items-center justify-between">
           <h1 className="font-display text-3xl text-ink">Calendrier de mes athlètes</h1>
           <div className="flex items-center gap-2">
-            <Link href={`/coach/calendar?week=${offset - 1}`} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
+            <Link href={`/coach/calendar?week=${offset - 1}`} scroll={false} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
               ‹
             </Link>
             <p className="text-sm font-semibold text-ink-soft">
               Semaine du {weekDates[0].slice(8, 10)} au {weekDates[6].slice(8, 10)}{" "}
               {new Date(`${weekDates[6]}T00:00:00`).toLocaleDateString("fr-FR", { month: "long" })}
             </p>
-            <Link href={`/coach/calendar?week=${offset + 1}`} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
+            <Link href={`/coach/calendar?week=${offset + 1}`} scroll={false} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
               ›
             </Link>
           </div>

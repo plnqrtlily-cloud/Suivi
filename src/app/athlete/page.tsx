@@ -46,7 +46,7 @@ function WeekPillRow({
         const isSel = date === selectedDate;
         const isCurDay = date === today;
         return (
-          <Link key={date} href={`/athlete?week=${weekOffset}&day=${date}`} className="flex-1 rounded-2xl py-2 text-center">
+          <Link key={date} href={`/athlete?week=${weekOffset}&day=${date}`} scroll={false} className="flex-1 rounded-2xl py-2 text-center">
             <p className="mb-1.5 text-[10px] uppercase text-slate">{DAY_LABELS[idx].slice(0, 1)}</p>
             <div
               className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full font-display text-[14px] font-semibold ${
@@ -164,13 +164,13 @@ export default async function AthleteDashboard({
 
         <section className="mb-10 rounded-3xl border border-line bg-white p-5">
           <div className="mb-1 flex items-center justify-between">
-            <Link href={weekLink(offset - 1)} className="flex h-7 w-7 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
+            <Link href={weekLink(offset - 1)} scroll={false} className="flex h-7 w-7 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
               ‹
             </Link>
             <p className="text-[13px] font-semibold text-ink-soft">
               Semaine du {weekDates[0].slice(8, 10)} au {weekDates[6].slice(8, 10)} {new Date(`${weekDates[6]}T00:00:00`).toLocaleDateString("fr-FR", { month: "long" })}
             </p>
-            <Link href={weekLink(offset + 1)} className="flex h-7 w-7 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
+            <Link href={weekLink(offset + 1)} scroll={false} className="flex h-7 w-7 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
               ›
             </Link>
           </div>

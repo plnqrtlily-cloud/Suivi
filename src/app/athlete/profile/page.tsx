@@ -188,16 +188,38 @@ export default async function AthleteProfilePage() {
               Calculées par méthode de Karvonen à partir de vos FC repos ({latest.fc_repos.value}) et FC max (
               {latest.fc_max.value}).
             </p>
-            <div className="grid grid-cols-5 gap-2">
-              {computeHrZones(latest.fc_repos.value, latest.fc_max.value).map((z) => (
-                <div key={z.zone} className="rounded-xl bg-paper-dim p-2.5 text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate">Z{z.zone}</p>
-                  <p className="mt-1 text-sm font-semibold text-ink">
-                    {z.minBpm}-{z.maxBpm}
-                  </p>
-                  <p className="mt-0.5 text-[10.5px] leading-tight text-slate">{z.label}</p>
-                </div>
-              ))}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {computeHrZones(latest.fc_repos.value, latest.fc_max.value).map((z) => {
+                // Progression du froid (effort léger) vers le chaud (effort maximal) —
+                // convention universellement comprise pour des zones d'intensité,
+                // plutôt que des cartes neutres identiques qui ne distinguaient pas
+                // visuellement un effort facile d'un effort maximal.
+                const ZONE_COLORS: Record<number, string> = {
+                  1: "#6B7A8A",
+                  2: "#1B4B4F",
+                  3: "#B08A3E",
+                  4: "#E8896A",
+                  5: "#B85A3E",
+                };
+                const color = ZONE_COLORS[z.zone];
+                return (
+                  <div key={z.zone} className="overflow-hidden rounded-xl bg-paper-dim text-center">
+                    <div className="h-1.5" style={{ backgroundColor: color }} />
+                    <div className="p-2.5">
+                      <span
+                        className="mx-auto mb-1 flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                        style={{ backgroundColor: color }}
+                      >
+                        {z.zone}
+                      </span>
+                      <p className="text-sm font-semibold text-ink">
+                        {z.minBpm}-{z.maxBpm}
+                      </p>
+                      <p className="mt-0.5 text-[10.5px] leading-tight text-slate">{z.label}</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </Card>
         ) : (

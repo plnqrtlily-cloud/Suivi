@@ -146,14 +146,14 @@ async function WeekView({ athleteId, offset, today }: { athleteId: string; offse
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <Link href={`/athlete/programmation?view=week&week=${offset - 1}`} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
+        <Link href={`/athlete/programmation?view=week&week=${offset - 1}`} scroll={false} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
           ‹
         </Link>
         <p className="text-sm font-semibold text-ink-soft">
           Semaine du {weekDates[0].slice(8, 10)} au {weekDates[6].slice(8, 10)}{" "}
           {new Date(`${weekDates[6]}T00:00:00`).toLocaleDateString("fr-FR", { month: "long" })}
         </p>
-        <Link href={`/athlete/programmation?view=week&week=${offset + 1}`} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
+        <Link href={`/athlete/programmation?view=week&week=${offset + 1}`} scroll={false} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
           ›
         </Link>
       </div>
@@ -264,11 +264,11 @@ async function MonthView({ athleteId, monthParam, today }: { athleteId: string; 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <Link href={prevHref} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
+        <Link href={prevHref} scroll={false} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
           ‹
         </Link>
         <p className="text-sm font-semibold capitalize text-ink-soft">{monthLabel(year, month)}</p>
-        <Link href={nextHref} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
+        <Link href={nextHref} scroll={false} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
           ›
         </Link>
       </div>

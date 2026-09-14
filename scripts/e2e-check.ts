@@ -648,6 +648,23 @@ async function main() {
   const allNotesRows = await dbAll(`SELECT * FROM coach_athlete_notes WHERE coach_id = ? AND athlete_id = ?`, [coach.id, athlete.id]);
   assert(allNotesRows.length === 1, "Une seule ligne de notes par paire coach/athlète (mise à jour sur place, pas de doublon)");
 
+  // 41. Ordre des blocs de musculation préservé à l'enregistrement (bug corrigé :
+  // l'ordre d'AJOUT (ordre de clic sur "+ Exercice" dans différents groupes) ne
+  // doit jamais l'emporter sur l'ordre canonique des groupes (échauffement ->
+  // corps de séance -> gainage -> retour au calme).
+  const { sortBlocksByGroupOrder } = await import("../src/app/coach/athletes/[athleteId]/new-workout/strength-builder");
+  const outOfOrderBlocks = [
+    { key: "1", block_type: "core", exercise_name: "Planche", notes: "", resource_id: "", training_quality: "" as const, rep_type: "reps" as const, sets: [] },
+    { key: "2", block_type: "warmup_mobility", exercise_name: "Rotation hanches", notes: "", resource_id: "", training_quality: "" as const, rep_type: "reps" as const, sets: [] },
+    { key: "3", block_type: "main", exercise_name: "Squat", notes: "", resource_id: "", training_quality: "" as const, rep_type: "reps" as const, sets: [] },
+    { key: "4", block_type: "cooldown", exercise_name: "Étirements", notes: "", resource_id: "", training_quality: "" as const, rep_type: "reps" as const, sets: [] },
+  ];
+  const sorted = sortBlocksByGroupOrder(outOfOrderBlocks);
+  assert(
+    sorted.map((b) => b.block_type).join(",") === "warmup_mobility,main,core,cooldown",
+    "Les blocs sont bien réordonnés selon l'ordre canonique des groupes, quel que soit leur ordre d'ajout"
+  );
+
   console.log("\nTest end-to-end terminé.");
 }
 
