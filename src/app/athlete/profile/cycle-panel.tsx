@@ -6,6 +6,8 @@ import { updateCycleSharingAction, addCycleEntryAction } from "@/lib/actions";
 import { Button, Field, SelectField } from "@/components/ui";
 import { CycleEstimate, CycleSettings } from "@/lib/cycle-types";
 import { CycleWheel } from "./cycle-wheel";
+import { CycleTimeline } from "./cycle-timeline";
+import { CycleMonthView } from "./cycle-month-view";
 import { todayISO } from "@/lib/dates";
 
 function predictNextPeriod(estimate: CycleEstimate, cycleLength: number): string | null {
@@ -28,6 +30,7 @@ export function CyclePanel({
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  const [displayStyle, setDisplayStyle] = useState<"wheel" | "timeline" | "month">("wheel");
   const nextPeriod = predictNextPeriod(estimate, settings.average_cycle_length_days);
 
   async function handleSharingSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -51,11 +54,32 @@ export function CyclePanel({
   return (
     <div className="flex flex-col gap-5">
       <div className="rounded-2xl bg-paper-dim p-4">
-        <CycleWheel
-          estimate={estimate}
-          cycleLength={settings.average_cycle_length_days}
-          periodLength={settings.average_period_length_days}
-        />
+        <div className="mb-3 flex justify-center gap-1 rounded-full bg-white p-1 text-xs">
+          {[
+            { value: "wheel" as const, label: "Roue" },
+            { value: "timeline" as const, label: "Frise" },
+            { value: "month" as const, label: "Calendrier" },
+          ].map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setDisplayStyle(opt.value)}
+              className={`rounded-full px-3 py-1 ${displayStyle === opt.value ? "bg-moss text-white" : "text-ink-soft"}`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {displayStyle === "wheel" && (
+          <CycleWheel estimate={estimate} cycleLength={settings.average_cycle_length_days} periodLength={settings.average_period_length_days} />
+        )}
+        {displayStyle === "timeline" && (
+          <CycleTimeline estimate={estimate} cycleLength={settings.average_cycle_length_days} periodLength={settings.average_period_length_days} />
+        )}
+        {displayStyle === "month" && (
+          <CycleMonthView estimate={estimate} cycleLength={settings.average_cycle_length_days} periodLength={settings.average_period_length_days} />
+        )}
         {nextPeriod && <p className="mt-3 text-center text-sm text-slate">Prochaines règles estimées autour du {nextPeriod}</p>}
       </div>
 
