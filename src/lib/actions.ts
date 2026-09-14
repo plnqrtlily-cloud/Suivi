@@ -788,7 +788,38 @@ export async function addJournalEntryAction(formData: FormData) {
     content,
   ]);
 
-  revalidatePath("/athlete/profile");
+  revalidatePath("/athlete"); // le journal s'affiche sur /athlete, pas /athlete/profile (bug corrigé au passage)
+}
+
+export async function updateJournalEntryAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+
+  const entryId = String(formData.get("entryId") || "");
+  const entryDate = String(formData.get("entryDate") || "");
+  const content = String(formData.get("content") || "").trim();
+  if (!entryId || !entryDate || !content) return;
+
+  // Règle de permission : une entrée ne peut être modifiée que par l'athlète à qui elle appartient.
+  const entry = await dbGet<any>(`SELECT athlete_id FROM journal_entries WHERE id = ?`, [entryId]);
+  if (!entry || entry.athlete_id !== user.id) throw new Error("Non autorisé.");
+
+  await dbRun(`UPDATE journal_entries SET entry_date = ?, content = ? WHERE id = ?`, [entryDate, content, entryId]);
+
+  revalidatePath("/athlete");
+}
+
+export async function deleteJournalEntryAction(entryId: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+
+  const entry = await dbGet<any>(`SELECT athlete_id FROM journal_entries WHERE id = ?`, [entryId]);
+  if (!entry) return;
+  if (entry.athlete_id !== user.id) throw new Error("Non autorisé.");
+
+  await dbRun(`DELETE FROM journal_entries WHERE id = ?`, [entryId]);
+
+  revalidatePath("/athlete");
 }
 
 // ---------- SÉCURITÉ DES COMPTES (consolidation) ----------

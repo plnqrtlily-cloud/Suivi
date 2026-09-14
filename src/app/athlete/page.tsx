@@ -16,6 +16,7 @@ import { getWeekDates, todayISO, daysUntil } from "@/lib/dates";
 import { Nav } from "@/components/nav";
 import { Card, sportLabel, LinkButton, Field, TextAreaField, Button } from "@/components/ui";
 import { SnapScrollNav } from "@/components/snap-scroll-nav";
+import { JournalEntry } from "./journal-entry";
 import { DailyCheckin } from "./daily-checkin";
 import { ReadinessSummary } from "./readiness-summary";
 import { CheckinModal } from "./checkin-modal";
@@ -242,10 +243,7 @@ export default async function AthleteDashboard({
             <h2 className="mb-4 text-[11px] font-bold uppercase tracking-wider text-slate">Journal de bord</h2>
             <ul className="mb-4 space-y-2 text-sm">
               {journal.map((j) => (
-                <li key={j.id} className="rounded-xl bg-paper-dim p-2">
-                  <span className="text-slate">{j.entry_date} — </span>
-                  <span className="text-ink">{j.content}</span>
-                </li>
+                <JournalEntry key={j.id} entry={j} />
               ))}
               {journal.length === 0 && <p className="text-slate">Aucune entrée pour l&apos;instant.</p>}
             </ul>

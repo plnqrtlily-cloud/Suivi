@@ -530,6 +530,27 @@ async function main() {
     "Chaque date filtrée tombe bien sur un jour de semaine sélectionné"
   );
 
+  // 36. Journal de bord : modification et suppression, avec vérification de propriété (V5 fusionnée)
+  const journalEntryId = randomUUID();
+  await dbRun(`INSERT INTO journal_entries (id, athlete_id, entry_date, content) VALUES (?, ?, date('now'), 'Note initiale')`, [
+    journalEntryId,
+    athlete.id,
+  ]);
+
+  await dbRun(`UPDATE journal_entries SET content = ? WHERE id = ?`, ["Note modifiée", journalEntryId]);
+  const updatedEntry = await dbGet<any>(`SELECT content FROM journal_entries WHERE id = ?`, [journalEntryId]);
+  assert(updatedEntry?.content === "Note modifiée", "Une entrée de journal peut être modifiée");
+
+  const entryOwner = await dbGet<any>(`SELECT athlete_id FROM journal_entries WHERE id = ?`, [journalEntryId]);
+  assert(
+    entryOwner?.athlete_id === athlete.id && entryOwner?.athlete_id !== otherAthlete.id,
+    "Une entrée de journal appartient bien à son auteur, pas à un autre athlète"
+  );
+
+  await dbRun(`DELETE FROM journal_entries WHERE id = ?`, [journalEntryId]);
+  const deletedEntry = await dbGet(`SELECT * FROM journal_entries WHERE id = ?`, [journalEntryId]);
+  assert(!deletedEntry, "Une entrée de journal peut être supprimée");
+
   console.log("\nTest end-to-end terminé.");
 }
 
