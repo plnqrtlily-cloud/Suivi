@@ -451,6 +451,16 @@ export async function getUserGender(userId: string): Promise<string | null> {
   return row?.gender ?? null;
 }
 
+export async function getAthleteSports(userId: string): Promise<string[]> {
+  const row = await dbGet<any>(`SELECT sports_json FROM users WHERE id = ?`, [userId]);
+  if (!row?.sports_json) return [];
+  try {
+    return JSON.parse(row.sports_json);
+  } catch {
+    return [];
+  }
+}
+
 export async function getCheckinForDate(athleteId: string, date: string): Promise<Checkin | undefined> {
   return dbGet(`SELECT * FROM daily_checkins WHERE athlete_id = ? AND check_date = ?`, [athleteId, date]);
 }

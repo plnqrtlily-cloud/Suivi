@@ -9,6 +9,7 @@ import {
   getJournalForAthlete,
   getRecentCheckins,
   getUserGender,
+  getAthleteSports,
   getUserAvatar,
   getUpcomingGoals,
   getImportedActivitiesForRange,
@@ -19,7 +20,7 @@ import { UpcomingGoals } from "@/components/upcoming-goals";
 import { getCycleSettings, estimateCyclePhase, PHASE_LABELS } from "@/lib/cycle";
 import { computeGlobalScore, scoreLabel, scoreColor } from "@/lib/checkin-types";
 import { Nav } from "@/components/nav";
-import { Card, LinkButton } from "@/components/ui";
+import { Card, LinkButton, sportLabel } from "@/components/ui";
 import { Avatar } from "@/components/avatar";
 import { RevokeButton } from "@/app/coach/revoke-button";
 import { todayISO, toISODate } from "@/lib/dates";
@@ -98,6 +99,7 @@ export default async function AthleteDetailPage({
     journalAll,
     cycleSettings,
     athleteGender,
+    athleteSports,
     recentCheckins,
     upcomingGoals,
     recentImports,
@@ -114,6 +116,7 @@ export default async function AthleteDetailPage({
     getJournalForAthlete(athleteId),
     getCycleSettings(athleteId),
     getUserGender(athleteId),
+    getAthleteSports(athleteId),
     getRecentCheckins(athleteId, 1),
     getUpcomingGoals(athleteId),
     getImportedActivitiesForRange(athleteId, statsFromISO, today),
@@ -146,6 +149,15 @@ export default async function AthleteDetailPage({
                 {athlete.first_name} {athlete.last_name}
               </h1>
               <p className="text-slate">{athlete.email}</p>
+              {athleteSports.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {athleteSports.map((s: string) => (
+                    <span key={s} className="rounded-full bg-paper-dim px-2 py-0.5 text-[11px] font-medium text-ink-soft">
+                      {sportLabel(s)}
+                    </span>
+                  ))}
+                </div>
+              )}
               {acwr.status !== "insufficient_data" && acwr.status !== "normal" && (
                 <span
                   className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${

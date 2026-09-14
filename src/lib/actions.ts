@@ -1275,6 +1275,21 @@ export async function setGenderAction(formData: FormData) {
   revalidatePath("/athlete/profile");
 }
 
+// Sport(s) pratiqué(s) par l'athlète (cf. demande coach : savoir sur quoi
+// l'athlète s'entraîne, pour mieux cadrer le suivi) — renseigné par l'athlète
+// lui-même, visible aussi côté coach sur la fiche de l'athlète.
+export async function setAthleteSportsAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+
+  const allowed = ["running", "cycling", "hiking", "swimming", "climbing", "strength", "other"];
+  const selected = formData.getAll("sports").map(String).filter((s) => allowed.includes(s));
+
+  await dbRun(`UPDATE users SET sports_json = ? WHERE id = ?`, [JSON.stringify(selected), user.id]);
+  revalidatePath("/athlete/profile");
+  revalidatePath(`/coach/athletes/${user.id}`);
+}
+
 // ---------- CHECK-IN QUOTIDIEN DE FORME (V2) ----------
 
 export async function upsertCheckinAction(formData: FormData) {

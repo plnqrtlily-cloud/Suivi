@@ -617,6 +617,15 @@ async function main() {
     "Le nombre de tours est bien partagé entre tous les exercices du circuit"
   );
 
+  // 39. Sport(s) pratiqué(s) par l'athlète, renseigné par lui-même, visible côté coach
+  await dbRun(`UPDATE users SET sports_json = ? WHERE id = ?`, [JSON.stringify(["running", "climbing"]), athlete.id]);
+  const sportsRow = await dbGet<any>(`SELECT sports_json FROM users WHERE id = ?`, [athlete.id]);
+  const savedSports = JSON.parse(sportsRow?.sports_json || "[]");
+  assert(
+    savedSports.length === 2 && savedSports.includes("running") && savedSports.includes("climbing"),
+    "Les sports pratiqués par l'athlète sont bien enregistrés"
+  );
+
   console.log("\nTest end-to-end terminé.");
 }
 

@@ -10,10 +10,11 @@ import {
   getImportedActivities,
   getPersonalRecordsForAthlete,
   getUserGender,
+  getAthleteSports,
   getUserAvatar,
   profileCompletion,
 } from "@/lib/queries";
-import { addMeasurementAction, addInjuryAction, setGenderAction } from "@/lib/actions";
+import { addMeasurementAction, addInjuryAction, setGenderAction, setAthleteSportsAction } from "@/lib/actions";
 import { AvatarUpload } from "./avatar-upload";
 import { getCycleSettings, getCycleEntries, estimateCyclePhase } from "@/lib/cycle";
 import { computeHrZones } from "@/lib/hr-zones";
@@ -41,6 +42,16 @@ const METRICS = [
   { value: "pma_vma", label: "PMA/VMA" },
 ];
 
+const SPORTS_LIST = [
+  { value: "running", label: "Course à pied" },
+  { value: "cycling", label: "Vélo" },
+  { value: "hiking", label: "Randonnée" },
+  { value: "swimming", label: "Natation" },
+  { value: "climbing", label: "Escalade" },
+  { value: "strength", label: "Musculation" },
+  { value: "other", label: "Autre" },
+];
+
 export default async function AthleteProfilePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -49,7 +60,7 @@ export default async function AthleteProfilePage() {
   // Requêtes indépendantes parties en parallèle plutôt qu'en série (chacune est
   // un aller-retour réseau vers la base distante en production — les enchaîner
   // une par une multipliait la latence de la page par leur nombre).
-  const [latest, historyAll, injuries, coaches, completion, gender, avatar, externalConnections, importedActivities, personalRecords] =
+  const [latest, historyAll, injuries, coaches, completion, gender, athleteSports, avatar, externalConnections, importedActivities, personalRecords] =
     await Promise.all([
       getLatestMeasurements(user.id),
       getMeasurementsForAthlete(user.id),
@@ -57,6 +68,7 @@ export default async function AthleteProfilePage() {
       getCoachesForAthlete(user.id),
       profileCompletion(user.id),
       getUserGender(user.id),
+      getAthleteSports(user.id),
       getUserAvatar(user.id),
       getExternalConnections(user.id),
       getImportedActivities(user.id),
@@ -114,6 +126,26 @@ export default async function AthleteProfilePage() {
               Enregistrer
             </Button>
           </form>
+
+          <div className="mt-5 border-t border-line pt-5">
+            <p className="mb-2 text-sm font-medium text-ink">Sport(s) pratiqué(s)</p>
+            <p className="mb-3 text-xs text-slate">Visible par vos coachs, pour mieux cadrer votre suivi.</p>
+            <form action={setAthleteSportsAction} className="flex flex-col gap-3">
+              <div className="flex flex-wrap gap-3">
+                {SPORTS_LIST.map((s) => (
+                  <label key={s.value} className="flex items-center gap-1.5 text-sm text-ink-soft">
+                    <input type="checkbox" name="sports" value={s.value} defaultChecked={athleteSports.includes(s.value)} />
+                    {s.label}
+                  </label>
+                ))}
+              </div>
+              <div>
+                <Button type="submit" variant="secondary">
+                  Enregistrer
+                </Button>
+              </div>
+            </form>
+          </div>
         </Card>
 
         <Card className="mb-8 rounded-3xl">
