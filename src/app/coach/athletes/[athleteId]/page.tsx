@@ -37,6 +37,7 @@ import { CopyWeekForm } from "./copy-week-form";
 // que des découpages calendaires stricts — aucune notion de bloc/cycle n'existe
 // en base, ce sont ici de simples fenêtres glissantes en jours.
 const BILAN_PERIODS: { value: string; label: string; days: number }[] = [
+  { value: "jour", label: "Journée", days: 1 },
   { value: "semaine", label: "Semaine", days: 7 },
   { value: "cycle", label: "Cycle", days: 28 },
   { value: "mois", label: "Mois", days: 30 },
@@ -73,7 +74,7 @@ export default async function AthleteDetailPage({
   }
 
   const today = todayISO();
-  const bilanPeriod = BILAN_PERIODS.find((p) => p.value === bilan) || BILAN_PERIODS[3];
+  const bilanPeriod = BILAN_PERIODS.find((p) => p.value === bilan) || BILAN_PERIODS.find((p) => p.value === "bloc")!;
   const statsFrom = new Date();
   statsFrom.setDate(statsFrom.getDate() - bilanPeriod.days);
   const statsFromISO = toISODate(statsFrom);
@@ -332,7 +333,9 @@ export default async function AthleteDetailPage({
             ))}
           </div>
         </div>
-        <p className="mb-3 text-sm text-slate">Séances faites et activités importées sur la période sélectionnée ({bilanPeriod.days} jours).</p>
+        <p className="mb-3 text-sm text-slate">
+          Séances faites et activités importées sur la période sélectionnée ({bilanPeriod.days} jour{bilanPeriod.days > 1 ? "s" : ""}).
+        </p>
         <div className="mb-8">
           <TrainingInsights
             workouts={allWorkouts.filter((w) => w.date >= statsFromISO && w.date <= today)}
