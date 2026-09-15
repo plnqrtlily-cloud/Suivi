@@ -451,7 +451,8 @@ export default async function AthleteDetailPage({
           </div>
         </div>
         <p className="mb-3 text-sm text-slate">
-          Séances faites et activités importées sur la période sélectionnée ({bilanPeriod.days} jour{bilanPeriod.days > 1 ? "s" : ""}).
+          Séances faites et activités importées du {statsFromISO.slice(8, 10)}/{statsFromISO.slice(5, 7)} au{" "}
+          {today.slice(8, 10)}/{today.slice(5, 7)} ({bilanPeriod.days} jour{bilanPeriod.days > 1 ? "s" : ""}).
         </p>
         <div className="mb-8">
           <TrainingInsights

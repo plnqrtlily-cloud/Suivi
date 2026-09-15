@@ -84,7 +84,7 @@ export default async function AthleteDashboard({
   // chaque chargement de la page.
   const [journal, completion, todaysCheckin, otherDayCheckin, selectedWorkouts, selectedImports, gender, nextGoal] =
     await Promise.all([
-      getJournalForAthlete(user.id),
+      getJournalForAthlete(user.id, selectedDate),
       profileCompletion(user.id),
       getCheckinForDate(user.id, today),
       isToday ? Promise.resolve(undefined) : getCheckinForDate(user.id, selectedDate),
@@ -238,20 +238,21 @@ export default async function AthleteDashboard({
           )}
 
           {/* Journal de bord regroupé ici avec le reste des informations du jour
-              (forme, séance) plutôt qu'en bloc séparé plus bas — tout ce qui
-              concerne la journée en cours se lit d'un seul tenant. */}
+              (forme, séance) plutôt qu'en bloc séparé plus bas — et filtré sur le
+              jour sélectionné : une note du 3 mars n'a pas à s'afficher quand on
+              consulte le 12 mars. */}
           <p className="mb-2 mt-5 text-[11px] font-bold uppercase tracking-wider text-slate">Journal de bord</p>
           <ul className="mb-4 space-y-2 text-sm">
             {journal.map((j) => (
               <JournalEntry key={j.id} entry={j} />
             ))}
-            {journal.length === 0 && <p className="text-slate">Aucune entrée pour l&apos;instant.</p>}
+            {journal.length === 0 && <p className="text-slate">Aucune note pour ce jour-là.</p>}
           </ul>
           <form action={addJournalEntryAction} className="flex flex-col gap-3">
-            <Field label="Date" type="date" name="entryDate" required defaultValue={selectedDate} />
+            <input type="hidden" name="entryDate" value={selectedDate} />
             <TextAreaField label="Note" name="content" rows={3} required placeholder="Sensations du jour, fatigue, contexte particulier…" />
             <div>
-              <Button type="submit">Ajouter une entrée</Button>
+              <Button type="submit">Ajouter une note à ce jour</Button>
             </div>
           </form>
         </section>

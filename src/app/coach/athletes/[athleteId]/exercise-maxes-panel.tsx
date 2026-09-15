@@ -46,7 +46,9 @@ export function ExerciseMaxesPanel({
     await addExerciseMaxAction(athleteId, new FormData(form));
     setPending(false);
     form.reset();
-    setValueType("charge");
+    // Le type de mesure choisi est volontairement CONSERVÉ après l'ajout : on
+    // saisit en général plusieurs mesures du même type à la suite, et le
+    // remettre sur "charge" obligeait à le resélectionner à chaque fois.
     router.refresh();
   }
 
@@ -154,6 +156,10 @@ export function ExerciseMaxesPanel({
               </option>
             ))}
           </SelectField>
+          {/* Champ caché : le <select> ci-dessus est contrôlé par React et n'a
+              pas d'attribut name, donc sa valeur ne partait pas dans le FormData
+              — le serveur retombait systématiquement sur 'charge' par défaut. */}
+          <input type="hidden" name="valueType" value={valueType} />
           <Field label="Date du test" type="date" name="testedAt" required defaultValue={todayISO()} />
         </div>
 

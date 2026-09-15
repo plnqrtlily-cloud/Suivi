@@ -199,7 +199,16 @@ export async function getInjuriesForAthlete(athleteId: string) {
   return dbAll(`SELECT * FROM injuries WHERE athlete_id = ? ORDER BY date_start DESC`, [athleteId]);
 }
 
-export async function getJournalForAthlete(athleteId: string) {
+export async function getJournalForAthlete(athleteId: string, entryDate?: string) {
+  // Filtré par jour quand une date est fournie : le journal affiché sur le
+  // dashboard concerne la journée sélectionnée dans le calendrier, pas tout
+  // l'historique.
+  if (entryDate) {
+    return dbAll(`SELECT * FROM journal_entries WHERE athlete_id = ? AND entry_date = ? ORDER BY entry_date DESC`, [
+      athleteId,
+      entryDate,
+    ]);
+  }
   return dbAll(`SELECT * FROM journal_entries WHERE athlete_id = ? ORDER BY entry_date DESC`, [athleteId]);
 }
 

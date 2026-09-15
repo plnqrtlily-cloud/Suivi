@@ -766,6 +766,21 @@ async function main() {
     "Les commentaires écrits par le coach lui-même ne remontent pas comme retours d'athlète"
   );
 
+  // 46. Journal de bord filtré par jour (bug corrigé : toutes les entrées
+  // s'affichaient quelle que soit la date sélectionnée dans le calendrier)
+  await dbRun(`INSERT INTO journal_entries (id, athlete_id, entry_date, content) VALUES (?, ?, '2027-03-03', 'Note du 3 mars')`, [
+    randomUUID(),
+    athlete.id,
+  ]);
+  await dbRun(`INSERT INTO journal_entries (id, athlete_id, entry_date, content) VALUES (?, ?, '2027-03-12', 'Note du 12 mars')`, [
+    randomUUID(),
+    athlete.id,
+  ]);
+  const marchThird = await dbAll<any>(`SELECT * FROM journal_entries WHERE athlete_id = ? AND entry_date = '2027-03-03'`, [athlete.id]);
+  assert(marchThird.length === 1 && marchThird[0].content === "Note du 3 mars", "Le journal filtré sur un jour ne renvoie que la note de ce jour-là");
+  const allEntries = await dbAll<any>(`SELECT * FROM journal_entries WHERE athlete_id = ? AND entry_date LIKE '2027-03-%'`, [athlete.id]);
+  assert(allEntries.length === 2, "Sans filtre de date, toutes les notes restent accessibles (historique préservé)");
+
   console.log("\nTest end-to-end terminé.");
 }
 
