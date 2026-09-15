@@ -180,6 +180,7 @@ export async function createWorkoutAction(params: {
   color?: string;
   blocks?: BlockInput[];
   intervalsJson?: string;
+  linksJson?: string;
 }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
@@ -213,8 +214,8 @@ export async function createWorkoutAction(params: {
     params.dates.map(async (date) => {
       const workoutId = randomUUID();
       await dbRun(
-        `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, priority, title, date, time, duration_minutes, description, color, intervals_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, priority, title, date, time, duration_minutes, description, color, intervals_json, links_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           workoutId,
           user.id,
@@ -229,6 +230,7 @@ export async function createWorkoutAction(params: {
           params.description || null,
           color,
           params.sport !== "strength" ? params.intervalsJson || null : null,
+          params.linksJson || null,
         ]
       );
 
@@ -294,6 +296,7 @@ export async function updateWorkoutAction(params: {
   color?: string;
   blocks?: BlockInput[];
   intervalsJson?: string;
+  linksJson?: string;
 }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
@@ -323,7 +326,7 @@ export async function updateWorkoutAction(params: {
   const color = params.color || "#1B4B4F";
 
   await dbRun(
-    `UPDATE workouts SET sport = ?, category = ?, priority = ?, title = ?, date = ?, time = ?, duration_minutes = ?, description = ?, color = ?, intervals_json = ?
+    `UPDATE workouts SET sport = ?, category = ?, priority = ?, title = ?, date = ?, time = ?, duration_minutes = ?, description = ?, color = ?, intervals_json = ?, links_json = ?
      WHERE id = ?`,
     [
       params.sport,
@@ -336,6 +339,7 @@ export async function updateWorkoutAction(params: {
       params.description || null,
       color,
       params.sport !== "strength" ? params.intervalsJson || null : null,
+      params.linksJson || null,
       params.workoutId,
     ]
   );
@@ -541,6 +545,7 @@ export async function duplicateWorkoutAction(params: { workoutId: string; target
     color: workout.color,
     blocks: blockInputs.length ? blockInputs : undefined,
     intervalsJson: workout.intervals_json || undefined,
+    linksJson: workout.links_json || undefined,
   });
 }
 
@@ -561,6 +566,7 @@ export async function createWorkoutBulkAction(params: {
   color?: string;
   blocks?: BlockInput[];
   intervalsJson?: string;
+  linksJson?: string;
 }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
@@ -638,6 +644,7 @@ export async function copyWeekAction(params: {
       color: w.color,
       blocks: blockInputs.length ? blockInputs : undefined,
       intervalsJson: w.intervals_json || undefined,
+      linksJson: w.links_json || undefined,
     });
     count++;
   }
@@ -720,20 +727,29 @@ export async function addWorkoutCommentAction(workoutId: string, formData: FormD
 
 export async function addMeasurementAction(formData: FormData) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+  if (!user) throw new Error("Non autorisé.");
+
+  // Un coach peut renseigner les statistiques de performance de ses athlètes
+  // (même logique que pour les charges de référence) — athleteId n'est fourni
+  // que dans ce cas ; sinon, l'athlète renseigne les siennes.
+  const targetAthleteId = String(formData.get("athleteId") || "") || user.id;
+  const isSelf = user.role === "athlete" && targetAthleteId === user.id;
+  const isLinkedCoach = user.role === "coach" && (await isCoachLinkedToAthlete(user.id, targetAthleteId));
+  if (!isSelf && !isLinkedCoach) throw new Error("Non autorisé.");
 
   const metric = String(formData.get("metric") || "");
   const value = Number(formData.get("value") || 0);
+  const recordedAt = String(formData.get("recordedAt") || "").trim();
+  const note = String(formData.get("note") || "").trim();
   if (!metric || Number.isNaN(value)) return;
 
-  await dbRun(`INSERT INTO athlete_measurements (id, athlete_id, metric, value) VALUES (?, ?, ?, ?)`, [
-    randomUUID(),
-    user.id,
-    metric,
-    value,
-  ]);
+  await dbRun(
+    `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note) VALUES (?, ?, ?, ?, ?, ?)`,
+    [randomUUID(), targetAthleteId, metric, value, recordedAt || new Date().toISOString(), note || null]
+  );
 
   revalidatePath("/athlete/profile");
+  revalidatePath(`/coach/athletes/${targetAthleteId}`);
 }
 
 export async function addInjuryAction(formData: FormData) {
@@ -760,33 +776,42 @@ export async function addInjuryAction(formData: FormData) {
 
 export async function addExerciseMaxAction(athleteId: string, formData: FormData) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
-  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+  if (!user) throw new Error("Non autorisé.");
+  // L'athlète peut renseigner ses propres charges ; un coach lié peut aussi le
+  // faire pour lui — même donnée, deux origines possibles.
+  const isSelf = user.role === "athlete" && user.id === athleteId;
+  const isLinkedCoach = user.role === "coach" && (await isCoachLinkedToAthlete(user.id, athleteId));
+  if (!isSelf && !isLinkedCoach) throw new Error("Non autorisé.");
 
   const exerciseName = String(formData.get("exerciseName") || "").trim();
-  const valueKg = Number(formData.get("valueKg") || 0);
+  const valueType = String(formData.get("valueType") || "charge");
+  const allowedTypes = ["charge", "temps", "repetitions"];
+  const value = Number(formData.get("value") || 0);
   const testedAt = String(formData.get("testedAt") || "");
-  if (!exerciseName || !valueKg || !testedAt) throw new Error("Exercice, charge et date requis.");
+  const note = String(formData.get("note") || "").trim();
+  if (!exerciseName || !value || !testedAt || !allowedTypes.includes(valueType)) {
+    throw new Error("Exercice, valeur et date requis.");
+  }
 
-  await dbRun(`INSERT INTO exercise_maxes (id, athlete_id, exercise_name, value_kg, tested_at) VALUES (?, ?, ?, ?, ?)`, [
-    randomUUID(),
-    athleteId,
-    exerciseName,
-    valueKg,
-    testedAt,
-  ]);
-
+  await dbRun(
+    `INSERT INTO exercise_maxes (id, athlete_id, exercise_name, value_kg, value_type, tested_at, note) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [randomUUID(), athleteId, exerciseName, value, valueType, testedAt, note || null]
+  );
   revalidatePath(`/coach/athletes/${athleteId}`);
   revalidatePath(`/coach/athletes/${athleteId}/new-workout`);
+  revalidatePath("/athlete/profile");
 }
 
 export async function deleteExerciseMaxAction(id: string, athleteId: string) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
-  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+  if (!user) throw new Error("Non autorisé.");
+  const isSelf = user.role === "athlete" && user.id === athleteId;
+  const isLinkedCoach = user.role === "coach" && (await isCoachLinkedToAthlete(user.id, athleteId));
+  if (!isSelf && !isLinkedCoach) throw new Error("Non autorisé.");
 
   await dbRun(`DELETE FROM exercise_maxes WHERE id = ? AND athlete_id = ?`, [id, athleteId]);
   revalidatePath(`/coach/athletes/${athleteId}`);
+  revalidatePath("/athlete/profile");
 }
 
 export async function addJournalEntryAction(formData: FormData) {

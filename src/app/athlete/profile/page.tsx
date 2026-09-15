@@ -13,6 +13,7 @@ import {
   getAthleteSports,
   getUserAvatar,
   profileCompletion,
+  getExerciseMaxes,
 } from "@/lib/queries";
 import { addMeasurementAction, addInjuryAction, setGenderAction, setAthleteSportsAction } from "@/lib/actions";
 import { AvatarUpload } from "./avatar-upload";
@@ -23,6 +24,7 @@ import { Card, Field, SelectField, Button, sportLabel } from "@/components/ui";
 import { CyclePanel } from "./cycle-panel";
 import { SyncPanel } from "./sync-panel";
 import { PerformanceStats, MeasurementPoint } from "./performance-stats";
+import { ExerciseMaxesPanel } from "@/app/coach/athletes/[athleteId]/exercise-maxes-panel";
 import { RevokeButton } from "@/app/coach/revoke-button";
 import { JoinCoachForm } from "../join-coach-form";
 
@@ -60,7 +62,7 @@ export default async function AthleteProfilePage() {
   // Requêtes indépendantes parties en parallèle plutôt qu'en série (chacune est
   // un aller-retour réseau vers la base distante en production — les enchaîner
   // une par une multipliait la latence de la page par leur nombre).
-  const [latest, historyAll, injuries, coaches, completion, gender, athleteSports, avatar, externalConnections, importedActivities, personalRecords] =
+  const [latest, historyAll, injuries, coaches, completion, gender, athleteSports, avatar, externalConnections, importedActivities, personalRecords, exerciseMaxes] =
     await Promise.all([
       getLatestMeasurements(user.id),
       getMeasurementsForAthlete(user.id),
@@ -73,6 +75,7 @@ export default async function AthleteProfilePage() {
       getExternalConnections(user.id),
       getImportedActivities(user.id),
       getPersonalRecordsForAthlete(user.id),
+      getExerciseMaxes(user.id),
     ]);
   const history = historyAll.slice(0, 10);
   const seriesByMetric: Record<string, MeasurementPoint[]> = {};
@@ -152,20 +155,20 @@ export default async function AthleteProfilePage() {
           <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Statistiques de performance</h2>
           <p className="mb-3 text-xs text-slate">Cliquez sur un indicateur pour voir son évolution.</p>
           <PerformanceStats metrics={METRICS} latest={latest} seriesByMetric={seriesByMetric} />
-          <form action={addMeasurementAction} className="flex items-end gap-3">
-            <div className="w-48">
-              <SelectField label="Indicateur" name="metric" required>
-                {METRICS.map((m) => (
-                  <option key={m.value} value={m.value}>
-                    {m.label}
-                  </option>
-                ))}
-              </SelectField>
+          <form action={addMeasurementAction} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
+            <SelectField label="Indicateur" name="metric" required>
+              {METRICS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </SelectField>
+            <Field label="Valeur" type="number" step="0.1" name="value" required />
+            <Field label="Date de la mesure" type="date" name="recordedAt" defaultValue={new Date().toISOString().slice(0, 10)} />
+            <Field label="Note (facultatif)" name="note" placeholder="Contexte, conditions de la mesure…" />
+            <div className="sm:col-span-2">
+              <Button type="submit">Ajouter une mesure</Button>
             </div>
-            <div className="w-32">
-              <Field label="Valeur" type="number" step="0.1" name="value" required />
-            </div>
-            <Button type="submit">Ajouter une mesure</Button>
           </form>
           {history.length > 0 && (
             <details className="mt-4 text-sm text-slate">
@@ -174,11 +177,21 @@ export default async function AthleteProfilePage() {
                 {history.map((h) => (
                   <li key={h.id}>
                     {h.recorded_at.slice(0, 10)} — {METRICS.find((m) => m.value === h.metric)?.label}: {h.value}
+                    {h.note && ` — ${h.note}`}
                   </li>
                 ))}
               </ul>
             </details>
           )}
+        </Card>
+
+        <Card className="mb-8 rounded-3xl">
+          <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Charges de référence</h2>
+          <p className="mb-3 text-xs text-slate">
+            Vos maximums testés par exercice (charge, durée ou répétitions) — sert de repère à votre coach pour
+            prescrire une charge adaptée, et vous montre votre propre progression.
+          </p>
+          <ExerciseMaxesPanel athleteId={user.id} maxes={exerciseMaxes} exerciseSuggestions={[]} />
         </Card>
 
         {latest.fc_repos && latest.fc_max ? (

@@ -384,6 +384,18 @@ let initialized: Promise<void> | null = null;
 // plus. Échoue silencieusement si la colonne existe déjà (base neuve ou migration
 // déjà appliquée), ce qui la rend sûre à ré-exécuter à chaque démarrage.
 const MIGRATIONS: string[] = [
+  // Charges de référence : type de variable (charge/temps/répétitions, façon
+  // Garmin qui distingue durée et répétitions) + note libre. "value_kg" reste
+  // le nom de colonne pour des raisons historiques mais porte désormais la
+  // valeur numérique dans l'unité pertinente (kg, secondes, ou répétitions).
+  `ALTER TABLE exercise_maxes ADD COLUMN value_type TEXT DEFAULT 'charge'`,
+  `ALTER TABLE exercise_maxes ADD COLUMN note TEXT`,
+  // Statistiques de performance : note libre, comme pour les charges de référence.
+  `ALTER TABLE athlete_measurements ADD COLUMN note TEXT`,
+  // Liens utiles ajoutés à la construction d'une séance (plan d'entraînement
+  // externe, vidéo, carte de parcours…) — stockés en JSON (tableau de
+  // {label, url}), comme les modèles de séances.
+  `ALTER TABLE workouts ADD COLUMN links_json TEXT`,
   `ALTER TABLE imported_activities ADD COLUMN activity_time TEXT`,
   `ALTER TABLE imported_activities ADD COLUMN elevation_gain_m INTEGER`,
   `ALTER TABLE imported_activities ADD COLUMN avg_power_w INTEGER`,

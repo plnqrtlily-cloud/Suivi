@@ -115,6 +115,21 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
           </Card>
         )}
 
+        {workout.links_json && JSON.parse(workout.links_json).length > 0 && (
+          <Card className="mb-6">
+            <h2 className="mb-3 text-sm font-medium text-ink-soft">Liens utiles</h2>
+            <ul className="flex flex-col gap-1.5">
+              {(JSON.parse(workout.links_json) as { label: string; url: string }[]).map((l, i) => (
+                <li key={i}>
+                  <a href={l.url} target="_blank" rel="noopener noreferrer" className="text-sm text-moss-dark underline hover:text-moss">
+                    🔗 {l.label || l.url}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+
         {workout.description && (
           <Card className="mb-6">
             <p className="whitespace-pre-line text-sm text-ink">{workout.description}</p>

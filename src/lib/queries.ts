@@ -58,6 +58,7 @@ export interface Workout {
   description: string | null;
   color: string;
   intervals_json: string | null;
+  links_json: string | null;
   status: string;
   rpe: number | null;
   athlete_feedback: string | null;
@@ -171,7 +172,9 @@ export interface ExerciseMax {
   athlete_id: string;
   exercise_name: string;
   value_kg: number;
+  value_type: "charge" | "temps" | "repetitions";
   tested_at: string;
+  note: string | null;
 }
 
 export async function getExerciseMaxes(athleteId: string): Promise<ExerciseMax[]> {
@@ -184,6 +187,9 @@ export async function getLatestExerciseMaxes(athleteId: string): Promise<Record<
   const rows = await getExerciseMaxes(athleteId);
   const latest: Record<string, number> = {};
   for (const r of rows) {
+    // Le calcul "% du max" (StrengthBuilder) n'a de sens que pour une charge en
+    // kg — un max en temps ou en répétitions ne s'y prête pas.
+    if (r.value_type !== "charge") continue;
     if (!(r.exercise_name in latest)) latest[r.exercise_name] = r.value_kg;
   }
   return latest;

@@ -53,6 +53,13 @@ export default async function EditWorkoutPage({ params }: { params: Promise<{ id
     intervals = []; // JSON corrompu ou vide — repart d'une structure neuve plutôt que de faire planter la page
   }
 
+  let links: { label: string; url: string }[] = [];
+  try {
+    links = workout.links_json ? JSON.parse(workout.links_json) : [];
+  } catch {
+    links = [];
+  }
+
   return (
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
@@ -79,6 +86,7 @@ export default async function EditWorkoutPage({ params }: { params: Promise<{ id
             color: workout.color,
             blocks,
             intervals,
+            links,
           }}
         />
       </main>

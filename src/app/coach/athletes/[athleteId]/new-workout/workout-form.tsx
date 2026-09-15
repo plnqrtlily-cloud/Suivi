@@ -60,6 +60,7 @@ export interface WorkoutFormInitial {
   color: string;
   blocks: BlockRow[];
   intervals: IntervalItem[];
+  links: { label: string; url: string }[];
 }
 
 export interface OtherAthleteOption {
@@ -91,6 +92,7 @@ export function WorkoutForm({
   const [color, setColor] = useState(initial?.color ?? COLORS[0]);
   const [blocks, setBlocks] = useState<BlockRow[]>(initial?.blocks ?? []);
   const [intervals, setIntervals] = useState<IntervalItem[]>(initial?.intervals ?? []);
+  const [links, setLinks] = useState<{ label: string; url: string }[]>(initial?.links ?? []);
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   // Filtre facultatif appliqué à la plage de dates : ex. cocher Lun/Mer/Ven sur
@@ -204,6 +206,7 @@ export function WorkoutForm({
           color,
           blocks: blocksPayload(),
           intervalsJson: sport !== "strength" ? JSON.stringify(intervals) : undefined,
+          linksJson: JSON.stringify(links.filter((l) => l.label && l.url)),
         });
         router.push(`/workouts/${initial.workoutId}`);
       } catch (err: any) {
@@ -244,6 +247,7 @@ export function WorkoutForm({
         color,
         blocks: blocksPayload(),
         intervalsJson: sport !== "strength" ? JSON.stringify(intervals) : undefined,
+        linksJson: JSON.stringify(links.filter((l) => l.label && l.url)),
       });
       if (alsoSendTo.length > 0) {
         await createWorkoutBulkAction({
@@ -259,6 +263,7 @@ export function WorkoutForm({
           color,
           blocks: blocksPayload(),
           intervalsJson: sport !== "strength" ? JSON.stringify(intervals) : undefined,
+          linksJson: JSON.stringify(links.filter((l) => l.label && l.url)),
         });
       }
       router.push(dates.length === 1 && alsoSendTo.length === 0 ? `/workouts/${result.workoutIds[0]}` : `/coach/athletes/${athleteId}`);
@@ -431,6 +436,45 @@ export function WorkoutForm({
           <IntervalBuilder items={intervals} onChange={setIntervals} />
         </div>
       )}
+
+      <div>
+        <p className="mb-2 text-sm font-medium text-ink-soft">Liens utiles (facultatif)</p>
+        <p className="mb-3 text-xs text-slate">Plan d&apos;entraînement externe, vidéo, carte de parcours…</p>
+        <div className="flex flex-col gap-2">
+          {links.map((l, i) => (
+            <div key={i} className="flex flex-wrap items-end gap-2">
+              <label className="flex flex-1 flex-col gap-1.5 text-sm">
+                <span className="font-medium text-ink-soft">Titre</span>
+                <input
+                  value={l.label}
+                  onChange={(e) => setLinks(links.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
+                  placeholder="ex. Carte du parcours"
+                  className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
+                />
+              </label>
+              <label className="flex flex-[2] flex-col gap-1.5 text-sm">
+                <span className="font-medium text-ink-soft">Lien</span>
+                <input
+                  value={l.url}
+                  onChange={(e) => setLinks(links.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))}
+                  placeholder="https://…"
+                  className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => setLinks(links.filter((_, j) => j !== i))}
+                className="pb-2.5 text-xs text-clay hover:underline"
+              >
+                Retirer
+              </button>
+            </div>
+          ))}
+        </div>
+        <Button type="button" variant="secondary" onClick={() => setLinks([...links, { label: "", url: "" }])} className="mt-2">
+          + Ajouter un lien
+        </Button>
+      </div>
 
       <TextAreaField
         key={`description-${templateKey}`}

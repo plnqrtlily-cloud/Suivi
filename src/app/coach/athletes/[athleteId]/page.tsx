@@ -5,6 +5,7 @@ import {
   getAthletesForCoach,
   getWorkoutsForAthlete,
   getLatestMeasurements,
+  getMeasurementsForAthlete,
   getInjuriesForAthlete,
   getJournalForAthlete,
   getRecentCheckins,
@@ -33,7 +34,8 @@ import { computePowerZones } from "@/lib/power-zones";
 import { computePaceZones, formatPace } from "@/lib/pace-zones";
 import { ExerciseMaxesPanel } from "./exercise-maxes-panel";
 import { CopyWeekForm } from "./copy-week-form";
-import { upsertCoachNotesAction } from "@/lib/actions";
+import { upsertCoachNotesAction, addMeasurementAction } from "@/lib/actions";
+import { PerformanceStats, MeasurementPoint } from "@/app/athlete/profile/performance-stats";
 
 // "Bloc" et "cycle" reprennent le vocabulaire de périodisation de l'entraînement
 // (mésocycle ~4 semaines, bloc plus large regroupant plusieurs cycles) plutôt
@@ -97,6 +99,7 @@ export default async function AthleteDetailPage({
     links,
     allWorkouts,
     measurements,
+    measurementHistory,
     injuries,
     journalAll,
     cycleSettings,
@@ -115,6 +118,7 @@ export default async function AthleteDetailPage({
     getAthletesForCoach(user.id),
     getWorkoutsForAthlete(athleteId),
     getLatestMeasurements(athleteId),
+    getMeasurementsForAthlete(athleteId),
     getInjuriesForAthlete(athleteId),
     getJournalForAthlete(athleteId),
     getCycleSettings(athleteId),
@@ -137,6 +141,14 @@ export default async function AthleteDetailPage({
     measurements.fc_repos && measurements.fc_max ? computeHrZones(measurements.fc_repos.value, measurements.fc_max.value) : null;
   const powerZones = measurements.ftp ? computePowerZones(measurements.ftp.value) : null;
   const paceZones = measurements.pma_vma ? computePaceZones(measurements.pma_vma.value) : null;
+  const METRICS = Object.entries(METRIC_LABELS).map(([value, label]) => ({ value, label }));
+  const seriesByMetric: Record<string, MeasurementPoint[]> = {};
+  for (const h of measurementHistory as any[]) {
+    (seriesByMetric[h.metric] ??= []).push({ value: h.value, recorded_at: h.recorded_at });
+  }
+  for (const key in seriesByMetric) {
+    seriesByMetric[key].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
+  }
   const cycleEstimate =
     athleteGender === "female" && cycleSettings.share_with_coaches ? await estimateCyclePhase(athleteId) : null;
   const latestCheckin = recentCheckins[0];
@@ -247,15 +259,45 @@ export default async function AthleteDetailPage({
 
         <div className="mb-8 grid gap-6 md:grid-cols-3">
           <Card className="rounded-3xl">
-            <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Statistiques de performance</h2>
-            <dl className="grid grid-cols-2 gap-2 text-sm">
-              {Object.entries(METRIC_LABELS).map(([key, label]) => (
-                <div key={key}>
-                  <dt className="text-slate">{label}</dt>
-                  <dd className="font-medium text-ink">{measurements[key]?.value ?? "—"}</dd>
-                </div>
-              ))}
-            </dl>
+            <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Statistiques de performance</h2>
+            <p className="mb-3 text-xs text-slate">Cliquez sur un indicateur pour voir son évolution.</p>
+            <PerformanceStats metrics={METRICS} latest={measurements} seriesByMetric={seriesByMetric} />
+            <form
+              action={async (formData) => {
+                "use server";
+                formData.set("athleteId", athleteId);
+                await addMeasurementAction(formData);
+              }}
+              className="grid grid-cols-1 items-end gap-2 sm:grid-cols-2"
+            >
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium text-ink-soft">Indicateur</span>
+                <select name="metric" required className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss">
+                  {METRICS.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium text-ink-soft">Valeur</span>
+                <input type="number" step="0.1" name="value" required className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss" />
+              </label>
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium text-ink-soft">Date de la mesure</span>
+                <input type="date" name="recordedAt" defaultValue={new Date().toISOString().slice(0, 10)} className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss" />
+              </label>
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium text-ink-soft">Note (facultatif)</span>
+                <input name="note" placeholder="Contexte de la mesure…" className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss" />
+              </label>
+              <div className="sm:col-span-2">
+                <Button type="submit" variant="secondary">
+                  Ajouter une mesure
+                </Button>
+              </div>
+            </form>
           </Card>
 
           {cycleEstimate && (

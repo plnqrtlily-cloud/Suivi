@@ -665,6 +665,59 @@ async function main() {
     "Les blocs sont bien réordonnés selon l'ordre canonique des groupes, quel que soit leur ordre d'ajout"
   );
 
+  // 42. Charges de référence : type de variable, note, et permission élargie à l'athlète
+  await dbRun(
+    `INSERT INTO exercise_maxes (id, athlete_id, exercise_name, value_kg, value_type, tested_at, note) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [randomUUID(), athlete.id, "Planche", 60, "temps", "2027-01-01", "Bonne forme ce jour-là"]
+  );
+  await dbRun(
+    `INSERT INTO exercise_maxes (id, athlete_id, exercise_name, value_kg, value_type, tested_at) VALUES (?, ?, ?, ?, ?, ?)`,
+    [randomUUID(), athlete.id, "Planche", 75, "temps", "2027-02-01"]
+  );
+  const planches = await dbAll<any>(`SELECT * FROM exercise_maxes WHERE athlete_id = ? AND exercise_name = 'Planche' ORDER BY tested_at`, [
+    athlete.id,
+  ]);
+  assert(planches.length === 2, "Deux mesures du même exercice à des dates différentes sont bien conservées (pour la tendance)");
+  assert(planches[0].value_type === "temps" && planches[0].value_kg === 60, "Le type de variable (temps/charge/répétitions) et sa valeur sont bien enregistrés");
+  assert(planches[0].note === "Bonne forme ce jour-là", "La note associée à une charge de référence est bien enregistrée");
+
+  // Le calcul de charge en % ne doit prendre en compte que les maxes de type 'charge'.
+  await dbRun(
+    `INSERT INTO exercise_maxes (id, athlete_id, exercise_name, value_kg, value_type, tested_at) VALUES (?, ?, ?, ?, 'charge', ?)`,
+    [randomUUID(), athlete.id, "Squat", 100, "2027-01-01"]
+  );
+  const chargeOnlyMaxes = await dbAll<any>(`SELECT * FROM exercise_maxes WHERE athlete_id = ? AND value_type = 'charge'`, [athlete.id]);
+  assert(
+    chargeOnlyMaxes.length === 1 && chargeOnlyMaxes[0].exercise_name === "Squat",
+    "Seules les charges de type 'charge' (pas temps/répétitions) alimentent le calcul de charge en pourcentage"
+  );
+
+  // 43. Statistiques de performance : le coach peut aussi renseigner une mesure, avec date et note
+  await dbRun(`INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note) VALUES (?, ?, ?, ?, ?, ?)`, [
+    randomUUID(),
+    athlete.id,
+    "weight_kg",
+    68.5,
+    "2027-01-15",
+    "Pesée après la séance du matin",
+  ]);
+  const coachEnteredMeasurement = await dbGet<any>(
+    `SELECT * FROM athlete_measurements WHERE athlete_id = ? AND recorded_at = '2027-01-15'`,
+    [athlete.id]
+  );
+  assert(coachEnteredMeasurement?.note === "Pesée après la séance du matin", "Une mesure peut porter une date explicite et une note (renseignée par le coach ou l'athlète)");
+
+  // 44. Liens utiles ajoutés à la construction d'une séance
+  const linksTestWorkoutId = randomUUID();
+  const testLinks = [{ label: "Carte du parcours", url: "https://example.com/carte" }];
+  await dbRun(
+    `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, title, date, links_json) VALUES (?, ?, ?, 'hiking', 'entrainement', 'Rando avec carte', '2027-01-20', ?)`,
+    [linksTestWorkoutId, coach.id, athlete.id, JSON.stringify(testLinks)]
+  );
+  const workoutWithLinks = await dbGet<any>(`SELECT links_json FROM workouts WHERE id = ?`, [linksTestWorkoutId]);
+  const parsedLinks = JSON.parse(workoutWithLinks?.links_json || "[]");
+  assert(parsedLinks.length === 1 && parsedLinks[0].url === "https://example.com/carte", "Les liens utiles ajoutés à une séance sont bien enregistrés");
+
   console.log("\nTest end-to-end terminé.");
 }
 
