@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getAthletesForCoach, getWorkoutsForAthlete, getImportedActivitiesForRange, getRecentCheckins } from "@/lib/queries";
-import { computeAcwr } from "@/lib/training-stats";
+import { getRosterSignals, signalScore, type RosterSignals } from "@/lib/roster-signals";
 import { todayISO, toISODate, daysUntil } from "@/lib/dates";
 import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
@@ -11,40 +11,6 @@ import { Avatar } from "@/components/avatar";
 import { InviteForm } from "./invite-form";
 import { RevokeButton } from "./revoke-button";
 import { BroadcastMessageModal } from "./broadcast-message-modal";
-
-interface RosterSignals {
-  acwrHighRisk: boolean;
-  daysSinceCheckin: number | null;
-  missedRecently: number;
-}
-
-// Signaux à traiter en priorité — plutôt qu'une simple liste de noms, faire
-// remonter qui a besoin d'attention avant de cliquer sur chaque fiche une
-// par une : pertinent dès qu'un coach suit plus de quelques athlètes.
-async function getRosterSignals(athleteId: string, today: string): Promise<RosterSignals> {
-  const acwrFrom = new Date();
-  acwrFrom.setDate(acwrFrom.getDate() - 27);
-  const acwrFromISO = toISODate(acwrFrom);
-  const recentFrom = new Date();
-  recentFrom.setDate(recentFrom.getDate() - 13);
-  const recentFromISO = toISODate(recentFrom);
-
-  const [workouts, acwrImports, recentCheckins] = await Promise.all([
-    getWorkoutsForAthlete(athleteId),
-    getImportedActivitiesForRange(athleteId, acwrFromISO, today),
-    getRecentCheckins(athleteId, 1),
-  ]);
-
-  const acwr = computeAcwr(workouts, acwrImports, today);
-  const lastCheckin = recentCheckins[0];
-  const missedRecently = workouts.filter((w) => w.date >= recentFromISO && w.date <= today && w.status === "not_done").length;
-
-  return {
-    acwrHighRisk: acwr.status === "high_risk",
-    daysSinceCheckin: lastCheckin ? -daysUntil(lastCheckin.check_date) : null,
-    missedRecently,
-  };
-}
 
 export default async function CoachDashboard() {
   const user = await getCurrentUser();
@@ -63,13 +29,9 @@ export default async function CoachDashboard() {
   );
   // Athlètes avec un signal à traiter en premier — dans l'ordre : charge à
   // risque, forme non renseignée depuis longtemps, séances manquées.
-  const sortedActive = [...active].sort((a, b) => {
-    const sa = signalsByAthlete.get(a.athlete_id!);
-    const sb = signalsByAthlete.get(b.athlete_id!);
-    const scoreOf = (s?: RosterSignals) =>
-      !s ? 0 : (s.acwrHighRisk ? 4 : 0) + (s.missedRecently > 0 ? 2 : 0) + (s.daysSinceCheckin !== null && s.daysSinceCheckin > 3 ? 1 : 0);
-    return scoreOf(sb) - scoreOf(sa);
-  });
+  const sortedActive = [...active].sort(
+    (a, b) => signalScore(signalsByAthlete.get(b.athlete_id!)) - signalScore(signalsByAthlete.get(a.athlete_id!))
+  );
 
   return (
     <div className="flex min-h-screen bg-paper">

@@ -718,6 +718,54 @@ async function main() {
   const parsedLinks = JSON.parse(workoutWithLinks?.links_json || "[]");
   assert(parsedLinks.length === 1 && parsedLinks[0].url === "https://example.com/carte", "Les liens utiles ajoutés à une séance sont bien enregistrés");
 
+  // 45. Requêtes du tableau de bord coach
+  // Une séance passée restée "planned" doit remonter comme à valider.
+  await dbRun(
+    `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, title, date, status) VALUES (?, ?, ?, 'running', 'entrainement', 'Sortie oubliée', date('now','-3 days'), 'planned')`,
+    [randomUUID(), coach.id, athlete.id]
+  );
+  const unvalidated = await dbAll<any>(
+    `SELECT w.id FROM workouts w JOIN users u ON u.id = w.athlete_id
+     WHERE w.coach_id = ? AND w.date < date('now') AND w.date >= date('now','-14 days')
+       AND w.category NOT IN ('objectif','evenement') AND w.status IN ('planned','not_done')`,
+    [coach.id]
+  );
+  assert(unvalidated.length >= 1, "Une séance passée jamais validée par l'athlète remonte bien comme 'à valider'");
+
+  // Un commentaire d'athlète remonte ; un commentaire du coach ne doit PAS remonter.
+  const commentedWorkoutId = randomUUID();
+  await dbRun(
+    `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, title, date) VALUES (?, ?, ?, 'running', 'entrainement', 'Séance commentée', date('now','-1 days'))`,
+    [commentedWorkoutId, coach.id, athlete.id]
+  );
+  await dbRun(`INSERT INTO workout_comments (id, workout_id, author_id, body) VALUES (?, ?, ?, ?)`, [
+    randomUUID(),
+    commentedWorkoutId,
+    athlete.id,
+    "J'ai eu mal au genou",
+  ]);
+  await dbRun(`INSERT INTO workout_comments (id, workout_id, author_id, body) VALUES (?, ?, ?, ?)`, [
+    randomUUID(),
+    commentedWorkoutId,
+    coach.id,
+    "Note interne du coach",
+  ]);
+  const athleteComments = await dbAll<any>(
+    `SELECT c.body FROM workout_comments c
+     JOIN workouts w ON w.id = c.workout_id
+     JOIN users u ON u.id = c.author_id
+     WHERE w.coach_id = ? AND u.role = 'athlete'`,
+    [coach.id]
+  );
+  assert(
+    athleteComments.some((c) => c.body === "J'ai eu mal au genou"),
+    "Les retours des athlètes sur leurs séances remontent au tableau de bord"
+  );
+  assert(
+    !athleteComments.some((c) => c.body === "Note interne du coach"),
+    "Les commentaires écrits par le coach lui-même ne remontent pas comme retours d'athlète"
+  );
+
   console.log("\nTest end-to-end terminé.");
 }
 

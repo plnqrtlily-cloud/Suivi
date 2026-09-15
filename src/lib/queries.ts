@@ -461,6 +461,54 @@ export async function getUnreadMessageCountForCoach(coachId: string): Promise<nu
   return row?.count ?? 0;
 }
 
+// --- Requêtes du tableau de bord coach ---
+
+// Séances passées restées "planned" (jamais validées par l'athlète) ou
+// explicitement marquées non réalisées — un signal au moins aussi important
+// qu'une forme basse, mais invisible ailleurs dans l'app.
+export async function getUnvalidatedWorkouts(coachId: string, sinceDate: string, limit = 10) {
+  return dbAll<any>(
+    `SELECT w.id, w.title, w.date, w.status, w.sport, w.color, w.athlete_id,
+            u.first_name, u.last_name, u.avatar_path
+     FROM workouts w JOIN users u ON u.id = w.athlete_id
+     WHERE w.coach_id = ?
+       AND w.date < date('now') AND w.date >= ?
+       AND w.category NOT IN ('objectif','evenement')
+       AND w.status IN ('planned','not_done')
+     ORDER BY w.date DESC LIMIT ?`,
+    [coachId, sinceDate, limit]
+  );
+}
+
+// Derniers commentaires laissés par les athlètes sur leurs séances (pas ceux
+// du coach lui-même) — ex. "j'ai eu mal au genou", qui n'apparaît nulle part
+// ailleurs sur le tableau de bord.
+export async function getRecentAthleteComments(coachId: string, limit = 5) {
+  return dbAll<any>(
+    `SELECT c.id, c.body, c.created_at, c.workout_id,
+            w.title as workout_title, w.athlete_id,
+            u.first_name, u.last_name, u.avatar_path
+     FROM workout_comments c
+     JOIN workouts w ON w.id = c.workout_id
+     JOIN users u ON u.id = c.author_id
+     WHERE w.coach_id = ? AND u.role = 'athlete'
+     ORDER BY c.created_at DESC LIMIT ?`,
+    [coachId, limit]
+  );
+}
+
+// Date de la prochaine séance prévue par athlète — pour repérer les athlètes
+// qui n'ont plus rien de programmé (trou dans la planification).
+export async function getNextPlannedWorkoutDate(athleteId: string): Promise<string | null> {
+  const row = await dbGet<any>(
+    `SELECT date FROM workouts
+     WHERE athlete_id = ? AND date >= date('now') AND category NOT IN ('objectif','evenement')
+     ORDER BY date ASC LIMIT 1`,
+    [athleteId]
+  );
+  return row?.date ?? null;
+}
+
 // --- Check-in quotidien de forme ---
 
 export async function getUserGender(userId: string): Promise<string | null> {
