@@ -5,78 +5,7 @@ import { getUserAvatar } from "@/lib/queries";
 import { NotificationBell } from "./notification-bell";
 import { Avatar } from "./avatar";
 import Link from "next/link";
-
-type NavIconName = "home" | "calendar" | "library" | "profile" | "messages" | "settings" | "logout";
-
-function NavIcon({ name, className }: { name: NavIconName; className?: string }) {
-  const common = {
-    viewBox: "0 0 20 20",
-    fill: "none" as const,
-    stroke: "currentColor",
-    strokeWidth: 1.5,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    className,
-    "aria-hidden": true as const,
-  };
-
-  switch (name) {
-    case "home":
-      return (
-        <svg {...common}>
-          <path d="M3 9.5l7-6 7 6" />
-          <path d="M5 8v8a1 1 0 001 1h8a1 1 0 001-1V8" />
-        </svg>
-      );
-    case "calendar":
-      return (
-        <svg {...common}>
-          <rect x="3" y="4.5" width="14" height="12" rx="2" />
-          <path d="M3 8.5h14" />
-          <path d="M6.5 2.5v3M13.5 2.5v3" />
-        </svg>
-      );
-    case "library":
-      return (
-        <svg {...common}>
-          <path d="M3 4.5c1.5-1 3.5-1 5 0v11c-1.5-1-3.5-1-5 0z" />
-          <path d="M17 4.5c-1.5-1-3.5-1-5 0v11c1.5-1 3.5-1 5 0z" />
-        </svg>
-      );
-    case "profile":
-      return (
-        <svg {...common}>
-          <circle cx="10" cy="7" r="3" />
-          <path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6" />
-        </svg>
-      );
-    case "messages":
-      return (
-        <svg {...common}>
-          <path d="M3 5.5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-3.5 3v-3H5a2 2 0 0 1-2-2z" />
-        </svg>
-      );
-    case "settings":
-      return (
-        <svg {...common}>
-          <path d="M3 6h8M15 6h2" />
-          <circle cx="12" cy="6" r="2" />
-          <path d="M3 10h2M9 10h8" />
-          <circle cx="6" cy="10" r="2" />
-          <path d="M3 14h5M13 14h4" />
-          <circle cx="10" cy="14" r="2" />
-        </svg>
-      );
-    case "logout":
-      return (
-        <svg {...common}>
-          <path d="M8 3H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3" />
-          <path d="M13 14l4-4-4-4" />
-          <path d="M17 10H7" />
-        </svg>
-      );
-  }
-}
+import { NavIcon, type NavIconName } from "./nav-icon";
 
 export async function Nav({ user }: { user: User }) {
   const homeHref = user.role === "coach" ? "/coach" : "/athlete";
@@ -86,15 +15,17 @@ export async function Nav({ user }: { user: User }) {
   ]);
 
   const navItems: { href: string; label: string; icon: NavIconName }[] = [
-    { href: homeHref, icon: "home", label: user.role === "coach" ? "Mes athlètes" : "Aujourd'hui" },
     ...(user.role === "coach"
       ? [
-          { href: "/coach/resources", icon: "library" as const, label: "Bibliothèque" },
+          { href: "/coach/dashboard", icon: "dashboard" as const, label: "Tableau de bord" },
+          { href: "/coach", icon: "home" as const, label: "Mes athlètes" },
           { href: "/coach/calendar", icon: "calendar" as const, label: "Calendrier" },
+          { href: "/coach/resources", icon: "library" as const, label: "Bibliothèque" },
         ]
       : []),
     ...(user.role === "athlete"
       ? [
+          { href: "/athlete", icon: "home" as const, label: "Aujourd'hui" },
           { href: "/athlete/programmation", icon: "calendar" as const, label: "Calendrier" },
           { href: "/athlete/profile", icon: "profile" as const, label: "Mon profil" },
           { href: "/athlete/messages", icon: "messages" as const, label: "Messages" },

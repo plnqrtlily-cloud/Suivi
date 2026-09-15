@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getResourcesForCoach } from "@/lib/queries";
 import { Nav } from "@/components/nav";
+import { CoachSidebar } from "@/components/coach-sidebar";
 import { Card } from "@/components/ui";
 import { UploadResourceForm } from "./upload-form";
 import { ResourceCard } from "./resource-card";
@@ -19,8 +20,12 @@ export default async function ResourcesPage({
   const resources = await getResourcesForCoach(user.id, type);
 
   return (
-    <div className="min-h-screen bg-paper">
-      <Nav user={user} />
+    <div className="flex min-h-screen bg-paper">
+      <CoachSidebar user={user} activeHref="/coach/resources" />
+      <div className="min-w-0 flex-1">
+        <div className="lg:hidden">
+          <Nav user={user} />
+        </div>
       <main className="mx-auto max-w-5xl px-6 py-10">
         <h1 className="mb-1 font-display text-3xl text-ink">Ma bibliothèque</h1>
         <p className="mb-8 text-slate">Vidéos, photos et matériel que vous déposez vous-même — visibles par vos athlètes liés.</p>
@@ -58,6 +63,7 @@ export default async function ResourcesPage({
           </div>
         )}
       </main>
+      </div>
     </div>
   );
 }

@@ -450,6 +450,17 @@ export async function getUnreadMessageCount(coachId: string, athleteId: string, 
   return row?.count ?? 0;
 }
 
+// Total des messages non lus d'un coach, tous athlètes confondus — pour la
+// pastille de la barre latérale.
+export async function getUnreadMessageCountForCoach(coachId: string): Promise<number> {
+  const row = await dbGet<any>(
+    `SELECT COUNT(*) as count FROM messages
+     WHERE coach_id = ? AND sender_id != ? AND read_at IS NULL`,
+    [coachId, coachId]
+  );
+  return row?.count ?? 0;
+}
+
 // --- Check-in quotidien de forme ---
 
 export async function getUserGender(userId: string): Promise<string | null> {

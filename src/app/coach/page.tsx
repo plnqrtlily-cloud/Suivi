@@ -5,6 +5,7 @@ import { getAthletesForCoach, getWorkoutsForAthlete, getImportedActivitiesForRan
 import { computeAcwr } from "@/lib/training-stats";
 import { todayISO, toISODate, daysUntil } from "@/lib/dates";
 import { Nav } from "@/components/nav";
+import { CoachSidebar } from "@/components/coach-sidebar";
 import { Card } from "@/components/ui";
 import { Avatar } from "@/components/avatar";
 import { InviteForm } from "./invite-form";
@@ -71,8 +72,12 @@ export default async function CoachDashboard() {
   });
 
   return (
-    <div className="min-h-screen bg-paper">
-      <Nav user={user} />
+    <div className="flex min-h-screen bg-paper">
+      <CoachSidebar user={user} activeHref="/coach" />
+      <div className="min-w-0 flex-1">
+        <div className="lg:hidden">
+          <Nav user={user} />
+        </div>
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -146,6 +151,7 @@ export default async function CoachDashboard() {
           )}
         </div>
       </main>
+      </div>
     </div>
   );
 }

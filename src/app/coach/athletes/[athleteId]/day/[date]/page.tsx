@@ -8,6 +8,7 @@ import {
   getLatestMeasurements,
 } from "@/lib/queries";
 import { Nav } from "@/components/nav";
+import { CoachSidebar } from "@/components/coach-sidebar";
 import { Card, StatusBadge, sportLabel } from "@/components/ui";
 import { RouteMap } from "@/components/route-map";
 import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, TIME_OF_DAY_HINTS, groupByTimeOfDay } from "@/lib/time-of-day";
@@ -141,8 +142,12 @@ export default async function CoachAthleteDayPage({ params }: { params: Promise<
   }
 
   return (
-    <div className="min-h-screen bg-paper">
-      <Nav user={user} />
+    <div className="flex min-h-screen bg-paper">
+      <CoachSidebar user={user} />
+      <div className="min-w-0 flex-1">
+        <div className="lg:hidden">
+          <Nav user={user} />
+        </div>
       <main className="mx-auto max-w-3xl px-6 py-10">
         <Link href={`/coach/athletes/${athleteId}`} className="mb-4 inline-block text-sm text-moss-dark hover:underline">
           ← Retour à {athlete.first_name}
@@ -201,6 +206,7 @@ export default async function CoachAthleteDayPage({ params }: { params: Promise<
           )}
         </section>
       </main>
+      </div>
     </div>
   );
 }

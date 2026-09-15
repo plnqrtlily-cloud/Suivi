@@ -22,6 +22,7 @@ import { UpcomingGoals } from "@/components/upcoming-goals";
 import { getCycleSettings, estimateCyclePhase, PHASE_LABELS } from "@/lib/cycle";
 import { computeGlobalScore, scoreLabel, scoreColor } from "@/lib/checkin-types";
 import { Nav } from "@/components/nav";
+import { CoachSidebar } from "@/components/coach-sidebar";
 import { Card, LinkButton, sportLabel, Button } from "@/components/ui";
 import { Avatar } from "@/components/avatar";
 import { RevokeButton } from "@/app/coach/revoke-button";
@@ -154,8 +155,12 @@ export default async function AthleteDetailPage({
   const latestCheckin = recentCheckins[0];
 
   return (
-    <div className="min-h-screen bg-paper">
-      <Nav user={user} />
+    <div className="flex min-h-screen bg-paper">
+      <CoachSidebar user={user} />
+      <div className="min-w-0 flex-1">
+        <div className="lg:hidden">
+          <Nav user={user} />
+        </div>
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -460,6 +465,7 @@ export default async function AthleteDetailPage({
         <p className="mb-3 text-sm text-slate">Séances récentes, à venir et activités importées, en un coup d&apos;œil.</p>
         <AthleteCalendar athleteId={athleteId} view={view} week={week} month={month} today={today} />
       </main>
+      </div>
     </div>
   );
 }

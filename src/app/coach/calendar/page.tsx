@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getAthletesForCoach, getWorkoutsForAthlete } from "@/lib/queries";
 import { getWeekDates, todayISO } from "@/lib/dates";
 import { Nav } from "@/components/nav";
+import { CoachSidebar } from "@/components/coach-sidebar";
 import { Avatar } from "@/components/avatar";
 import { sportIconPath } from "@/lib/sport-icons";
 
@@ -34,8 +35,12 @@ export default async function CoachCalendarPage({
   );
 
   return (
-    <div className="min-h-screen bg-paper">
-      <Nav user={user} />
+    <div className="flex min-h-screen bg-paper">
+      <CoachSidebar user={user} activeHref="/coach/calendar" />
+      <div className="min-w-0 flex-1">
+        <div className="lg:hidden">
+          <Nav user={user} />
+        </div>
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="font-display text-3xl text-ink">Calendrier de mes athlètes</h1>
@@ -118,6 +123,7 @@ export default async function CoachCalendarPage({
           </div>
         )}
       </main>
+      </div>
     </div>
   );
 }

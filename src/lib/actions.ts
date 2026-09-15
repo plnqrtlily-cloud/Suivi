@@ -37,7 +37,7 @@ export async function loginAction(formData: FormData) {
     return { error: "Email ou mot de passe incorrect." };
   }
   await createSession(user.id);
-  redirect(user.role === "coach" ? "/coach" : "/athlete");
+  redirect(user.role === "coach" ? "/coach/dashboard" : "/athlete");
 }
 
 export async function registerAction(formData: FormData) {
@@ -79,7 +79,7 @@ export async function registerAction(formData: FormData) {
   }
 
   await createSession(user.id);
-  redirect(role === "coach" ? "/coach" : "/athlete");
+  redirect(role === "coach" ? "/coach/dashboard" : "/athlete");
 }
 
 export async function logoutAction() {

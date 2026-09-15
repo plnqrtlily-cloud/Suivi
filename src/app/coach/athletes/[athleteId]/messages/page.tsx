@@ -3,6 +3,7 @@ import { getCurrentUser, isCoachLinkedToAthlete, findUserById } from "@/lib/auth
 import { getMessages, getUserAvatar } from "@/lib/queries";
 import { markMessagesReadAction } from "@/lib/actions";
 import { Nav } from "@/components/nav";
+import { CoachSidebar } from "@/components/coach-sidebar";
 import { ConversationThread } from "@/components/conversation-thread";
 
 export default async function CoachMessagesPage({
@@ -25,8 +26,12 @@ export default async function CoachMessagesPage({
   const [messages] = await Promise.all([getMessages(user.id, athleteId), markMessagesReadAction(user.id, athleteId)]);
 
   return (
-    <div className="min-h-screen bg-paper">
-      <Nav user={user} />
+    <div className="flex min-h-screen bg-paper">
+      <CoachSidebar user={user} />
+      <div className="min-w-0 flex-1">
+        <div className="lg:hidden">
+          <Nav user={user} />
+        </div>
       <main className="mx-auto max-w-2xl px-6 py-10">
         <h1 className="mb-1 font-display text-3xl text-ink">
           Discussion avec {athlete.first_name} {athlete.last_name}
@@ -42,6 +47,7 @@ export default async function CoachMessagesPage({
           otherPartyHasAvatar={!!athleteAvatar?.avatar_path}
         />
       </main>
+      </div>
     </div>
   );
 }
