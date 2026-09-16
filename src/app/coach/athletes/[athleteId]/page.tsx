@@ -35,6 +35,7 @@ import { computePowerZones } from "@/lib/power-zones";
 import { computePaceZones, formatPace } from "@/lib/pace-zones";
 import { ExerciseMaxesPanel } from "./exercise-maxes-panel";
 import { CopyWeekForm } from "./copy-week-form";
+import { AthleteTabs } from "./athlete-tabs";
 import { upsertCoachNotesAction, addMeasurementAction } from "@/lib/actions";
 import { METRIC_LABELS, MEASUREMENT_DEVICES, computeDerivedMetrics } from "@/lib/performance-metrics";
 import { PerformanceStats, MeasurementPoint } from "@/app/athlete/profile/performance-stats";
@@ -208,64 +209,113 @@ export default async function AthleteDetailPage({
           </div>
         </div>
 
+        <AthleteTabs
+          storageKey={`rythme:athlete-tab:${athleteId}`}
+          children={{
+            apercu: (
+              <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+            <div className="flex flex-col gap-6">
+        <div className="mb-8">
+          <UpcomingGoals goals={upcomingGoals} />
+        </div>
+
+
         <div className="mb-8">
           <CopyWeekForm athleteId={athleteId} />
         </div>
 
-        {/* Notes privées : jamais visibles par l'athlète, ni par un autre coach —
-            cf. upsertCoachNotesAction (vérifie coach_id = utilisateur courant). */}
-        <Card className="mb-8 rounded-3xl border-2 border-dashed border-gold-light/50 bg-gold-light/5">
-          <div className="mb-2 flex items-center gap-2">
-            <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate">Mes notes privées</h2>
-            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-gold-light">
-              Visibles par vous seul·e
-            </span>
-          </div>
-          <p className="mb-3 text-xs text-slate">
-            Jamais partagées avec l&apos;athlète, ni avec un autre coach qui le suivrait aussi.
-          </p>
-          <form
-            action={async (formData) => {
-              "use server";
-              await upsertCoachNotesAction(formData);
-            }}
-            className="grid gap-3 sm:grid-cols-2"
-          >
-            <input type="hidden" name="athleteId" value={athleteId} />
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium text-ink-soft">Points forts</span>
-              <textarea
-                name="strengths"
-                rows={3}
-                defaultValue={coachNotes?.strengths || ""}
-                placeholder="Ce qui fonctionne bien, à capitaliser…"
-                className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
-              />
-            </label>
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium text-ink-soft">Points faibles / axes de travail</span>
-              <textarea
-                name="weaknesses"
-                rows={3}
-                defaultValue={coachNotes?.weaknesses || ""}
-                placeholder="Ce sur quoi insister dans la programmation…"
-                className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
-              />
-            </label>
-            <div className="sm:col-span-2">
-              <Button type="submit" variant="secondary">
-                Enregistrer
-              </Button>
-              {coachNotes?.updated_at && (
-                <span className="ml-3 text-xs text-slate">
-                  Dernière mise à jour : {new Date(coachNotes.updated_at.replace(" ", "T")).toLocaleDateString("fr-FR")}
-                </span>
-              )}
-            </div>
-          </form>
-        </Card>
 
-        <div className="mb-8 grid gap-6 md:grid-cols-3">
+            </div>
+            <div className="flex flex-col gap-6">
+
+
+          {cycleEstimate && (
+            <Card className="rounded-3xl">
+              <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Cycle menstruel</h2>
+              <p className="font-medium text-ink">{PHASE_LABELS[cycleEstimate.phase]}</p>
+              {cycleEstimate.dayOfCycle && <p className="text-sm text-slate">Jour {cycleEstimate.dayOfCycle} du cycle</p>}
+              <p className="mt-2 text-xs text-slate">Partagé volontairement par l&apos;athlète — détail des entrées non visible.</p>
+            </Card>
+          )}
+
+          {latestCheckin && (
+            <Card className="rounded-3xl">
+              <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Forme du jour</h2>
+              {(() => {
+                const score = computeGlobalScore(latestCheckin);
+                return (
+                  <p className={`text-lg font-semibold ${scoreColor(score)}`}>
+                    {score}/10 · {scoreLabel(score)}
+                  </p>
+                );
+              })()}
+              <p className="text-xs text-slate">Relevé le {latestCheckin.check_date}</p>
+              {latestCheckin.notes && <p className="mt-1 text-sm text-ink-soft">{latestCheckin.notes}</p>}
+            </Card>
+          )}
+
+
+          <Card className="rounded-3xl">
+            <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Journal de bord récent</h2>
+            {journal.length === 0 && <p className="text-sm text-slate">Aucune entrée pour l&apos;instant.</p>}
+            <ul className="space-y-2 text-sm">
+              {journal.map((j) => (
+                <li key={j.id}>
+                  <span className="text-slate">{j.entry_date} — </span>
+                  <span className="text-ink">{j.content.slice(0, 80)}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+
+            </div>
+          </div>
+            ),
+            programmation: (
+              <>
+        <h2 className="mb-3 font-display text-xl text-ink">Programmation</h2>
+        <p className="mb-3 text-sm text-slate">Séances récentes, à venir et activités importées, en un coup d&apos;œil.</p>
+        <AthleteCalendar athleteId={athleteId} view={view} week={week} month={month} today={today} />
+
+              </>
+            ),
+            bilan: (
+              <>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-xl text-ink">Bilan d&apos;entraînement</h2>
+          <div className="flex rounded-2xl bg-paper-dim p-1">
+            {BILAN_PERIODS.map((p) => (
+              <Link
+                key={p.value}
+                href={`/coach/athletes/${athleteId}?bilan=${p.value}`}
+                scroll={false}
+                className={`rounded-xl px-3.5 py-1.5 text-center text-sm font-semibold transition-colors ${
+                  bilanPeriod.value === p.value ? "bg-white text-ink shadow-sm" : "text-slate"
+                }`}
+              >
+                {p.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+        <p className="mb-3 text-sm text-slate">
+          Séances faites et activités importées du {statsFromISO.slice(8, 10)}/{statsFromISO.slice(5, 7)} au{" "}
+          {today.slice(8, 10)}/{today.slice(5, 7)} ({bilanPeriod.days} jour{bilanPeriod.days > 1 ? "s" : ""}).
+        </p>
+        <div className="mb-8">
+          <TrainingInsights
+            workouts={allWorkouts.filter((w) => w.date >= statsFromISO && w.date <= today)}
+            imports={recentImports}
+            periodDays={bilanPeriod.days}
+          />
+        </div>
+
+
+              </>
+            ),
+            mesures: (
+              <div className="flex flex-col gap-6">
+
           <Card className="rounded-3xl">
             <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Statistiques de performance</h2>
             <p className="mb-3 text-xs text-slate">Cliquez sur un indicateur pour voir son évolution.</p>
@@ -333,62 +383,6 @@ export default async function AthleteDetailPage({
               </div>
             )}
           </Card>
-
-          {cycleEstimate && (
-            <Card className="rounded-3xl">
-              <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Cycle menstruel</h2>
-              <p className="font-medium text-ink">{PHASE_LABELS[cycleEstimate.phase]}</p>
-              {cycleEstimate.dayOfCycle && <p className="text-sm text-slate">Jour {cycleEstimate.dayOfCycle} du cycle</p>}
-              <p className="mt-2 text-xs text-slate">Partagé volontairement par l&apos;athlète — détail des entrées non visible.</p>
-            </Card>
-          )}
-
-          {latestCheckin && (
-            <Card className="rounded-3xl">
-              <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Forme du jour</h2>
-              {(() => {
-                const score = computeGlobalScore(latestCheckin);
-                return (
-                  <p className={`text-lg font-semibold ${scoreColor(score)}`}>
-                    {score}/10 · {scoreLabel(score)}
-                  </p>
-                );
-              })()}
-              <p className="text-xs text-slate">Relevé le {latestCheckin.check_date}</p>
-              {latestCheckin.notes && <p className="mt-1 text-sm text-ink-soft">{latestCheckin.notes}</p>}
-            </Card>
-          )}
-
-          <Card className="rounded-3xl">
-            <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Antécédents de blessures</h2>
-            {injuries.length === 0 && <p className="text-sm text-slate">Aucun antécédent renseigné.</p>}
-            <ul className="space-y-2 text-sm">
-              {injuries.slice(0, 4).map((i) => (
-                <li key={i.id}>
-                  <span className="font-medium text-ink">{i.zone}</span>{" "}
-                  <span className="text-slate">
-                    ({i.date_start}
-                    {i.date_end ? ` → ${i.date_end}` : ""})
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Card>
-
-          <Card className="rounded-3xl">
-            <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Journal de bord récent</h2>
-            {journal.length === 0 && <p className="text-sm text-slate">Aucune entrée pour l&apos;instant.</p>}
-            <ul className="space-y-2 text-sm">
-              {journal.map((j) => (
-                <li key={j.id}>
-                  <span className="text-slate">{j.entry_date} — </span>
-                  <span className="text-ink">{j.content.slice(0, 80)}</span>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </div>
-
         {(hrZones || powerZones || paceZones) && (
           <>
             <h2 className="mb-3 font-display text-xl text-ink">Zones d&apos;entraînement</h2>
@@ -453,47 +447,123 @@ export default async function AthleteDetailPage({
         <p className="mb-3 text-sm text-slate">
           Renseignez un max testé pour prescrire une charge en % dans le générateur de séance musculation.
         </p>
+
         <Card className="mb-8 rounded-3xl">
           <ExerciseMaxesPanel athleteId={athleteId} maxes={exerciseMaxes} exerciseSuggestions={exerciseSuggestions} />
         </Card>
 
         <h2 className="mb-3 font-display text-xl text-ink">Prochains objectifs</h2>
-        <div className="mb-8">
-          <UpcomingGoals goals={upcomingGoals} />
-        </div>
 
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-display text-xl text-ink">Bilan d&apos;entraînement</h2>
-          <div className="flex rounded-2xl bg-paper-dim p-1">
-            {BILAN_PERIODS.map((p) => (
-              <Link
-                key={p.value}
-                href={`/coach/athletes/${athleteId}?bilan=${p.value}`}
-                scroll={false}
-                className={`rounded-xl px-3.5 py-1.5 text-center text-sm font-semibold transition-colors ${
-                  bilanPeriod.value === p.value ? "bg-white text-ink shadow-sm" : "text-slate"
-                }`}
-              >
-                {p.label}
-              </Link>
-            ))}
+              </div>
+            ),
+            sante: (
+              <div className="flex flex-col gap-6">
+
+          <Card className="rounded-3xl">
+            <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Antécédents de blessures</h2>
+            {injuries.length === 0 && <p className="text-sm text-slate">Aucun antécédent renseigné.</p>}
+            <ul className="space-y-2 text-sm">
+              {injuries.slice(0, 4).map((i) => (
+                <li key={i.id}>
+                  <span className="font-medium text-ink">{i.zone}</span>{" "}
+                  <span className="text-slate">
+                    ({i.date_start}
+                    {i.date_end ? ` → ${i.date_end}` : ""})
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+
+
+
+          {cycleEstimate && (
+            <Card className="rounded-3xl">
+              <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Cycle menstruel</h2>
+              <p className="font-medium text-ink">{PHASE_LABELS[cycleEstimate.phase]}</p>
+              {cycleEstimate.dayOfCycle && <p className="text-sm text-slate">Jour {cycleEstimate.dayOfCycle} du cycle</p>}
+              <p className="mt-2 text-xs text-slate">Partagé volontairement par l&apos;athlète — détail des entrées non visible.</p>
+            </Card>
+          )}
+
+          {latestCheckin && (
+            <Card className="rounded-3xl">
+              <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Forme du jour</h2>
+              {(() => {
+                const score = computeGlobalScore(latestCheckin);
+                return (
+                  <p className={`text-lg font-semibold ${scoreColor(score)}`}>
+                    {score}/10 · {scoreLabel(score)}
+                  </p>
+                );
+              })()}
+              <p className="text-xs text-slate">Relevé le {latestCheckin.check_date}</p>
+              {latestCheckin.notes && <p className="mt-1 text-sm text-ink-soft">{latestCheckin.notes}</p>}
+            </Card>
+          )}
+
+              </div>
+            ),
+            notes: (
+              <>
+        {/* Notes privées : jamais visibles par l'athlète, ni par un autre coach —
+            cf. upsertCoachNotesAction (vérifie coach_id = utilisateur courant). */}
+        <Card className="mb-8 rounded-3xl border-2 border-dashed border-gold-light/50 bg-gold-light/5">
+          <div className="mb-2 flex items-center gap-2">
+            <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate">Mes notes privées</h2>
+            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-gold-light">
+              Visibles par vous seul·e
+            </span>
           </div>
-        </div>
-        <p className="mb-3 text-sm text-slate">
-          Séances faites et activités importées du {statsFromISO.slice(8, 10)}/{statsFromISO.slice(5, 7)} au{" "}
-          {today.slice(8, 10)}/{today.slice(5, 7)} ({bilanPeriod.days} jour{bilanPeriod.days > 1 ? "s" : ""}).
-        </p>
-        <div className="mb-8">
-          <TrainingInsights
-            workouts={allWorkouts.filter((w) => w.date >= statsFromISO && w.date <= today)}
-            imports={recentImports}
-            periodDays={bilanPeriod.days}
-          />
-        </div>
+          <p className="mb-3 text-xs text-slate">
+            Jamais partagées avec l&apos;athlète, ni avec un autre coach qui le suivrait aussi.
+          </p>
+          <form
+            action={async (formData) => {
+              "use server";
+              await upsertCoachNotesAction(formData);
+            }}
+            className="grid gap-3 sm:grid-cols-2"
+          >
+            <input type="hidden" name="athleteId" value={athleteId} />
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="font-medium text-ink-soft">Points forts</span>
+              <textarea
+                name="strengths"
+                rows={3}
+                defaultValue={coachNotes?.strengths || ""}
+                placeholder="Ce qui fonctionne bien, à capitaliser…"
+                className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="font-medium text-ink-soft">Points faibles / axes de travail</span>
+              <textarea
+                name="weaknesses"
+                rows={3}
+                defaultValue={coachNotes?.weaknesses || ""}
+                placeholder="Ce sur quoi insister dans la programmation…"
+                className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
+              />
+            </label>
+            <div className="sm:col-span-2">
+              <Button type="submit" variant="secondary">
+                Enregistrer
+              </Button>
+              {coachNotes?.updated_at && (
+                <span className="ml-3 text-xs text-slate">
+                  Dernière mise à jour : {new Date(coachNotes.updated_at.replace(" ", "T")).toLocaleDateString("fr-FR")}
+                </span>
+              )}
+            </div>
+          </form>
+        </Card>
 
-        <h2 className="mb-3 font-display text-xl text-ink">Programmation</h2>
-        <p className="mb-3 text-sm text-slate">Séances récentes, à venir et activités importées, en un coup d&apos;œil.</p>
-        <AthleteCalendar athleteId={athleteId} view={view} week={week} month={month} today={today} />
+
+              </>
+            ),
+          }}
+        />
       </main>
       </div>
     </div>
