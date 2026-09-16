@@ -23,10 +23,10 @@ const FILTERS = [
   { value: "today", label: "Séance aujourd'hui" },
 ];
 
-// Une ligne par athlète regroupant tout ce qui le concerne aujourd'hui —
-// plutôt que cinq encadrés séparés obligeant à recroiser mentalement qui
-// apparaît où.
-function AthleteRow({
+// Une carte par athlète regroupant tout ce qui le concerne aujourd'hui —
+// disposition validée en maquette : grille de cartes plutôt qu'une liste de
+// lignes, chaque carte se lisant d'un coup d'œil.
+function AthleteCard({
   athleteId,
   link,
   todayWorkouts,
@@ -57,71 +57,76 @@ function AthleteRow({
   const sharedNote = checkinNote || journalNote;
 
   return (
-    <div className={`rounded-2xl border p-3 ${alerts.length > 0 ? "border-gold-light/40 bg-gold-light/5" : "border-line bg-white"}`}>
-      <div className="flex flex-wrap items-center gap-2.5">
-        <Avatar userId={athleteId} firstName={link.first_name || "?"} hasAvatar={!!link.avatar_path} size="sm" />
-        <Link href={`/coach/athletes/${athleteId}`} className="font-medium text-ink hover:underline">
-          {link.first_name} {link.last_name}
-        </Link>
-
-        {/* Forme du jour */}
-        <span className="text-sm text-slate">
-          {score !== null ? (
-            <>
-              forme <span className="font-semibold text-ink">{score}/10</span>{" "}
-              <span className="text-xs">({scoreLabel(score)})</span>
-            </>
-          ) : (
-            <span className="text-xs">forme non renseignée</span>
-          )}
-        </span>
-
-        {/* Entraînement du jour */}
-        <span className="flex items-center gap-1.5 text-sm text-ink-soft">
-          {todayWorkouts.length > 0 ? (
-            <>
-              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke={todayWorkouts[0].color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d={sportIconPath(todayWorkouts[0].sport)} />
-              </svg>
-              <Link href={`/coach/athletes/${athleteId}/day/${today}`} className="hover:underline">
-                {todayWorkouts[0].title}
-                {todayWorkouts.length > 1 && ` +${todayWorkouts.length - 1}`}
-              </Link>
-            </>
-          ) : (
-            <span className="text-xs text-slate">repos aujourd&apos;hui</span>
-          )}
-        </span>
-
-        <span className="ml-auto flex items-center gap-2">
+    <div
+      className={`flex flex-col rounded-3xl border bg-white p-4 ${
+        alerts.length > 0 ? "border-gold-light/50" : "border-line"
+      }`}
+    >
+      {/* En-tête : identité */}
+      <div className="mb-3 flex items-center gap-2.5">
+        <Avatar userId={athleteId} firstName={link.first_name || "?"} hasAvatar={!!link.avatar_path} size="lg" />
+        <div className="min-w-0">
+          <Link href={`/coach/athletes/${athleteId}`} className="block truncate font-medium text-ink hover:underline">
+            {link.first_name} {link.last_name}
+          </Link>
           {unread > 0 && (
-            <Link
-              href={`/coach/athletes/${athleteId}/messages`}
-              className="rounded-full bg-moss px-2 py-0.5 text-[11px] font-semibold text-white"
-            >
-              {unread} message{unread > 1 ? "s" : ""}
+            <Link href={`/coach/athletes/${athleteId}/messages`} className="text-xs font-semibold text-moss-dark hover:underline">
+              {unread} message{unread > 1 ? "s" : ""} non lu{unread > 1 ? "s" : ""}
             </Link>
           )}
-          <Link
-            href={`/coach/athletes/${athleteId}/new-workout`}
-            className="whitespace-nowrap rounded-full border border-line px-2.5 py-0.5 text-xs font-semibold text-moss-dark hover:border-moss"
-          >
-            + Séance
-          </Link>
-        </span>
+        </div>
       </div>
 
-      {/* Note partagée par l'athlète, présentée comme une bulle de message */}
-      {sharedNote && (
-        <div className="mt-2 flex gap-2 pl-8">
-          <span className="text-slate">💬</span>
-          <p className="rounded-2xl rounded-tl-sm bg-paper-dim px-3 py-1.5 text-sm text-ink-soft">{sharedNote}</p>
+      {/* Deux lignes d'information, comme dans la maquette validée */}
+      <dl className="mb-3 flex flex-col gap-1.5 text-sm">
+        <div className="flex items-baseline justify-between gap-2">
+          <dt className="text-slate">Forme</dt>
+          <dd className="text-right font-medium text-ink">
+            {score !== null ? (
+              <>
+                {score}/10 <span className="text-xs font-normal text-slate">({scoreLabel(score)})</span>
+              </>
+            ) : (
+              <span className="text-xs font-normal text-slate">non renseignée</span>
+            )}
+          </dd>
         </div>
+        <div className="flex items-baseline justify-between gap-2">
+          <dt className="shrink-0 text-slate">Aujourd&apos;hui</dt>
+          <dd className="min-w-0 text-right font-medium text-ink">
+            {todayWorkouts.length > 0 ? (
+              <Link href={`/coach/athletes/${athleteId}/day/${today}`} className="flex items-center justify-end gap-1.5 hover:underline">
+                <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke={todayWorkouts[0].color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                  <path d={sportIconPath(todayWorkouts[0].sport)} />
+                </svg>
+                <span className="truncate">
+                  {todayWorkouts[0].title}
+                  {todayWorkouts.length > 1 && ` +${todayWorkouts.length - 1}`}
+                </span>
+              </Link>
+            ) : (
+              <span className="text-xs font-normal text-slate">repos</span>
+            )}
+          </dd>
+        </div>
+      </dl>
+
+      {/* Note partagée par l'athlète, en bulle de message */}
+      {sharedNote && (
+        <p className="mb-3 rounded-2xl rounded-tl-sm bg-paper-dim px-3 py-2 text-sm text-ink-soft">
+          <span className="mr-1">💬</span>
+          {sharedNote}
+        </p>
       )}
 
-      {alerts.length > 0 && (
-        <p className="mt-2 pl-8 text-xs text-gold-light">⚠ {alerts.join(" · ")}</p>
-      )}
+      {alerts.length > 0 && <p className="mb-3 text-xs text-gold-light">⚠ {alerts.join(" · ")}</p>}
+
+      <Link
+        href={`/coach/athletes/${athleteId}/new-workout`}
+        className="mt-auto rounded-full border border-line px-3 py-1.5 text-center text-xs font-semibold text-moss-dark hover:border-moss"
+      >
+        + Programmer une séance
+      </Link>
     </div>
   );
 }
@@ -189,9 +194,11 @@ export default async function CoachDashboardPage({
         <div className="lg:hidden">
           <Nav user={user} />
         </div>
-        <main className="mx-auto max-w-4xl px-6 py-8">
+        <main className="mx-auto max-w-5xl px-6 py-8">
           <h1 className="mb-1 font-display text-3xl text-ink">Mes athlètes</h1>
           <p className="mb-6 text-slate">
+            {activeAthletes.length} athlète{activeAthletes.length > 1 ? "s" : ""} suivi{activeAthletes.length > 1 ? "s" : ""}
+            {" · "}
             {new Date(`${today}T00:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
             {attentionCount > 0 && (
               <>
@@ -235,9 +242,9 @@ export default async function CoachDashboardPage({
                   <p className="text-sm text-slate">Aucun athlète ne correspond à ce filtre.</p>
                 </Card>
               ) : (
-                <div className="flex flex-col gap-2">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {visible.map((r) => (
-                    <AthleteRow key={r.athleteId} {...r} today={today} />
+                    <AthleteCard key={r.athleteId} {...r} today={today} />
                   ))}
                 </div>
               )}
