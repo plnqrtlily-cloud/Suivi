@@ -10,7 +10,8 @@ import { sportIconPath } from "@/lib/sport-icons";
 import { DayLink } from "@/components/day-link";
 import { DeleteAvailabilityButton } from "@/components/delete-availability-button";
 import { SnapScrollNav } from "@/components/snap-scroll-nav";
-import { AddAvailabilityModal, EditAvailabilityModal } from "@/components/availability-modal";
+import { EditAvailabilityModal } from "@/components/availability-modal";
+import { CalendarAddButton } from "./calendar-add-button";
 import type { AvailabilityBlock, Workout } from "@/lib/queries";
 
 const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
@@ -101,9 +102,11 @@ export default async function ProgrammationPage({
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
       <main className="mx-auto max-w-3xl px-6 py-10">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h1 className="font-display text-3xl text-ink">Calendrier</h1>
-          <AddAvailabilityModal defaultDate={today} />
+          {/* Point d'entrée unique : séance faite hors programmation OU
+              indisponibilité — les deux se rattachent à un jour du calendrier. */}
+          <CalendarAddButton defaultDate={today} />
         </div>
 
         <div className="mb-6 flex rounded-2xl bg-paper-dim p-1">

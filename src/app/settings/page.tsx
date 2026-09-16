@@ -5,6 +5,11 @@ import { Nav } from "@/components/nav";
 import { Card } from "@/components/ui";
 import { LogoutAllButton, DeleteAccountButton } from "./account-buttons";
 import { PushNotificationsToggle } from "@/components/push-notifications-toggle";
+import Link from "next/link";
+import { getCoachesForAthlete, getExternalConnections, getImportedActivities } from "@/lib/queries";
+import { SyncPanel } from "@/app/athlete/profile/sync-panel";
+import { JoinCoachForm } from "@/app/athlete/join-coach-form";
+import { RevokeButton } from "@/app/coach/revoke-button";
 
 function DownloadIcon() {
   return (
@@ -18,6 +23,17 @@ export default async function SettingsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
+  // Connexions externes et coachs liés : regroupés ici plutôt que sur le profil,
+  // qui concerne les données sportives de l'athlète (mesures, zones, blessures).
+  const isAthlete = user.role === "athlete";
+  const [coaches, externalConnections, importedActivities] = isAthlete
+    ? await Promise.all([
+        getCoachesForAthlete(user.id),
+        getExternalConnections(user.id),
+        getImportedActivities(user.id),
+      ])
+    : [[], [], []];
+
   return (
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
@@ -28,6 +44,46 @@ export default async function SettingsPage() {
           <h2 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate">Notifications push</h2>
           <PushNotificationsToggle publicKey={getPushPublicKey()} />
         </Card>
+
+        {isAthlete && (
+          <Card className="mb-6 rounded-3xl">
+            <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Mes coachs</h2>
+            {coaches.length === 0 && <p className="mb-3 text-sm text-slate">Aucun coach lié pour l&apos;instant.</p>}
+            <ul className="mb-4 space-y-2 text-sm">
+              {coaches.map((c: any) => (
+                <li key={c.link_id} className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-ink">
+                    {c.first_name} {c.last_name} — {c.email}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <Link
+                      href={`/athlete/messages/${c.coach_id}`}
+                      className="flex items-center gap-1 text-xs font-semibold text-moss-dark hover:underline"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 5.5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-3.5 3v-3H5a2 2 0 0 1-2-2z" />
+                      </svg>
+                      Discuter
+                    </Link>
+                    <RevokeButton linkId={c.link_id} label="Retirer l'accès" />
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <JoinCoachForm />
+          </Card>
+        )}
+
+        {isAthlete && (
+          <Card className="mb-6 rounded-3xl">
+            <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Montres & applications</h2>
+            <p className="mb-4 text-xs text-slate">
+              Connectez Garmin ou Strava pour importer vos activités automatiquement. L&apos;import manuel reste
+              disponible indépendamment.
+            </p>
+            <SyncPanel connections={externalConnections} activities={importedActivities} />
+          </Card>
+        )}
 
         <Card className="mb-6 rounded-3xl">
           <h2 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate">Exporter mes données (RGPD)</h2>
