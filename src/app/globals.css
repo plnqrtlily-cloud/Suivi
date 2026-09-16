@@ -43,3 +43,13 @@ body {
   outline: 2px solid var(--color-moss);
   outline-offset: 2px;
 }
+
+/* La barre d'onglets mobile est fixée en bas : sans cette réserve, elle
+   recouvre la fin de chaque page (dernier bouton, dernière ligne de liste).
+   Neutralisée dès lg:, où la barre disparaît au profit de la navigation
+   haute ou latérale. */
+@media (max-width: 1023px) {
+  main {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  }
+}

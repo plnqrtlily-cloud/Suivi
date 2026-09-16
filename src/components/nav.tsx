@@ -6,6 +6,7 @@ import { NotificationBell } from "./notification-bell";
 import { Avatar } from "./avatar";
 import Link from "next/link";
 import { NavIcon, type NavIconName } from "./nav-icon";
+import { BottomNav } from "./bottom-nav";
 
 export async function Nav({ user }: { user: User }) {
   const homeHref = user.role === "coach" ? "/coach" : "/athlete";
@@ -43,10 +44,13 @@ export async function Nav({ user }: { user: User }) {
     </span>
   );
 
-  return (
-    <header className="relative border-b border-line bg-white">
-      <input type="checkbox" id="nav-toggle" className="peer hidden" />
+  // La barre du bas se limite à cinq onglets : au-delà, les libellés
+  // deviennent illisibles sur un écran étroit.
+  const bottomNavItems = navItems.slice(0, 5);
 
+  return (
+    <>
+      <header className="relative border-b border-line bg-white">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 lg:px-6">
         <Link href={homeHref} className="shrink-0 font-display text-lg text-ink">
           Rythme
@@ -78,49 +82,14 @@ export async function Nav({ user }: { user: User }) {
 
         <div className="flex items-center gap-2 lg:hidden">
           <NotificationBell notifications={notifications} />
-          <label
-            htmlFor="nav-toggle"
-            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-line text-ink peer-checked:bg-paper-dim"
-            aria-label="Ouvrir le menu"
-          >
-            <span className="sr-only">Menu</span>
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-              <path d="M2 4.5h14M2 9h14M2 13.5h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
-          </label>
         </div>
       </div>
 
-      {/* Fond assombri derrière le menu mobile — cliquer dessus le referme (label pointant vers la même checkbox). */}
-      <label
-        htmlFor="nav-toggle"
-        aria-hidden="true"
-        className="fixed inset-0 z-40 hidden bg-ink/25 max-lg:peer-checked:block lg:hidden"
-      />
-
-      <div className="absolute inset-x-3 top-full z-50 hidden flex-col overflow-hidden rounded-xl border border-line bg-white shadow-lg max-lg:peer-checked:flex lg:hidden">
-        <nav className="flex flex-col divide-y divide-line">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex items-center gap-3 px-4 py-3 text-sm text-ink active:bg-paper-dim"
-            >
-              <NavIcon name={item.icon} className="h-5 w-5 text-ink-soft" />
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="flex items-center justify-between gap-3 border-t border-line bg-paper-dim px-4 py-3">
-          {userInfo}
-          <form action={logoutAction}>
-            <button className="flex items-center gap-1.5 text-sm text-slate hover:text-ink" type="submit">
-              <NavIcon name="logout" className="h-5 w-5" />
-              Déconnexion
-            </button>
-          </form>
-        </div>
-      </div>
     </header>
+
+      {/* Navigation principale au pouce sur mobile ; sur grand écran, la barre
+          du haut (ou la barre latérale côté coach) suffit. */}
+      <BottomNav items={bottomNavItems} />
+    </>
   );
 }
