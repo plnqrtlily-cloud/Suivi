@@ -67,7 +67,9 @@ export default async function PlanificationPage({
   const [yearStr, monthStr] = (sp.mois || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`).split("-");
   const year = Number(yearStr);
   const monthNum = Number(monthStr);
-  const monthGrid = getMonthGrid(year, monthNum - 1);
+  // getMonthGrid et monthLabel attendent un mois en base 1 (ils appliquent le
+  // -1 en interne) : passer monthNum - 1 affichait le mois précédent.
+  const monthGrid = getMonthGrid(year, monthNum);
   const rangeFrom = vue === "semaine" ? weekDates[0] : monthGrid[0].date;
   const rangeTo = vue === "semaine" ? weekDates[6] : monthGrid[monthGrid.length - 1].date;
 
@@ -276,7 +278,7 @@ export default async function PlanificationPage({
                 <Link href={buildQuery({ vue, mois: prevMonth, athlete: selectedAthleteId || undefined })} scroll={false} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
                   ‹
                 </Link>
-                <p className="text-sm font-semibold text-ink-soft">{monthLabel(year, monthNum - 1)}</p>
+                <p className="text-sm font-semibold text-ink-soft">{monthLabel(year, monthNum)}</p>
                 <Link href={buildQuery({ vue, mois: nextMonth, athlete: selectedAthleteId || undefined })} scroll={false} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
                   ›
                 </Link>

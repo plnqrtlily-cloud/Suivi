@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { addCoachReminderAction, toggleCoachReminderAction, deleteCoachReminderAction } from "@/lib/actions";
 import { Button } from "@/components/ui";
@@ -27,16 +27,34 @@ export function CoachReminders({
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [showDone, setShowDone] = useState(false);
+  // Copie locale : router.refresh() ne ramène pas toujours les données
+  // fraîches avant le prochain rendu, ce qui faisait disparaître un rappel
+  // à peine ajouté jusqu'au rechargement manuel de la page.
+  const [items, setItems] = useState(reminders);
+  useEffect(() => setItems(reminders), [reminders]);
 
-  const pendingReminders = reminders.filter((r) => !r.done_at);
-  const doneReminders = reminders.filter((r) => r.done_at);
+  const pendingReminders = items.filter((r) => !r.done_at);
+  const doneReminders = items.filter((r) => r.done_at);
   const today = new Date().toISOString().slice(0, 10);
 
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
     setPending(true);
-    await addCoachReminderAction(new FormData(form));
+    const fd = new FormData(form);
+    await addCoachReminderAction(fd);
+    const athleteId = String(fd.get("athleteId") || "") || null;
+    setItems((prev) => [
+      {
+        id: `tmp-${Date.now()}`,
+        content: String(fd.get("content") || ""),
+        due_date: String(fd.get("dueDate") || "") || null,
+        done_at: null,
+        athlete_id: athleteId,
+        first_name: athletes.find((a) => a.id === athleteId)?.name.split(" ")[0] ?? null,
+      },
+      ...prev,
+    ]);
     setPending(false);
     form.reset();
     setOpen(false);
@@ -44,11 +62,15 @@ export function CoachReminders({
   }
 
   async function handleToggle(id: string) {
+    setItems((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, done_at: r.done_at ? null : new Date().toISOString() } : r))
+    );
     await toggleCoachReminderAction(id);
     router.refresh();
   }
 
   async function handleDelete(id: string) {
+    setItems((prev) => prev.filter((r) => r.id !== id));
     await deleteCoachReminderAction(id);
     router.refresh();
   }
