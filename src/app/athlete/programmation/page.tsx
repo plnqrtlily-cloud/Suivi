@@ -29,6 +29,15 @@ function monthParamStr(year: number, month: number): string {
 // les trois panneaux (précédent/courant/suivant) du défilement continu aient
 // toujours exactement la même hauteur — sans quoi les points d'ancrage du
 // scroll-snap ne tomberaient pas aux mêmes positions d'un panneau à l'autre.
+// Hauteur d'un panneau de mois, déduite du gabarit d'une ligne plutôt que
+// codée en dur : une valeur figée (336 px) coupait la dernière ligne de
+// chiffres, la grille faisant toujours 6 semaines une fois complétée.
+// Par ligne : py-1 (2×4) + pastille h-7 (28) + gap-1 (4) + pastilles h-3.5 (14).
+const MONTH_ROW_HEIGHT = 8 + 28 + 4 + 14; // 54 px
+const MONTH_ROW_GAP = 12; // gap-y-3
+const MONTH_ROWS = 6; // padGridTo42 garantit 42 cases = 6 semaines
+const MONTH_PANE_HEIGHT = MONTH_ROWS * MONTH_ROW_HEIGHT + (MONTH_ROWS - 1) * MONTH_ROW_GAP;
+
 function padGridTo42(grid: MonthCell[]): MonthCell[] {
   if (grid.length >= 42) return grid;
   const extra: MonthCell[] = [];
@@ -286,18 +295,18 @@ async function MonthView({ athleteId, monthParam, today }: { athleteId: string; 
 
       <SnapScrollNav
         axis="y"
-        paneSize={336}
+        paneSize={MONTH_PANE_HEIGHT}
         panesKey={monthParamStr(year, month)}
         prevHref={prevHref}
         nextHref={nextHref}
         panes={[
-          <div key="prev" className="h-[336px]">
+          <div key="prev" style={{ height: MONTH_PANE_HEIGHT }}>
             <MonthGridBody grid={prevGrid} workouts={allWorkouts} blocks={allBlocks} today={today} />
           </div>,
-          <div key="cur" className="h-[336px]">
+          <div key="cur" style={{ height: MONTH_PANE_HEIGHT }}>
             <MonthGridBody grid={grid} workouts={allWorkouts} blocks={allBlocks} today={today} />
           </div>,
-          <div key="next" className="h-[336px]">
+          <div key="next" style={{ height: MONTH_PANE_HEIGHT }}>
             <MonthGridBody grid={nextGrid} workouts={allWorkouts} blocks={allBlocks} today={today} />
           </div>,
         ]}
