@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button, SelectField } from "@/components/ui";
+import { sportConfig, templateStructure } from "@/lib/sport-config";
 
 // Séance structurée en étapes, façon Garmin Connect : chaque étape a un type
 // (échauffement/effort/récupération/repos/retour au calme), une durée (temps,
@@ -72,7 +73,11 @@ function newStep(stepType: StepType = "work"): IntervalStepItem {
   };
 }
 
-function TargetPicker({ target, onChange }: { target: IntervalTarget; onChange: (t: IntervalTarget) => void }) {
+function TargetPicker({ target, onChange, sport }: { target: IntervalTarget; onChange: (t: IntervalTarget) => void; sport: string }) {
+  // N'afficher que les cibles qui ont du sens pour ce sport : pas de zone de
+  // puissance en natation, pas de zone d'allure en escalade.
+  const allowed = sportConfig(sport).targets as string[];
+  const options = TARGET_TYPES.filter((t) => t.value === "none" || allowed.includes(t.value));
   return (
     <div className="flex gap-2">
       <select
@@ -80,7 +85,7 @@ function TargetPicker({ target, onChange }: { target: IntervalTarget; onChange: 
         onChange={(e) => onChange({ type: e.target.value as TargetType })}
         className="rounded border border-line px-2 py-1 text-sm"
       >
-        {TARGET_TYPES.map((t) => (
+        {options.map((t) => (
           <option key={t.value} value={t.value}>
             {t.label}
           </option>
@@ -115,11 +120,14 @@ function StepRow({
   step,
   onChange,
   onRemove,
+  sport,
 }: {
   step: IntervalStepItem;
   onChange: (s: IntervalStepItem) => void;
   onRemove: () => void;
+  sport: string;
 }) {
+  const cfg = sportConfig(sport);
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-xl bg-paper-dim p-2">
       <select
@@ -138,7 +146,7 @@ function StepRow({
         onChange={(e) => onChange({ ...step, durationType: e.target.value as DurationType })}
         className="rounded border border-line px-2 py-1 text-sm"
       >
-        {DURATION_TYPES.map((t) => (
+        {DURATION_TYPES.filter((t) => cfg.durations.includes(t.value)).map((t) => (
           <option key={t.value} value={t.value}>
             {t.label}
           </option>
@@ -148,11 +156,11 @@ function StepRow({
         <input
           value={step.durationValue}
           onChange={(e) => onChange({ ...step, durationValue: e.target.value })}
-          placeholder={step.durationType === "time" ? "10:00" : "1000 m"}
+          placeholder={step.durationType === "time" ? "10:00" : cfg.distanceUnit === "m" ? "100 m" : "1000 m"}
           className="w-24 rounded border border-line px-2 py-1 text-sm"
         />
       )}
-      <TargetPicker target={step.target} onChange={(target) => onChange({ ...step, target })} />
+      <TargetPicker target={step.target} onChange={(target) => onChange({ ...step, target })} sport={sport} />
       <button type="button" onClick={onRemove} className="ml-auto text-xs text-clay hover:underline">
         Retirer
       </button>
@@ -163,10 +171,13 @@ function StepRow({
 export function IntervalBuilder({
   items,
   onChange,
+  sport,
 }: {
   items: IntervalItem[];
   onChange: (items: IntervalItem[]) => void;
+  sport: string;
 }) {
+  const cfg = sportConfig(sport);
   function update(newItems: IntervalItem[]) {
     onChange(newItems);
   }
@@ -200,8 +211,31 @@ export function IntervalBuilder({
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate">
         Construisez la séance étape par étape (échauffement, efforts, récupérations…), avec des cibles basées sur
-        les zones de l&apos;athlète — comme un entraînement structuré Garmin Connect.
+        les zones de l&apos;athlète — comme un entraînement structuré Garmin Connect ou TrainingPeaks.
       </p>
+
+      {/* Modèles de structure : partir d'une base cohérente plutôt que d'une
+          page vide, comme les "block templates" de TrainingPeaks. Adaptés au
+          sport choisi (une série de natation se compte en mètres, une sortie
+          vélo en minutes). */}
+      {items.length === 0 && (
+        <div className="rounded-2xl bg-paper-dim p-3">
+          <p className="mb-2 text-xs font-medium text-ink-soft">Partir d&apos;un modèle :</p>
+          <div className="flex flex-wrap gap-2">
+            {cfg.templates.map((t) => (
+              <button
+                key={t.label}
+                type="button"
+                onClick={() => update(templateStructure(sport, t.label) as IntervalItem[])}
+                title={t.description}
+                className="rounded-full border border-line bg-white px-3 py-1 text-xs font-medium text-ink-soft hover:border-moss hover:text-moss-dark"
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {items.map((item, idx) => (
         <div key={item.id} className="flex items-start gap-2">
@@ -226,7 +260,7 @@ export function IntervalBuilder({
 
           {item.kind === "step" ? (
             <div className="flex-1">
-              <StepRow step={item} onChange={(s) => updateItem(item.id, s)} onRemove={() => removeItem(item.id)} />
+              <StepRow step={item} onChange={(s) => updateItem(item.id, s)} onRemove={() => removeItem(item.id)} sport={sport} />
             </div>
           ) : (
             <div className="flex-1 rounded-2xl border-2 border-dashed border-moss/40 p-3">
@@ -256,6 +290,7 @@ export function IntervalBuilder({
                     onRemove={() =>
                       updateItem(item.id, { steps: item.steps.filter((x) => x.id !== s.id) } as Partial<RepeatGroupItem>)
                     }
+                    sport={sport}
                   />
                 ))}
                 <button

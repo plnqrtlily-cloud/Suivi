@@ -7,6 +7,7 @@ import { Field, SelectField, TextAreaField, Button, ErrorText } from "@/componen
 import { DateRangePicker, dateRangeToList } from "@/components/date-range-picker";
 import { StrengthBuilder, BlockRow, LibraryResource, sortBlocksByGroupOrder } from "./strength-builder";
 import { IntervalBuilder, IntervalItem } from "./interval-builder";
+import { sportConfig } from "@/lib/sport-config";
 
 interface TemplateBlockInput {
   block_type: string;
@@ -433,7 +434,24 @@ export function WorkoutForm({
       ) : (
         <div>
           <p className="mb-3 text-sm font-medium text-ink-soft">Structure de la séance (facultatif)</p>
-          <IntervalBuilder items={intervals} onChange={setIntervals} />
+          <IntervalBuilder items={intervals} onChange={setIntervals} sport={sport} />
+
+          {/* Volume global, proposé selon le sport : une distance en mètres pour
+              la natation, des kilomètres et du dénivelé pour le vélo ou la
+              course, un nombre de voies en escalade. */}
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {sportConfig(sport).volumeFields.map((f) => (
+              <Field
+                key={f.name}
+                label={f.unit ? `${f.label} (${f.unit})` : f.label}
+                type="number"
+                step="0.1"
+                min={0}
+                name={f.name}
+                placeholder="Facultatif"
+              />
+            ))}
+          </div>
         </div>
       )}
 

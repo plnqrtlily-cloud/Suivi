@@ -802,6 +802,31 @@ async function main() {
   const deviceMeasure = await dbGet<any>(`SELECT device FROM athlete_measurements WHERE athlete_id = ? AND recorded_at = '2027-04-01'`, [athlete.id]);
   assert(deviceMeasure?.device === "ergocycle", "L'appareil sur lequel la mesure a été faite est bien enregistré");
 
+  // 49. Construction de séance adaptée au sport (cf. TrainingPeaks/Garmin :
+  // l'éditeur ne propose que ce qui a du sens pour l'activité)
+  const { sportConfig, templateStructure } = await import("../src/lib/sport-config");
+  assert(
+    sportConfig("cycling").targets.includes("power_zone") && !sportConfig("swimming").targets.includes("power_zone"),
+    "La zone de puissance est proposée en vélo mais pas en natation"
+  );
+  assert(sportConfig("swimming").distanceUnit === "m" && sportConfig("running").distanceUnit === "km",
+    "La natation se prescrit en mètres, la course en kilomètres");
+  assert(
+    sportConfig("cycling").volumeFields.some((f) => f.name === "elevationM"),
+    "Le dénivelé est proposé pour le vélo"
+  );
+
+  const swimIntervals = templateStructure("swimming", "Série fractionnée");
+  const repeatBlock = swimIntervals.find((i: any) => i.kind === "repeat") as any;
+  assert(!!repeatBlock && repeatBlock.steps.length === 2, "Le modèle de série fractionnée contient bien un bloc répété effort/récupération");
+  assert(repeatBlock.steps[0].durationValue === "50", "La série de natation est bien exprimée en mètres (50 m), pas en minutes");
+
+  const runIntervals = templateStructure("running", "Séance simple") as any[];
+  assert(
+    runIntervals.length === 3 && runIntervals[0].stepType === "warmup" && runIntervals[2].stepType === "cooldown",
+    "Le modèle 'Séance simple' crée bien échauffement / corps de séance / retour au calme"
+  );
+
   console.log("\nTest end-to-end terminé.");
 }
 
