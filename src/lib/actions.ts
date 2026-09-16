@@ -741,11 +741,12 @@ export async function addMeasurementAction(formData: FormData) {
   const value = Number(formData.get("value") || 0);
   const recordedAt = String(formData.get("recordedAt") || "").trim();
   const note = String(formData.get("note") || "").trim();
+  const device = String(formData.get("device") || "").trim();
   if (!metric || Number.isNaN(value)) return;
 
   await dbRun(
-    `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note) VALUES (?, ?, ?, ?, ?, ?)`,
-    [randomUUID(), targetAthleteId, metric, value, recordedAt || new Date().toISOString(), note || null]
+    `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note, device) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [randomUUID(), targetAthleteId, metric, value, recordedAt || new Date().toISOString(), note || null, device || null]
   );
 
   revalidatePath("/athlete/profile");

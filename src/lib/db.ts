@@ -392,6 +392,10 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE exercise_maxes ADD COLUMN note TEXT`,
   // Statistiques de performance : note libre, comme pour les charges de référence.
   `ALTER TABLE athlete_measurements ADD COLUMN note TEXT`,
+  // Appareil sur lequel la mesure a été faite : un FTP mesuré sur ergocycle
+  // n'est pas comparable à un FTP mesuré sur route, d'où l'intérêt de le
+  // tracer plutôt que de mélanger des valeurs non comparables.
+  `ALTER TABLE athlete_measurements ADD COLUMN device TEXT`,
   // Liens utiles ajoutés à la construction d'une séance (plan d'entraînement
   // externe, vidéo, carte de parcours…) — stockés en JSON (tableau de
   // {label, url}), comme les modèles de séances.

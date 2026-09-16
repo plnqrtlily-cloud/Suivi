@@ -19,6 +19,10 @@ import { addMeasurementAction, addInjuryAction, setGenderAction, setAthleteSport
 import { AvatarUpload } from "./avatar-upload";
 import { getCycleSettings, getCycleEntries, estimateCyclePhase } from "@/lib/cycle";
 import { computeHrZones } from "@/lib/hr-zones";
+import { computePowerZones } from "@/lib/power-zones";
+import { computePaceZones } from "@/lib/pace-zones";
+import { ZoneGrid, formatPaceValue } from "@/components/zone-grid";
+import { PERFORMANCE_METRICS, MEASUREMENT_DEVICES, deviceLabel, computeDerivedMetrics } from "@/lib/performance-metrics";
 import { Nav } from "@/components/nav";
 import { Card, Field, SelectField, Button, sportLabel } from "@/components/ui";
 import { CyclePanel } from "./cycle-panel";
@@ -34,15 +38,12 @@ function formatPace(minPerKm: number): string {
   return `${min}:${String(sec).padStart(2, "0")} /km`;
 }
 
-const METRICS = [
-  { value: "weight_kg", label: "Poids (kg)" },
-  { value: "height_cm", label: "Taille (cm)" },
-  { value: "fc_repos", label: "FC repos (bpm)" },
-  { value: "fc_max", label: "FC max (bpm)" },
-  { value: "vo2max", label: "VO2max" },
-  { value: "ftp", label: "FTP (W)" },
-  { value: "pma_vma", label: "PMA/VMA" },
-];
+// Liste partagée avec la fiche coach (src/lib/performance-metrics.ts) —
+// inclut seuil lactique et lactatémie en plus des mesures historiques.
+const METRICS = PERFORMANCE_METRICS.map((m) => ({
+  value: m.value,
+  label: m.unit ? `${m.label} (${m.unit})` : m.label,
+}));
 
 const SPORTS_LIST = [
   { value: "running", label: "Course à pied" },
@@ -85,6 +86,19 @@ export default async function AthleteProfilePage() {
   for (const key in seriesByMetric) {
     seriesByMetric[key].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
   }
+
+  // Indicateurs dérivés : calculés uniquement à partir de mesures partageant la
+  // MÊME date, pour ne pas croiser un poids de janvier avec une FC max de juin.
+  // On retient la date la plus récente qui porte au moins une mesure.
+  const byDate = new Map<string, Record<string, number>>();
+  for (const h of historyAll as any[]) {
+    const day = h.recorded_at.slice(0, 10);
+    if (!byDate.has(day)) byDate.set(day, {});
+    const bucket = byDate.get(day)!;
+    if (!(h.metric in bucket)) bucket[h.metric] = h.value;
+  }
+  const latestDay = [...byDate.keys()].sort().reverse()[0];
+  const derivedMetrics = latestDay ? computeDerivedMetrics(byDate.get(latestDay)!) : [];
 
   const [cycleSettings, cycleEstimate, cycleEntries] =
     gender === "female"
@@ -165,11 +179,34 @@ export default async function AthleteProfilePage() {
             </SelectField>
             <Field label="Valeur" type="number" step="0.1" name="value" required />
             <Field label="Date de la mesure" type="date" name="recordedAt" defaultValue={new Date().toISOString().slice(0, 10)} />
+            <SelectField label="Appareil utilisé" name="device">
+              {MEASUREMENT_DEVICES.map((d) => (
+                <option key={d.value} value={d.value}>
+                  {d.label}
+                </option>
+              ))}
+            </SelectField>
             <Field label="Note (facultatif)" name="note" placeholder="Contexte, conditions de la mesure…" />
             <div className="sm:col-span-2">
               <Button type="submit">Ajouter une mesure</Button>
             </div>
           </form>
+          {derivedMetrics.length > 0 && (
+            <div className="mt-4 rounded-2xl bg-paper-dim p-3">
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate">
+                Calculé automatiquement <span className="font-normal normal-case">— mesures du {latestDay}</span>
+              </p>
+              <ul className="flex flex-col gap-2">
+                {derivedMetrics.map((d) => (
+                  <li key={d.label} className="text-sm">
+                    <span className="text-ink-soft">{d.label} : </span>
+                    <span className="font-semibold text-ink">{d.value}</span>
+                    <p className="text-xs text-slate">{d.explanation}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {history.length > 0 && (
             <details className="mt-4 text-sm text-slate">
               <summary className="cursor-pointer">Historique des mesures</summary>
@@ -177,6 +214,7 @@ export default async function AthleteProfilePage() {
                 {history.map((h) => (
                   <li key={h.id}>
                     {h.recorded_at.slice(0, 10)} — {METRICS.find((m) => m.value === h.metric)?.label}: {h.value}
+                    {h.device && ` · ${deviceLabel(h.device)}`}
                     {h.note && ` — ${h.note}`}
                   </li>
                 ))}
@@ -194,55 +232,69 @@ export default async function AthleteProfilePage() {
           <ExerciseMaxesPanel athleteId={user.id} maxes={exerciseMaxes} exerciseSuggestions={[]} />
         </Card>
 
-        {latest.fc_repos && latest.fc_max ? (
-          <Card className="mb-8 rounded-3xl">
-            <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Zones de fréquence cardiaque</h2>
-            <p className="mb-4 text-xs text-slate">
-              Calculées par méthode de Karvonen à partir de vos FC repos ({latest.fc_repos.value}) et FC max (
-              {latest.fc_max.value}).
-            </p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-              {computeHrZones(latest.fc_repos.value, latest.fc_max.value).map((z) => {
-                // Progression du froid (effort léger) vers le chaud (effort maximal) —
-                // convention universellement comprise pour des zones d'intensité,
-                // plutôt que des cartes neutres identiques qui ne distinguaient pas
-                // visuellement un effort facile d'un effort maximal.
-                const ZONE_COLORS: Record<number, string> = {
-                  1: "#6B7A8A",
-                  2: "#1B4B4F",
-                  3: "#B08A3E",
-                  4: "#E8896A",
-                  5: "#B85A3E",
-                };
-                const color = ZONE_COLORS[z.zone];
-                return (
-                  <div key={z.zone} className="overflow-hidden rounded-xl bg-paper-dim text-center">
-                    <div className="h-1.5" style={{ backgroundColor: color }} />
-                    <div className="p-2.5">
-                      <span
-                        className="mx-auto mb-1 flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                        style={{ backgroundColor: color }}
-                      >
-                        {z.zone}
-                      </span>
-                      <p className="text-sm font-semibold text-ink">
-                        {z.minBpm}-{z.maxBpm}
-                      </p>
-                      <p className="mt-0.5 text-[10.5px] leading-tight text-slate">{z.label}</p>
-                    </div>
-                  </div>
-                );
-              })}
+        <Card className="mb-8 rounded-3xl">
+          <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Zones d&apos;entraînement</h2>
+          <p className="mb-4 text-xs text-slate">
+            Calculées automatiquement à partir des mesures renseignées ci-dessus — chaque type de zone apparaît dès que
+            les données nécessaires existent.
+          </p>
+
+          {latest.fc_repos && latest.fc_max ? (
+            <div className="mb-5">
+              <h3 className="mb-2 text-xs font-semibold text-ink-soft">
+                Fréquence cardiaque{" "}
+                <span className="font-normal text-slate">
+                  — méthode de Karvonen (FC repos {latest.fc_repos.value}, FC max {latest.fc_max.value})
+                </span>
+              </h3>
+              <ZoneGrid
+                zones={computeHrZones(latest.fc_repos.value, latest.fc_max.value).map((z) => ({
+                  zone: z.zone,
+                  label: z.label,
+                  range: `${z.minBpm}-${z.maxBpm}`,
+                }))}
+              />
             </div>
-          </Card>
-        ) : (
-          <Card className="mb-8 rounded-3xl bg-paper-dim">
-            <p className="text-sm text-ink-soft">
-              Renseignez votre FC repos et votre FC max ci-dessus pour voir apparaître vos zones cardiaques
-              personnelles.
+          ) : (
+            <p className="mb-5 text-sm text-slate">
+              Renseignez votre FC repos et votre FC max pour voir vos zones cardiaques.
             </p>
-          </Card>
-        )}
+          )}
+
+          {latest.ftp ? (
+            <div className="mb-5">
+              <h3 className="mb-2 text-xs font-semibold text-ink-soft">
+                Puissance <span className="font-normal text-slate">— en % de votre FTP ({latest.ftp.value} W)</span>
+              </h3>
+              <ZoneGrid
+                zones={computePowerZones(latest.ftp.value).map((z) => ({
+                  zone: z.zone,
+                  label: z.label,
+                  range: `${z.minW}-${z.maxW} W`,
+                }))}
+              />
+            </div>
+          ) : (
+            <p className="mb-5 text-sm text-slate">Renseignez votre FTP pour voir vos zones de puissance.</p>
+          )}
+
+          {latest.pma_vma ? (
+            <div>
+              <h3 className="mb-2 text-xs font-semibold text-ink-soft">
+                Allure <span className="font-normal text-slate">— à partir de votre PMA/VMA ({latest.pma_vma.value})</span>
+              </h3>
+              <ZoneGrid
+                zones={computePaceZones(latest.pma_vma.value).map((z) => ({
+                  zone: z.zone,
+                  label: z.label,
+                  range: `${formatPaceValue(z.minPaceMinPerKm)}-${formatPaceValue(z.maxPaceMinPerKm)}`,
+                }))}
+              />
+            </div>
+          ) : (
+            <p className="text-sm text-slate">Renseignez votre PMA/VMA pour voir vos zones d&apos;allure.</p>
+          )}
+        </Card>
 
         <Card className="mb-8 rounded-3xl">
           <h2 className="mb-4 text-[11px] font-bold uppercase tracking-wider text-slate">Antécédents de blessures</h2>

@@ -781,6 +781,27 @@ async function main() {
   const allEntries = await dbAll<any>(`SELECT * FROM journal_entries WHERE athlete_id = ? AND entry_date LIKE '2027-03-%'`, [athlete.id]);
   assert(allEntries.length === 2, "Sans filtre de date, toutes les notes restent accessibles (historique préservé)");
 
+  // 47. Indicateurs dérivés calculés à partir de mesures d'une MÊME date
+  const { computeDerivedMetrics } = await import("../src/lib/performance-metrics");
+  const sameDay = computeDerivedMetrics({ fc_repos: 50, fc_max: 190, ftp: 260, weight_kg: 65, height_cm: 175, seuil_lactique_bpm: 168 });
+  const labels = sameDay.map((d) => d.label);
+  assert(labels.includes("FC de réserve"), "La FC de réserve est calculée quand FC repos et FC max sont connues");
+  assert(sameDay.find((d) => d.label === "FC de réserve")?.value === "140 bpm", "La FC de réserve vaut bien FC max − FC repos");
+  assert(sameDay.find((d) => d.label === "Rapport poids/puissance")?.value === "4.00 W/kg", "Le rapport poids/puissance vaut bien FTP ÷ poids");
+  assert(labels.includes("Seuil lactique / FC max"), "La position du seuil lactique est calculée quand les deux données existent");
+
+  // Sans les données sources, aucun indicateur ne doit être inventé.
+  const incomplete = computeDerivedMetrics({ fc_repos: 50 });
+  assert(incomplete.length === 0, "Aucun indicateur dérivé n'est calculé si les mesures sources manquent");
+
+  // 48. Type d'appareil enregistré avec la mesure
+  await dbRun(`INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, device) VALUES (?, ?, 'ftp', 255, '2027-04-01', 'ergocycle')`, [
+    randomUUID(),
+    athlete.id,
+  ]);
+  const deviceMeasure = await dbGet<any>(`SELECT device FROM athlete_measurements WHERE athlete_id = ? AND recorded_at = '2027-04-01'`, [athlete.id]);
+  assert(deviceMeasure?.device === "ergocycle", "L'appareil sur lequel la mesure a été faite est bien enregistré");
+
   console.log("\nTest end-to-end terminé.");
 }
 

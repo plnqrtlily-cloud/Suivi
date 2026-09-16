@@ -36,6 +36,7 @@ import { computePaceZones, formatPace } from "@/lib/pace-zones";
 import { ExerciseMaxesPanel } from "./exercise-maxes-panel";
 import { CopyWeekForm } from "./copy-week-form";
 import { upsertCoachNotesAction, addMeasurementAction } from "@/lib/actions";
+import { METRIC_LABELS, MEASUREMENT_DEVICES, computeDerivedMetrics } from "@/lib/performance-metrics";
 import { PerformanceStats, MeasurementPoint } from "@/app/athlete/profile/performance-stats";
 
 // "Bloc" et "cycle" reprennent le vocabulaire de périodisation de l'entraînement
@@ -50,15 +51,7 @@ const BILAN_PERIODS: { value: string; label: string; days: number }[] = [
   { value: "bloc", label: "Bloc", days: 84 },
 ];
 
-const METRIC_LABELS: Record<string, string> = {
-  weight_kg: "Poids (kg)",
-  height_cm: "Taille (cm)",
-  fc_repos: "FC repos (bpm)",
-  fc_max: "FC max (bpm)",
-  vo2max: "VO2max",
-  ftp: "FTP (W)",
-  pma_vma: "PMA/VMA",
-};
+
 
 export default async function AthleteDetailPage({
   params,
@@ -150,6 +143,16 @@ export default async function AthleteDetailPage({
   for (const key in seriesByMetric) {
     seriesByMetric[key].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
   }
+  // Indicateurs dérivés à partir des mesures d'une même date (cf. profil athlète).
+  const measuresByDate = new Map<string, Record<string, number>>();
+  for (const h of measurementHistory as any[]) {
+    const day = h.recorded_at.slice(0, 10);
+    if (!measuresByDate.has(day)) measuresByDate.set(day, {});
+    const bucket = measuresByDate.get(day)!;
+    if (!(h.metric in bucket)) bucket[h.metric] = h.value;
+  }
+  const latestMeasureDay = [...measuresByDate.keys()].sort().reverse()[0];
+  const derivedMetrics = latestMeasureDay ? computeDerivedMetrics(measuresByDate.get(latestMeasureDay)!) : [];
   const cycleEstimate =
     athleteGender === "female" && cycleSettings.share_with_coaches ? await estimateCyclePhase(athleteId) : null;
   const latestCheckin = recentCheckins[0];
@@ -294,6 +297,16 @@ export default async function AthleteDetailPage({
                 <input type="date" name="recordedAt" defaultValue={new Date().toISOString().slice(0, 10)} className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss" />
               </label>
               <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium text-ink-soft">Appareil utilisé</span>
+                <select name="device" className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss">
+                  {MEASUREMENT_DEVICES.map((d) => (
+                    <option key={d.value} value={d.value}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
                 <span className="font-medium text-ink-soft">Note (facultatif)</span>
                 <input name="note" placeholder="Contexte de la mesure…" className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss" />
               </label>
@@ -303,6 +316,22 @@ export default async function AthleteDetailPage({
                 </Button>
               </div>
             </form>
+            {derivedMetrics.length > 0 && (
+              <div className="mt-4 rounded-2xl bg-paper-dim p-3">
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate">
+                  Calculé automatiquement <span className="font-normal normal-case">— mesures du {latestMeasureDay}</span>
+                </p>
+                <ul className="flex flex-col gap-2">
+                  {derivedMetrics.map((d) => (
+                    <li key={d.label} className="text-sm">
+                      <span className="text-ink-soft">{d.label} : </span>
+                      <span className="font-semibold text-ink">{d.value}</span>
+                      <p className="text-xs text-slate">{d.explanation}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </Card>
 
           {cycleEstimate && (
