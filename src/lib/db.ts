@@ -400,6 +400,14 @@ const MIGRATIONS: string[] = [
   // externe, vidéo, carte de parcours…) — stockés en JSON (tableau de
   // {label, url}), comme les modèles de séances.
   `ALTER TABLE workouts ADD COLUMN links_json TEXT`,
+  // Photo ou vidéo jointe à un message (cf. workout_comments.video_path, même
+  // principe : le fichier est stocké par src/lib/storage.ts, seul son
+  // identifiant opaque est en base).
+  `ALTER TABLE messages ADD COLUMN media_path TEXT`,
+  `ALTER TABLE messages ADD COLUMN media_type TEXT`,
+  // Photo prise au moment de valider la séance, façon BeReal — preuve
+  // spontanée plutôt qu'une image choisie après coup.
+  `ALTER TABLE workouts ADD COLUMN completion_photo_path TEXT`,
   `ALTER TABLE imported_activities ADD COLUMN activity_time TEXT`,
   `ALTER TABLE imported_activities ADD COLUMN elevation_gain_m INTEGER`,
   `ALTER TABLE imported_activities ADD COLUMN avg_power_w INTEGER`,

@@ -12,6 +12,8 @@ export interface MessageItem {
   body: string;
   created_at: string;
   first_name: string;
+  media_path?: string | null;
+  media_type?: string | null;
 }
 
 export function ConversationThread({
@@ -60,7 +62,9 @@ export function ConversationThread({
     const form = e.currentTarget;
     const formData = new FormData(form);
     const body = String(formData.get("body") || "").trim();
-    if (!body) return;
+    const file = formData.get("media") as File | null;
+    // Une photo ou vidéo seule suffit — pas besoin de texte.
+    if (!body && (!file || file.size === 0)) return;
     setPending(true);
     formData.set("coachId", coachId);
     formData.set("athleteId", athleteId);
@@ -92,6 +96,18 @@ export function ConversationThread({
                     isMine ? "bg-moss text-white" : "bg-paper-dim text-ink"
                   }`}
                 >
+                  {m.media_path && (
+                    <div className="mb-1.5 overflow-hidden rounded-xl">
+                      {m.media_type === "video" ? (
+                        <video controls className="max-h-64 w-full bg-ink">
+                          <source src={`/api/messages/${m.id}/media`} />
+                        </video>
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={`/api/messages/${m.id}/media`} alt="Pièce jointe" className="max-h-64 w-full object-cover" />
+                      )}
+                    </div>
+                  )}
                   <p>{m.body}</p>
                   <p className={`mt-1 text-[10px] ${isMine ? "text-white/70" : "text-slate"}`}>
                     {m.created_at.slice(11, 16)}
@@ -110,6 +126,13 @@ export function ConversationThread({
           autoComplete="off"
           className="flex-1 rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss focus:ring-1 focus:ring-moss"
         />
+        <label
+          className="flex cursor-pointer items-center rounded-xl border border-line px-3 text-lg text-slate hover:border-moss hover:text-moss"
+          title="Joindre une photo ou une vidéo"
+        >
+          📎
+          <input type="file" name="media" accept="image/*,video/*" className="hidden" />
+        </label>
         <Button type="submit" disabled={pending}>
           Envoyer
         </Button>

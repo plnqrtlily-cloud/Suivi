@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { updateWorkoutStatusAction } from "@/lib/actions";
+import { updateWorkoutStatusAction, addCompletionPhotoAction } from "@/lib/actions";
 import { Button, Field, TextAreaField } from "@/components/ui";
 import { todayISO } from "@/lib/dates";
 
@@ -40,6 +40,14 @@ export function StatusForm({ workoutId, currentStatus, sport }: { workoutId: str
       avgPowerW: formData.get("avgPowerW") ? Number(formData.get("avgPowerW")) : undefined,
       postponedToDate: isPostponed ? String(formData.get("postponedToDate") || "") : undefined,
     });
+    // Photo de validation envoyée séparément : elle n'a de sens que sur une
+    // séance effectivement faite, et transite en FormData (fichier).
+    const photo = formData.get("completionPhoto") as File | null;
+    if (photo && photo.size > 0 && showDone) {
+      const photoData = new FormData();
+      photoData.set("photo", photo);
+      await addCompletionPhotoAction(workoutId, photoData);
+    }
     setPending(false);
     router.refresh();
   }
@@ -86,6 +94,25 @@ export function StatusForm({ workoutId, currentStatus, sport }: { workoutId: str
               )}
               {sport === "cycling" && <Field label="Puissance moyenne (W)" type="number" name="avgPowerW" min={0} />}
             </div>
+          )}
+
+          {showDone && (
+            <label className="flex cursor-pointer flex-col gap-1.5 rounded-2xl border border-dashed border-line p-3 text-sm hover:border-moss">
+              <span className="font-medium text-ink-soft">📸 Photo de la séance (facultatif)</span>
+              <span className="text-xs text-slate">
+                Une photo prise maintenant, façon BeReal — votre coach la verra sur la séance.
+              </span>
+              {/* capture="environment" ouvre directement l'appareil photo sur
+                  mobile plutôt que la galerie : l'idée est une preuve prise sur
+                  le moment, pas une image choisie après coup. */}
+              <input
+                type="file"
+                name="completionPhoto"
+                accept="image/*"
+                capture="environment"
+                className="mt-1 text-xs text-slate"
+              />
+            </label>
           )}
 
           <TextAreaField label="Sensations, remarques" name="feedback" rows={3} placeholder="Comment s'est passée la séance ?" />

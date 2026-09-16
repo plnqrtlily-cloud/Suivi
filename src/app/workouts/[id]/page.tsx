@@ -108,6 +108,18 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
 
+        {workout.completion_photo_path && (
+          <Card className="mb-6">
+            <h2 className="mb-3 text-sm font-medium text-ink-soft">📸 Photo de la séance</h2>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/api/workouts/${workout.id}/completion-photo`}
+              alt="Photo prise à la validation de la séance"
+              className="max-h-80 w-full rounded-2xl object-cover"
+            />
+          </Card>
+        )}
+
         {workout.intervals_json && (
           <Card className="mb-6">
             <h2 className="mb-3 text-sm font-medium text-ink-soft">Structure de la séance</h2>

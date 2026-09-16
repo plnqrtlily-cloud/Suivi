@@ -827,6 +827,26 @@ async function main() {
     "Le modèle 'Séance simple' crée bien échauffement / corps de séance / retour au calme"
   );
 
+  // 50. Médias dans les messages et photo de validation de séance
+  const mediaMessageId = randomUUID();
+  await dbRun(
+    `INSERT INTO messages (id, coach_id, athlete_id, sender_id, body, media_path, media_type) VALUES (?, ?, ?, ?, 'Photo jointe', 'abc123.jpg', 'image')`,
+    [mediaMessageId, coach.id, athlete.id, athlete.id]
+  );
+  const mediaMessage = await dbGet<any>(`SELECT * FROM messages WHERE id = ?`, [mediaMessageId]);
+  assert(mediaMessage?.media_path === "abc123.jpg" && mediaMessage?.media_type === "image", "Une photo peut être jointe à un message");
+
+  const photoWorkoutId = randomUUID();
+  await dbRun(
+    `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, title, date, status, completion_photo_path) VALUES (?, ?, ?, 'running', 'entrainement', 'Sortie validée', date('now'), 'done', 'photo456.jpg')`,
+    [photoWorkoutId, coach.id, athlete.id]
+  );
+  const photoWorkout = await dbGet<any>(`SELECT completion_photo_path, status FROM workouts WHERE id = ?`, [photoWorkoutId]);
+  assert(
+    photoWorkout?.completion_photo_path === "photo456.jpg" && photoWorkout?.status === "done",
+    "Une photo peut être jointe à la validation d'une séance"
+  );
+
   console.log("\nTest end-to-end terminé.");
 }
 

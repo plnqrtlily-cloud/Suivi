@@ -386,6 +386,30 @@ export async function updateWorkoutAction(params: {
   });
 }
 
+// Photo prise au moment de valider la séance, façon BeReal : une preuve
+// spontanée de la séance faite, jointe au retour de l'athlète. Réservée à
+// l'athlète concerné — le coach ne peut pas poster de photo à sa place.
+export async function addCompletionPhotoAction(workoutId: string, formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Non autorisé.");
+
+  const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [workoutId]);
+  if (!workout) throw new Error("Séance introuvable.");
+  if (workout.athlete_id !== user.id) throw new Error("Non autorisé.");
+
+  const file = formData.get("photo") as File | null;
+  if (!file || file.size === 0) return;
+  if (!file.type.startsWith("image/")) throw new Error("Une photo est attendue.");
+  if (file.size > MAX_FILE_SIZE_BYTES) throw new Error("Photo trop volumineuse (50 Mo max).");
+
+  const saved = await saveUploadedFile(file);
+  await dbRun(`UPDATE workouts SET completion_photo_path = ? WHERE id = ?`, [saved.storedName, workoutId]);
+
+  revalidatePath(`/workouts/${workoutId}`);
+  revalidatePath("/athlete");
+  revalidatePath(`/coach/athletes/${workout.athlete_id}`);
+}
+
 export async function updateWorkoutStatusAction(params: {
   workoutId: string;
   status: "done" | "not_done" | "partial" | "postponed";
@@ -1457,19 +1481,35 @@ export async function sendMessageAction(formData: FormData) {
   const coachId = String(formData.get("coachId") || "");
   const athleteId = String(formData.get("athleteId") || "");
   const body = String(formData.get("body") || "").trim();
-  if (!body) return;
+  const file = formData.get("media") as File | null;
+  // Un message peut être une photo/vidéo seule, sans texte.
+  if (!body && (!file || file.size === 0)) return;
 
   // Seuls les deux membres d'un lien actif peuvent s'écrire — même garde que pour le
   // reste des échanges coach-athlète.
   const isParticipant = user.id === coachId || user.id === athleteId;
   if (!isParticipant || !(await isCoachLinkedToAthlete(coachId, athleteId))) throw new Error("Non autorisé.");
 
-  await dbRun(`INSERT INTO messages (id, coach_id, athlete_id, sender_id, body) VALUES (?, ?, ?, ?, ?)`, [
+  let mediaPath: string | null = null;
+  let mediaType: string | null = null;
+  if (file && file.size > 0) {
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) throw new Error("Format de fichier non supporté.");
+    if (file.size > MAX_FILE_SIZE_BYTES) throw new Error("Fichier trop volumineux (50 Mo max).");
+    const saved = await saveUploadedFile(file);
+    mediaPath = saved.storedName;
+    mediaType = file.type.startsWith("video/") ? "video" : "image";
+  }
+
+  const finalBody = body || (mediaType === "video" ? "Vidéo jointe" : "Photo jointe");
+
+  await dbRun(`INSERT INTO messages (id, coach_id, athlete_id, sender_id, body, media_path, media_type) VALUES (?, ?, ?, ?, ?, ?, ?)`, [
     randomUUID(),
     coachId,
     athleteId,
     user.id,
-    body,
+    finalBody,
+    mediaPath,
+    mediaType,
   ]);
 
   const recipientId = user.id === coachId ? athleteId : coachId;
@@ -1477,7 +1517,7 @@ export async function sendMessageAction(formData: FormData) {
     userId: recipientId,
     type: "message",
     title: `Message de ${user.first_name}`,
-    body: body.slice(0, 80),
+    body: finalBody.slice(0, 80),
     link: user.role === "coach" ? `/athlete/messages/${coachId}` : `/coach/athletes/${athleteId}/messages`,
   });
 

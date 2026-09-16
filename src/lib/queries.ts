@@ -59,6 +59,7 @@ export interface Workout {
   color: string;
   intervals_json: string | null;
   links_json: string | null;
+  completion_photo_path: string | null;
   status: string;
   rpe: number | null;
   athlete_feedback: string | null;
