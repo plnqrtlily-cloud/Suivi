@@ -103,6 +103,9 @@ export function WorkoutForm({
   const [alsoSendTo, setAlsoSendTo] = useState<string[]>([]);
   const [error, setError] = useState<string | undefined>();
   const [pending, setPending] = useState(false);
+  // Rempli par le bouton cliqué : une séance en brouillon n'est pas visible
+  // par l'athlète et ne déclenche aucune notification tant qu'elle n'est pas publiée.
+  const draftRef = useRef(false);
   // Charger un modèle réécrit sport/catégorie/couleur (état contrôlé) et force
   // le remontage des champs non contrôlés (titre, durée, description, blocs)
   // via ce compteur utilisé comme clé — leur `defaultValue` ne se réappliquerait
@@ -249,6 +252,7 @@ export function WorkoutForm({
         blocks: blocksPayload(),
         intervalsJson: sport !== "strength" ? JSON.stringify(intervals) : undefined,
         linksJson: JSON.stringify(links.filter((l) => l.label && l.url)),
+        isDraft: draftRef.current,
       });
       if (alsoSendTo.length > 0) {
         await createWorkoutBulkAction({
@@ -505,9 +509,27 @@ export function WorkoutForm({
 
       <ErrorText>{error}</ErrorText>
       <div className="flex flex-wrap gap-3">
-        <Button type="submit" disabled={pending}>
+        <Button
+          type="submit"
+          disabled={pending}
+          onClick={() => {
+            draftRef.current = false;
+          }}
+        >
           {pending ? (initial ? "Enregistrement…" : "Envoi…") : initial ? "Enregistrer les modifications" : "Envoyer la séance"}
         </Button>
+        {!initial && (
+          <Button
+            type="submit"
+            variant="secondary"
+            disabled={pending}
+            onClick={() => {
+              draftRef.current = true;
+            }}
+          >
+            Enregistrer en brouillon
+          </Button>
+        )}
         {!initial && (
           <Button type="button" variant="ghost" onClick={handleSaveAsTemplate} disabled={templatePending}>
             {templatePending ? "Enregistrement…" : "Enregistrer comme modèle"}

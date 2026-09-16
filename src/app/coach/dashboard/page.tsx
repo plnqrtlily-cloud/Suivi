@@ -7,6 +7,7 @@ import {
   getRecentCheckins,
   getUnreadMessageCount,
   getJournalForAthlete,
+  getCoachReminders,
 } from "@/lib/queries";
 import { getRosterSignals, signalScore, type RosterSignals } from "@/lib/roster-signals";
 import { todayISO } from "@/lib/dates";
@@ -15,13 +16,9 @@ import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
 import { Avatar } from "@/components/avatar";
 import { Card } from "@/components/ui";
+import { CoachReminders } from "./coach-reminders";
 import { sportIconPath } from "@/lib/sport-icons";
 
-const FILTERS = [
-  { value: "all", label: "Tous" },
-  { value: "attention", label: "À surveiller" },
-  { value: "today", label: "Séance aujourd'hui" },
-];
 
 // Une carte par athlète regroupant tout ce qui le concerne aujourd'hui —
 // disposition validée en maquette : grille de cartes plutôt qu'une liste de
@@ -131,20 +128,14 @@ function AthleteCard({
   );
 }
 
-export default async function CoachDashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ filtre?: string }>;
-}) {
+export default async function CoachDashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "coach") redirect("/athlete");
 
-  const { filtre } = await searchParams;
-  const activeFilter = FILTERS.find((f) => f.value === filtre)?.value ?? "all";
   const today = todayISO();
 
-  const links = await getAthletesForCoach(user.id);
+  const [links, reminders] = await Promise.all([getAthletesForCoach(user.id), getCoachReminders(user.id)]);
   const activeAthletes = links.filter((l) => l.status === "active" && l.athlete_id);
 
   const rows = await Promise.all(
@@ -179,11 +170,7 @@ export default async function CoachDashboardPage({
   const needsAttention = (r: (typeof rows)[number]) =>
     signalScore(r.signals) > 0 || r.unread > 0 || (r.score !== null && r.score < 5);
 
-  const visible = rows.filter((r) => {
-    if (activeFilter === "attention") return needsAttention(r);
-    if (activeFilter === "today") return r.todayWorkouts.length > 0;
-    return true;
-  });
+  const visible = rows;
 
   const attentionCount = rows.filter(needsAttention).length;
 
@@ -222,20 +209,15 @@ export default async function CoachDashboardPage({
             </Card>
           ) : (
             <>
-              <div className="mb-4 flex w-fit rounded-2xl bg-paper-dim p-1">
-                {FILTERS.map((f) => (
-                  <Link
-                    key={f.value}
-                    href={`/coach/dashboard?filtre=${f.value}`}
-                    scroll={false}
-                    className={`rounded-xl px-3.5 py-1.5 text-sm font-semibold transition-colors ${
-                      activeFilter === f.value ? "bg-white text-ink shadow-sm" : "text-slate"
-                    }`}
-                  >
-                    {f.label}
-                  </Link>
-                ))}
-              </div>
+              <Card className="mb-4 rounded-3xl">
+                <CoachReminders
+                  reminders={reminders}
+                  athletes={activeAthletes.map((a: any) => ({
+                    id: a.athlete_id as string,
+                    name: `${a.first_name} ${a.last_name}`,
+                  }))}
+                />
+              </Card>
 
               {visible.length === 0 ? (
                 <Card className="rounded-3xl">

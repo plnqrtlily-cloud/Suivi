@@ -18,8 +18,8 @@ export async function Nav({ user }: { user: User }) {
     ...(user.role === "coach"
       ? [
           { href: "/coach/dashboard", icon: "dashboard" as const, label: "Tableau de bord" },
-          { href: "/coach", icon: "home" as const, label: "Mes athlètes" },
           { href: "/coach/planification", icon: "calendar" as const, label: "Planification" },
+          { href: "/coach/messagerie", icon: "messages" as const, label: "Messagerie" },
           { href: "/coach/resources", icon: "library" as const, label: "Bibliothèque" },
         ]
       : []),

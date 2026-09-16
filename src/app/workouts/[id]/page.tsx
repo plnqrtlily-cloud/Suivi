@@ -47,6 +47,10 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
   if (workout.coach_id !== user.id && workout.athlete_id !== user.id) {
     notFound();
   }
+  // Un brouillon n'existe pas encore pour l'athlète, y compris par URL directe.
+  if (workout.is_draft && workout.coach_id !== user.id) {
+    notFound();
+  }
 
   const [blocks, comments, coachAthletes] = await Promise.all([
     getBlocksForWorkout(id),

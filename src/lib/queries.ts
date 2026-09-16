@@ -60,6 +60,7 @@ export interface Workout {
   intervals_json: string | null;
   links_json: string | null;
   completion_photo_path: string | null;
+  is_draft: number;
   status: string;
   rpe: number | null;
   athlete_feedback: string | null;
@@ -72,12 +73,23 @@ export interface Workout {
   coach_last_name?: string;
 }
 
-export async function getWorkoutsForAthlete(athleteId: string, fromDate?: string, toDate?: string): Promise<Workout[]> {
+/**
+ * Séances d'un athlète. Les brouillons sont EXCLUS par défaut : ils ne doivent
+ * jamais apparaître côté athlète. Seules les vues coach passent
+ * includeDrafts = true.
+ */
+export async function getWorkoutsForAthlete(
+  athleteId: string,
+  fromDate?: string,
+  toDate?: string,
+  includeDrafts = false
+): Promise<Workout[]> {
+  const draftClause = includeDrafts ? "" : " AND w.is_draft = 0";
   if (fromDate && toDate) {
     return dbAll(
       `SELECT w.*, u.first_name as coach_first_name, u.last_name as coach_last_name
        FROM workouts w JOIN users u ON u.id = w.coach_id
-       WHERE w.athlete_id = ? AND w.date BETWEEN ? AND ?
+       WHERE w.athlete_id = ? AND w.date BETWEEN ? AND ?${draftClause}
        ORDER BY w.date ASC, w.time ASC`,
       [athleteId, fromDate, toDate]
     );
@@ -85,7 +97,7 @@ export async function getWorkoutsForAthlete(athleteId: string, fromDate?: string
   return dbAll(
     `SELECT w.*, u.first_name as coach_first_name, u.last_name as coach_last_name
      FROM workouts w JOIN users u ON u.id = w.coach_id
-     WHERE w.athlete_id = ?
+     WHERE w.athlete_id = ?${draftClause}
      ORDER BY w.date ASC, w.time ASC`,
     [athleteId]
   );
@@ -547,6 +559,18 @@ export interface CoachNotes {
   strengths: string | null;
   weaknesses: string | null;
   updated_at: string;
+}
+
+// Rappels du coach, non terminés d'abord, échéance la plus proche en tête.
+export async function getCoachReminders(coachId: string, limit = 30) {
+  return dbAll<any>(
+    `SELECT r.*, u.first_name FROM coach_reminders r
+     LEFT JOIN users u ON u.id = r.athlete_id
+     WHERE r.coach_id = ?
+     ORDER BY r.done_at IS NOT NULL, r.due_date IS NULL, r.due_date ASC, r.created_at DESC
+     LIMIT ?`,
+    [coachId, limit]
+  );
 }
 
 export async function getCoachNotes(coachId: string, athleteId: string): Promise<CoachNotes | undefined> {

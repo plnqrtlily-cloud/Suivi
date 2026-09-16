@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { connectProviderAction, disconnectProviderAction, addImportedActivityAction } from "@/lib/actions";
-import { Button, Field, SelectField, sportLabel } from "@/components/ui";
+import { connectProviderAction, disconnectProviderAction } from "@/lib/actions";
+import { Button, sportLabel } from "@/components/ui";
 import { EditImportedActivityModal, DeleteImportedActivityButton } from "@/components/imported-activity-modal";
 
 // Type dupliqué volontairement depuis src/lib/queries.ts (et non importé) :
@@ -76,20 +76,6 @@ function ConnectionRow({ connection }: { connection: ExternalConnection }) {
 export function SyncPanel({ connections, activities }: { connections: ExternalConnection[]; activities: any[] }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [importSport, setImportSport] = useState("running");
-
-  async function handleImport(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    setPending(true);
-    await addImportedActivityAction(new FormData(form));
-    setPending(false);
-    // `e.currentTarget` est nettoyé par React après l'await (event synthétique) —
-    // la référence capturée avant reste la seule façon fiable de reset() ici.
-    form.reset();
-    setImportSport("running");
-    router.refresh();
-  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -97,43 +83,6 @@ export function SyncPanel({ connections, activities }: { connections: ExternalCo
         {connections.map((c) => (
           <ConnectionRow key={c.provider} connection={c} />
         ))}
-      </div>
-
-      <div className="rounded-2xl border border-line p-4">
-        <p className="mb-1 text-sm font-medium text-ink-soft">Import manuel</p>
-        <p className="mb-3 text-xs text-slate">
-          Filet de sécurité indépendant de Garmin et Strava — utile si la synchronisation automatique n&apos;est
-          pas configurée ou momentanément indisponible.
-        </p>
-        <form onSubmit={handleImport} className="grid grid-cols-2 gap-3">
-          <Field label="Date" type="date" name="activityDate" required />
-          <Field label="Heure (facultatif)" type="time" name="activityTime" />
-          <SelectField label="Sport" name="sport" value={importSport} onChange={(e) => setImportSport(e.target.value)}>
-            <option value="running">Course à pied</option>
-            <option value="cycling">Vélo</option>
-            <option value="hiking">Randonnée</option>
-            <option value="swimming">Natation</option>
-            <option value="climbing">Escalade</option>
-            <option value="strength">Musculation</option>
-          </SelectField>
-          <Field label="Durée (minutes)" type="number" name="durationMinutes" min={0} />
-          {importSport !== "strength" && <Field label="Distance (km)" type="number" step="0.1" name="distanceKm" min={0} />}
-          <Field label="FC moyenne (bpm)" type="number" name="avgHr" min={0} />
-          {(importSport === "hiking" || importSport === "cycling" || importSport === "running") && (
-            <Field label="Dénivelé positif (m)" type="number" name="elevationGainM" min={0} />
-          )}
-          {importSport === "cycling" && <Field label="Puissance moyenne (W)" type="number" name="avgPowerW" min={0} />}
-          <Field label="RPE ressenti (facultatif)" type="number" name="rpe" min={1} max={10} placeholder="1 à 10" />
-          <Field label="Notes" name="notes" />
-          <div className="col-span-2">
-            <Field label="Trace GPS (fichier .gpx, facultatif)" type="file" name="gpxFile" accept=".gpx" />
-          </div>
-          <div className="col-span-2">
-            <Button type="submit" disabled={pending}>
-              {pending ? "Ajout…" : "Ajouter l'activité"}
-            </Button>
-          </div>
-        </form>
       </div>
 
       {activities.length > 0 && (

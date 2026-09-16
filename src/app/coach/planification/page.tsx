@@ -8,8 +8,14 @@ import { CoachSidebar } from "@/components/coach-sidebar";
 import { Avatar } from "@/components/avatar";
 import { Card } from "@/components/ui";
 import { sportIconPath } from "@/lib/sport-icons";
+import { buildAthleteColorMap } from "@/lib/athlete-colors";
+import { sportLabelPlain } from "@/lib/sport-labels";
 
 const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+
+// Drapeau : un objectif ou un événement n'est pas une séance d'entraînement,
+// il mérite son propre pictogramme plutôt qu'une icône de sport.
+const GOAL_ICON_PATH = "M5 17V3m0 0l9 3-9 3";
 
 const PRIORITY_STYLES: Record<string, { label: string; className: string }> = {
   A: { label: "Principal", className: "bg-gold-light text-white" },
@@ -40,12 +46,16 @@ export default async function PlanificationPage({
   if (user.role !== "coach") redirect("/athlete");
 
   const sp = await searchParams;
-  const vue = sp.vue === "mois" ? "mois" : "semaine";
+  // Vue mois par défaut : la planification se pense sur le cycle, pas sur la semaine.
+  const vue = sp.vue === "semaine" ? "semaine" : "mois";
   const weekOffset = sp.semaine ? Number(sp.semaine) : 0;
   const today = todayISO();
 
   const links = await getAthletesForCoach(user.id);
   const activeAthletes = links.filter((l) => l.status === "active" && l.athlete_id);
+  // Couleur stable par athlète : c'est elle qui identifie l'athlète sur le
+  // calendrier, à la place de son nom répété dans chaque case.
+  const athleteColors = buildAthleteColorMap(activeAthletes.map((a) => a.athlete_id as string));
   const selectedAthleteId = sp.athlete && activeAthletes.some((a) => a.athlete_id === sp.athlete) ? sp.athlete : null;
   const shownAthletes = selectedAthleteId
     ? activeAthletes.filter((a) => a.athlete_id === selectedAthleteId)
@@ -62,7 +72,7 @@ export default async function PlanificationPage({
   const rangeTo = vue === "semaine" ? weekDates[6] : monthGrid[monthGrid.length - 1].date;
 
   const workoutsByAthlete = await Promise.all(
-    shownAthletes.map((l) => getWorkoutsForAthlete(l.athlete_id as string, rangeFrom, rangeTo))
+    shownAthletes.map((l) => getWorkoutsForAthlete(l.athlete_id as string, rangeFrom, rangeTo, true))
   );
   const allWorkouts = workoutsByAthlete.flat();
   const goals = allWorkouts
@@ -127,6 +137,24 @@ export default async function PlanificationPage({
               ))}
             </div>
           </div>
+
+          {/* Légende : sans elle, le code couleur ne se lit pas. */}
+          {activeAthletes.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-paper-dim px-3 py-2 text-xs">
+              {activeAthletes.map((a) => (
+                <span key={a.link_id} className="flex items-center gap-1.5 text-ink-soft">
+                  <span className="h-3 w-3 rounded" style={{ backgroundColor: athleteColors[a.athlete_id as string] }} />
+                  {a.first_name} {a.last_name}
+                </span>
+              ))}
+              <span className="ml-auto flex items-center gap-1.5 text-slate">
+                <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d={GOAL_ICON_PATH} />
+                </svg>
+                objectif · pictogramme = type de séance
+              </span>
+            </div>
+          )}
 
           {/* Objectifs et événements de la période */}
           {goals.length > 0 && (
@@ -205,13 +233,22 @@ export default async function PlanificationPage({
                               <td key={date} className={`p-1.5 text-center align-top ${date === today ? "bg-gold-light/5" : ""}`}>
                                 {dayWorkouts.length > 0 ? (
                                   <Link href={`/coach/athletes/${link.athlete_id}/day/${date}`} className="flex flex-col items-center gap-1 rounded-lg py-1 hover:bg-paper-dim">
-                                    {dayWorkouts.slice(0, 2).map((w) => (
-                                      <span key={w.id} className="flex items-center gap-1">
-                                        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke={w.color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                                          <path d={sportIconPath(w.sport)} />
-                                        </svg>
-                                      </span>
-                                    ))}
+                                    {dayWorkouts.slice(0, 2).map((w) => {
+                                      const color = athleteColors[w.athlete_id] || "#5B6660";
+                                      const isGoal = w.category === "objectif" || w.category === "evenement";
+                                      return (
+                                        <span
+                                          key={w.id}
+                                          title={`${w.title} (${sportLabelPlain(w.sport)})${w.is_draft ? " · brouillon" : ""}`}
+                                          className={`flex h-5 w-5 items-center justify-center rounded ${w.is_draft ? "opacity-50" : ""}`}
+                                          style={isGoal ? { boxShadow: `inset 0 0 0 1.5px ${color}` } : { backgroundColor: color }}
+                                        >
+                                          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke={isGoal ? color : "#fff"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d={isGoal ? GOAL_ICON_PATH : sportIconPath(w.sport)} />
+                                          </svg>
+                                        </span>
+                                      );
+                                    })}
                                     {dayWorkouts.length > 2 && <span className="text-[9px] text-slate">+{dayWorkouts.length - 2}</span>}
                                   </Link>
                                 ) : (
@@ -260,28 +297,54 @@ export default async function PlanificationPage({
                     return (
                       <div
                         key={cell.date}
-                        className={`min-h-[62px] rounded-lg border p-1 ${
+                        className={`min-h-[80px] rounded-lg border p-1 ${
                           isToday ? "border-gold-light bg-gold-light/5" : "border-line"
                         } ${cell.inMonth ? "" : "opacity-40"}`}
                       >
                         <span className="text-[11px] font-semibold text-ink-soft">{cell.day}</span>
-                        <div className="mt-0.5 flex flex-col gap-0.5">
-                          {dayWorkouts.slice(0, 3).map((w) => {
+                        {/* La couleur identifie l'athlète, le pictogramme le type
+                            de séance — le nom n'a plus besoin d'apparaître. Les
+                            objectifs et événements sont encadrés pour se
+                            distinguer d'une séance ordinaire. */}
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {dayWorkouts.slice(0, 6).map((w) => {
                             const athlete = activeAthletes.find((a) => a.athlete_id === w.athlete_id);
+                            const color = athleteColors[w.athlete_id] || "#5B6660";
+                            const isGoal = w.category === "objectif" || w.category === "evenement";
+                            const prio = w.priority ? PRIORITY_STYLES[w.priority]?.label : null;
                             return (
                               <Link
                                 key={w.id}
                                 href={`/workouts/${w.id}`}
-                                className="flex items-center gap-1 truncate rounded px-0.5 text-[10px] hover:bg-paper-dim"
-                                title={`${athlete?.first_name ?? ""} — ${w.title}`}
+                                title={`${athlete?.first_name ?? ""} — ${w.title} (${sportLabelPlain(w.sport)})${
+                                  isGoal ? ` · ${prio ?? "Objectif"}` : ""
+                                }${w.is_draft ? " · brouillon" : ""}`}
+                                className={`flex h-5 w-5 items-center justify-center rounded ${
+                                  isGoal ? "ring-[1.5px] ring-offset-1" : ""
+                                } ${w.is_draft ? "opacity-50" : ""}`}
+                                style={
+                                  isGoal
+                                    ? { backgroundColor: `${color}22`, color, boxShadow: `inset 0 0 0 1.5px ${color}` }
+                                    : { backgroundColor: color }
+                                }
                               >
-                                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: w.color }} />
-                                <span className="truncate text-ink-soft">{athlete?.first_name}</span>
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 20 20"
+                                  fill="none"
+                                  stroke={isGoal ? color : "#fff"}
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d={isGoal ? GOAL_ICON_PATH : sportIconPath(w.sport)} />
+                                </svg>
                               </Link>
                             );
                           })}
-                          {dayWorkouts.length > 3 && (
-                            <span className="px-0.5 text-[9px] text-slate">+{dayWorkouts.length - 3}</span>
+                          {dayWorkouts.length > 6 && (
+                            <span className="self-center text-[9px] text-slate">+{dayWorkouts.length - 6}</span>
                           )}
                         </div>
                       </div>

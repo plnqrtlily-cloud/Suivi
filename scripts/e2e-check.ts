@@ -864,6 +864,52 @@ async function main() {
   assert(ics.includes("DTSTART;VALUE=DATE:20270512"), "Une séance sans horaire produit un événement sur la journée entière");
   assert(ics.includes("DTEND;VALUE=DATE:20270513"), "La fin d'un événement journée entière est le lendemain (borne exclusive du format)");
 
+  // 52. Brouillons : invisibles pour l'athlète tant qu'ils ne sont pas publiés
+  const draftId = randomUUID();
+  await dbRun(
+    `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, title, date, is_draft) VALUES (?, ?, ?, 'running', 'entrainement', 'Séance en préparation', '2027-06-01', 1)`,
+    [draftId, coach.id, athlete.id]
+  );
+  const publishedId = randomUUID();
+  await dbRun(
+    `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, title, date, is_draft) VALUES (?, ?, ?, 'running', 'entrainement', 'Séance publiée', '2027-06-02', 0)`,
+    [publishedId, coach.id, athlete.id]
+  );
+
+  const athleteView = await dbAll<any>(
+    `SELECT id FROM workouts WHERE athlete_id = ? AND date BETWEEN '2027-06-01' AND '2027-06-02' AND is_draft = 0`,
+    [athlete.id]
+  );
+  assert(athleteView.length === 1 && athleteView[0].id === publishedId, "L'athlète ne voit pas les séances en brouillon");
+
+  const coachView = await dbAll<any>(
+    `SELECT id FROM workouts WHERE athlete_id = ? AND date BETWEEN '2027-06-01' AND '2027-06-02'`,
+    [athlete.id]
+  );
+  assert(coachView.length === 2, "Le coach voit ses brouillons en plus des séances publiées");
+
+  await dbRun(`UPDATE workouts SET is_draft = 0 WHERE id = ?`, [draftId]);
+  const afterPublish = await dbGet<any>(`SELECT is_draft FROM workouts WHERE id = ?`, [draftId]);
+  assert(afterPublish?.is_draft === 0, "Publier un brouillon le rend visible à l'athlète");
+
+  // 53. Rappels du coach, cloisonnés par coach
+  const reminderId = randomUUID();
+  await dbRun(`INSERT INTO coach_reminders (id, coach_id, athlete_id, content, due_date) VALUES (?, ?, ?, ?, '2027-06-15')`, [
+    reminderId,
+    coach.id,
+    athlete.id,
+    "Refaire tester le FTP",
+  ]);
+  const myReminders = await dbAll<any>(`SELECT * FROM coach_reminders WHERE coach_id = ?`, [coach.id]);
+  assert(myReminders.length === 1 && myReminders[0].content === "Refaire tester le FTP", "Un rappel du coach est bien enregistré");
+
+  const otherCoachReminders = await dbAll(`SELECT * FROM coach_reminders WHERE coach_id = ?`, [otherCoach.id]);
+  assert(otherCoachReminders.length === 0, "Les rappels sont propres à chaque coach, jamais partagés");
+
+  await dbRun(`UPDATE coach_reminders SET done_at = datetime('now') WHERE id = ?`, [reminderId]);
+  const doneReminder = await dbGet<any>(`SELECT done_at FROM coach_reminders WHERE id = ?`, [reminderId]);
+  assert(!!doneReminder?.done_at, "Un rappel peut être marqué comme fait");
+
   console.log("\nTest end-to-end terminé.");
 }
 

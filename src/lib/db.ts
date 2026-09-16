@@ -364,6 +364,19 @@ CREATE TABLE IF NOT EXISTS messages (
 -- travail) — jamais visibles par l'athlète, ni par un autre coach du même
 -- athlète : propres au coach qui les écrit. Une ligne par paire coach/athlète,
 -- mise à jour sur place plutôt qu'un historique d'entrées séparées.
+-- Rappels et tâches du coach : pense-bête personnel (« rappeler à Léa de
+-- refaire son test FTP »), éventuellement rattaché à un athlète et à une
+-- échéance. Jamais visible par les athlètes.
+CREATE TABLE IF NOT EXISTS coach_reminders (
+  id TEXT PRIMARY KEY,
+  coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  athlete_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  due_date TEXT,
+  done_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS coach_athlete_notes (
   coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   athlete_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -426,6 +439,11 @@ const MIGRATIONS: string[] = [
   // Calendrier de récupérer le flux .ics sans session connectée (ces clients
   // interrogent l'URL depuis leurs serveurs). Révocable en le régénérant.
   `ALTER TABLE users ADD COLUMN calendar_token TEXT`,
+  // Brouillon : colonne dédiée plutôt qu'un statut supplémentaire, la contrainte
+  // CHECK sur workouts.status imposerait de reconstruire la table (cf. la
+  // migration de availability_blocks plus haut). Une séance en brouillon est
+  // invisible pour l'athlète tant que le coach ne la publie pas.
+  `ALTER TABLE workouts ADD COLUMN is_draft INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE workouts ADD COLUMN avg_hr INTEGER`,
   `ALTER TABLE workouts ADD COLUMN elevation_gain_m INTEGER`,
   `ALTER TABLE workouts ADD COLUMN avg_power_w INTEGER`,

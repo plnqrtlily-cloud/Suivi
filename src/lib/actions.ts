@@ -181,6 +181,7 @@ export async function createWorkoutAction(params: {
   blocks?: BlockInput[];
   intervalsJson?: string;
   linksJson?: string;
+  isDraft?: boolean;
 }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
@@ -214,8 +215,8 @@ export async function createWorkoutAction(params: {
     params.dates.map(async (date) => {
       const workoutId = randomUUID();
       await dbRun(
-        `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, priority, title, date, time, duration_minutes, description, color, intervals_json, links_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, priority, title, date, time, duration_minutes, description, color, intervals_json, links_json, is_draft)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           workoutId,
           user.id,
@@ -231,6 +232,7 @@ export async function createWorkoutAction(params: {
           color,
           params.sport !== "strength" ? params.intervalsJson || null : null,
           params.linksJson || null,
+          params.isDraft ? 1 : 0,
         ]
       );
 
@@ -267,13 +269,16 @@ export async function createWorkoutAction(params: {
     params.dates.length === 1
       ? `« ${params.title} » prévue le ${params.dates[0]}.`
       : `« ${params.title} » prévue ${params.dates.length} jours, du ${params.dates[0]} au ${params.dates[params.dates.length - 1]}.`;
-  await createNotification({
-    userId: params.athleteId,
-    type: "new_workout",
-    title: "Nouvelle séance",
-    body,
-    link: `/workouts/${workoutIds[0]}`,
-  });
+  // Un brouillon ne notifie pas l'athlète : il ne le voit pas encore.
+  if (!params.isDraft) {
+    await createNotification({
+      userId: params.athleteId,
+      type: "new_workout",
+      title: "Nouvelle séance",
+      body,
+      link: `/workouts/${workoutIds[0]}`,
+    });
+  }
 
   return { workoutIds };
 }
@@ -1348,6 +1353,78 @@ export async function revokeCalendarTokenAction() {
 
   await dbRun(`UPDATE users SET calendar_token = NULL WHERE id = ?`, [user.id]);
   revalidatePath("/athlete/profile");
+}
+
+// Rappels du coach : pense-bête personnel, jamais visible par les athlètes.
+export async function addCoachReminderAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const content = String(formData.get("content") || "").trim();
+  if (!content) return;
+  const dueDate = String(formData.get("dueDate") || "").trim();
+  const athleteId = String(formData.get("athleteId") || "").trim();
+  // Un rappel peut viser un athlète précis — mais uniquement l'un des siens.
+  if (athleteId && !(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+
+  await dbRun(`INSERT INTO coach_reminders (id, coach_id, athlete_id, content, due_date) VALUES (?, ?, ?, ?, ?)`, [
+    randomUUID(),
+    user.id,
+    athleteId || null,
+    content,
+    dueDate || null,
+  ]);
+  revalidatePath("/coach/dashboard");
+}
+
+export async function toggleCoachReminderAction(id: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const reminder = await dbGet<any>(`SELECT coach_id, done_at FROM coach_reminders WHERE id = ?`, [id]);
+  if (!reminder || reminder.coach_id !== user.id) throw new Error("Non autorisé.");
+
+  await dbRun(`UPDATE coach_reminders SET done_at = ? WHERE id = ?`, [
+    reminder.done_at ? null : new Date().toISOString(),
+    id,
+  ]);
+  revalidatePath("/coach/dashboard");
+}
+
+export async function deleteCoachReminderAction(id: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const reminder = await dbGet<any>(`SELECT coach_id FROM coach_reminders WHERE id = ?`, [id]);
+  if (!reminder || reminder.coach_id !== user.id) throw new Error("Non autorisé.");
+
+  await dbRun(`DELETE FROM coach_reminders WHERE id = ?`, [id]);
+  revalidatePath("/coach/dashboard");
+}
+
+// Publie une séance restée en brouillon : elle devient visible par l'athlète,
+// qui reçoit alors la notification (volontairement retenue tant que la séance
+// n'était pas publiée).
+export async function publishWorkoutAction(workoutId: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [workoutId]);
+  if (!workout || workout.coach_id !== user.id) throw new Error("Non autorisé.");
+  if (!workout.is_draft) return;
+
+  await dbRun(`UPDATE workouts SET is_draft = 0 WHERE id = ?`, [workoutId]);
+  await createNotification({
+    userId: workout.athlete_id,
+    type: "new_workout",
+    title: "Nouvelle séance",
+    body: `${workout.title} — ${workout.date}`,
+    link: `/workouts/${workoutId}`,
+  });
+
+  revalidatePath(`/workouts/${workoutId}`);
+  revalidatePath("/coach/planification");
+  revalidatePath(`/coach/athletes/${workout.athlete_id}`);
 }
 
 export async function setAthleteSportsAction(formData: FormData) {
