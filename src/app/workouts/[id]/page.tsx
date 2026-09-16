@@ -8,6 +8,7 @@ import { StatusForm } from "./status-form";
 import { CommentForm } from "./comment-form";
 import { CancelWorkoutButton } from "./cancel-button";
 import { DuplicateWorkoutButton } from "./duplicate-workout-modal";
+import { PublishWorkoutButton } from "./publish-button";
 import { IntervalList } from "./interval-list";
 
 const BLOCK_TITLES: Record<string, string> = {
@@ -87,9 +88,13 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                 </span>
               )}
               <StatusBadge status={workout.status} />
+              {workout.is_draft ? (
+                <span className="rounded-full bg-paper-dim px-2.5 py-0.5 text-xs font-semibold text-slate">Brouillon</span>
+              ) : null}
             </div>
             {user.role === "coach" && (
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {workout.is_draft ? <PublishWorkoutButton workoutId={workout.id} /> : null}
                 <Link href={`/workouts/${workout.id}/edit`} className="text-sm font-semibold text-moss-dark hover:underline">
                   Modifier
                 </Link>
@@ -111,6 +116,15 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
             )}
           </div>
         </div>
+
+        {workout.is_draft && user.role === "coach" && (
+          <Card className="mb-6 border-dashed bg-paper-dim">
+            <p className="text-sm text-ink-soft">
+              Cette séance est un <b>brouillon</b> : votre athlète ne la voit pas et n&apos;a reçu aucune
+              notification. Elle le sera dès que vous cliquerez sur « Publier ».
+            </p>
+          </Card>
+        )}
 
         {workout.completion_photo_path && (
           <Card className="mb-6">
