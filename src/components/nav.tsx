@@ -19,7 +19,7 @@ export async function Nav({ user }: { user: User }) {
       ? [
           { href: "/coach/dashboard", icon: "dashboard" as const, label: "Tableau de bord" },
           { href: "/coach", icon: "home" as const, label: "Mes athlètes" },
-          { href: "/coach/calendar", icon: "calendar" as const, label: "Calendrier" },
+          { href: "/coach/planification", icon: "calendar" as const, label: "Planification" },
           { href: "/coach/resources", icon: "library" as const, label: "Bibliothèque" },
         ]
       : []),
