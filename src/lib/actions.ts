@@ -1328,6 +1328,28 @@ export async function setGenderAction(formData: FormData) {
 // Sport(s) pratiqué(s) par l'athlète (cf. demande coach : savoir sur quoi
 // l'athlète s'entraîne, pour mieux cadrer le suivi) — renseigné par l'athlète
 // lui-même, visible aussi côté coach sur la fiche de l'athlète.
+// Abonnement au calendrier : génère (ou régénère) le jeton secret qui permet à
+// Google Agenda / Apple Calendrier de récupérer le flux .ics. Régénérer
+// invalide immédiatement l'ancienne URL — c'est le moyen de révoquer un
+// abonnement partagé par erreur.
+export async function generateCalendarTokenAction() {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+
+  const token = `${randomUUID()}${randomUUID()}`.replace(/-/g, "");
+  await dbRun(`UPDATE users SET calendar_token = ? WHERE id = ?`, [token, user.id]);
+  revalidatePath("/athlete/profile");
+  return { token };
+}
+
+export async function revokeCalendarTokenAction() {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+
+  await dbRun(`UPDATE users SET calendar_token = NULL WHERE id = ?`, [user.id]);
+  revalidatePath("/athlete/profile");
+}
+
 export async function setAthleteSportsAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user || user.role !== "athlete") throw new Error("Non autorisé.");

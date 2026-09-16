@@ -14,6 +14,7 @@ import {
   getUserAvatar,
   profileCompletion,
   getExerciseMaxes,
+  getCalendarToken,
 } from "@/lib/queries";
 import { addMeasurementAction, addInjuryAction, setGenderAction, setAthleteSportsAction } from "@/lib/actions";
 import { AvatarUpload } from "./avatar-upload";
@@ -29,6 +30,7 @@ import { CyclePanel } from "./cycle-panel";
 import { SyncPanel } from "./sync-panel";
 import { PerformanceStats, MeasurementPoint } from "./performance-stats";
 import { ExerciseMaxesPanel } from "@/app/coach/athletes/[athleteId]/exercise-maxes-panel";
+import { CalendarSyncPanel } from "./calendar-sync-panel";
 import { RevokeButton } from "@/app/coach/revoke-button";
 import { JoinCoachForm } from "../join-coach-form";
 
@@ -63,7 +65,7 @@ export default async function AthleteProfilePage() {
   // Requêtes indépendantes parties en parallèle plutôt qu'en série (chacune est
   // un aller-retour réseau vers la base distante en production — les enchaîner
   // une par une multipliait la latence de la page par leur nombre).
-  const [latest, historyAll, injuries, coaches, completion, gender, athleteSports, avatar, externalConnections, importedActivities, personalRecords, exerciseMaxes] =
+  const [latest, historyAll, injuries, coaches, completion, gender, athleteSports, avatar, externalConnections, importedActivities, personalRecords, exerciseMaxes, calendarToken] =
     await Promise.all([
       getLatestMeasurements(user.id),
       getMeasurementsForAthlete(user.id),
@@ -77,6 +79,7 @@ export default async function AthleteProfilePage() {
       getImportedActivities(user.id),
       getPersonalRecordsForAthlete(user.id),
       getExerciseMaxes(user.id),
+      getCalendarToken(user.id),
     ]);
   const history = historyAll.slice(0, 10);
   const seriesByMetric: Record<string, MeasurementPoint[]> = {};
@@ -294,6 +297,14 @@ export default async function AthleteProfilePage() {
           ) : (
             <p className="text-sm text-slate">Renseignez votre PMA/VMA pour voir vos zones d&apos;allure.</p>
           )}
+        </Card>
+
+        <Card className="mb-8 rounded-3xl">
+          <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Mon calendrier</h2>
+          <p className="mb-3 text-xs text-slate">
+            Synchronisez vos séances avec Google Agenda, Apple Calendrier ou Outlook.
+          </p>
+          <CalendarSyncPanel initialToken={calendarToken} />
         </Card>
 
         <Card className="mb-8 rounded-3xl">

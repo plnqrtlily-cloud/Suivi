@@ -433,6 +433,11 @@ export async function getUpcomingGoals(athleteId: string, limit = 5) {
 
 // --- Photo de profil ---
 
+export async function getCalendarToken(userId: string): Promise<string | null> {
+  const row = await dbGet<{ calendar_token: string | null }>(`SELECT calendar_token FROM users WHERE id = ?`, [userId]);
+  return row?.calendar_token ?? null;
+}
+
 export async function getUserAvatar(
   userId: string
 ): Promise<{ avatar_path: string | null; avatar_mime_type: string | null; first_name: string } | undefined> {

@@ -422,6 +422,10 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE workout_blocks ADD COLUMN circuit_id TEXT`,
   `ALTER TABLE workout_blocks ADD COLUMN circuit_rounds INTEGER`,
   `ALTER TABLE users ADD COLUMN sports_json TEXT`,
+  // Jeton secret d'abonnement au calendrier : permet à Google Agenda / Apple
+  // Calendrier de récupérer le flux .ics sans session connectée (ces clients
+  // interrogent l'URL depuis leurs serveurs). Révocable en le régénérant.
+  `ALTER TABLE users ADD COLUMN calendar_token TEXT`,
   `ALTER TABLE workouts ADD COLUMN avg_hr INTEGER`,
   `ALTER TABLE workouts ADD COLUMN elevation_gain_m INTEGER`,
   `ALTER TABLE workouts ADD COLUMN avg_power_w INTEGER`,

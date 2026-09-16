@@ -847,6 +847,23 @@ async function main() {
     "Une photo peut être jointe à la validation d'une séance"
   );
 
+  // 51. Flux iCalendar pour l'abonnement du calendrier personnel
+  const { buildWorkoutsICS } = await import("../src/lib/ics");
+  const icsWorkouts: any[] = [
+    { id: "w1", title: "Sortie longue", sport: "running", date: "2027-05-10", time: "09:30", duration_minutes: 90, description: null, status: "planned" },
+    // Titre contenant une virgule : sans échappement, le format serait cassé.
+    { id: "w2", title: "Fractionné, 6x400m", sport: "running", date: "2027-05-12", time: null, duration_minutes: null, description: null, status: "planned" },
+    { id: "w3", title: "Séance annulée", sport: "cycling", date: "2027-05-13", time: null, duration_minutes: null, description: null, status: "cancelled" },
+  ];
+  const ics = buildWorkoutsICS(icsWorkouts, "Athlete Test");
+
+  assert(ics.startsWith("BEGIN:VCALENDAR") && ics.trimEnd().endsWith("END:VCALENDAR"), "Le flux iCalendar est correctement délimité");
+  assert((ics.match(/BEGIN:VEVENT/g) || []).length === 2, "Les séances annulées sont exclues du calendrier");
+  assert(ics.includes("Fractionné\\, 6x400m"), "Les virgules des titres sont échappées (sinon le fichier serait invalide)");
+  assert(ics.includes("DTSTART:20270510T093000"), "Une séance avec horaire produit un événement daté à l'heure prévue");
+  assert(ics.includes("DTSTART;VALUE=DATE:20270512"), "Une séance sans horaire produit un événement sur la journée entière");
+  assert(ics.includes("DTEND;VALUE=DATE:20270513"), "La fin d'un événement journée entière est le lendemain (borne exclusive du format)");
+
   console.log("\nTest end-to-end terminé.");
 }
 
