@@ -116,6 +116,62 @@ function TargetPicker({ target, onChange, sport }: { target: IntervalTarget; onC
   );
 }
 
+// Durée saisie en nombre + unité (minutes ou secondes) plutôt qu'au format
+// "mm:ss" à taper à la main : une récupération de 45 secondes s'écrit « 45 s »,
+// une sortie de 90 minutes « 90 min », sans conversion mentale. La valeur reste
+// stockée en mm:ss pour ne rien changer à ce qui existe déjà.
+function parseStoredTime(value: string): { amount: string; unit: "min" | "sec" } {
+  const match = value.trim().match(/^(\d+):(\d{1,2})$/);
+  if (!match) return { amount: value.replace(/\D/g, ""), unit: "min" };
+  const min = Number(match[1]);
+  const sec = Number(match[2]);
+  // Moins d'une minute : plus lisible en secondes.
+  if (min === 0) return { amount: String(sec), unit: "sec" };
+  // Minutes entières : on reste en minutes ; sinon on bascule en secondes pour
+  // ne pas perdre l'appoint (ex. 1:30 -> 90 s).
+  if (sec === 0) return { amount: String(min), unit: "min" };
+  return { amount: String(min * 60 + sec), unit: "sec" };
+}
+
+function toStoredTime(amount: string, unit: "min" | "sec"): string {
+  const n = Number(amount);
+  if (!amount || Number.isNaN(n)) return "";
+  const totalSeconds = unit === "min" ? n * 60 : n;
+  const mm = Math.floor(totalSeconds / 60);
+  const ss = Math.round(totalSeconds % 60);
+  return `${mm}:${String(ss).padStart(2, "0")}`;
+}
+
+function TimeValueInput({
+  step,
+  onChange,
+}: {
+  step: IntervalStepItem;
+  onChange: (s: IntervalStepItem) => void;
+}) {
+  const { amount, unit } = parseStoredTime(step.durationValue);
+  return (
+    <>
+      <input
+        type="number"
+        min={0}
+        value={amount}
+        onChange={(e) => onChange({ ...step, durationValue: toStoredTime(e.target.value, unit) })}
+        placeholder="10"
+        className="w-20 rounded border border-line px-2 py-1 text-sm"
+      />
+      <select
+        value={unit}
+        onChange={(e) => onChange({ ...step, durationValue: toStoredTime(amount, e.target.value as "min" | "sec") })}
+        className="rounded border border-line px-2 py-1 text-sm"
+      >
+        <option value="min">min</option>
+        <option value="sec">sec</option>
+      </select>
+    </>
+  );
+}
+
 function StepRow({
   step,
   onChange,
@@ -152,14 +208,18 @@ function StepRow({
           </option>
         ))}
       </select>
-      {step.durationType !== "manual" && (
+      {step.durationType === "time" && <TimeValueInput step={step} onChange={onChange} />}
+      {step.durationType === "distance" && (
         <input
+          type="number"
+          min={0}
           value={step.durationValue}
           onChange={(e) => onChange({ ...step, durationValue: e.target.value })}
-          placeholder={step.durationType === "time" ? "10:00" : cfg.distanceUnit === "m" ? "100 m" : "1000 m"}
+          placeholder={cfg.distanceUnit === "m" ? "100" : "1000"}
           className="w-24 rounded border border-line px-2 py-1 text-sm"
         />
       )}
+      {step.durationType === "distance" && <span className="text-xs text-slate">m</span>}
       <TargetPicker target={step.target} onChange={(target) => onChange({ ...step, target })} sport={sport} />
       <button type="button" onClick={onRemove} className="ml-auto text-xs text-clay hover:underline">
         Retirer

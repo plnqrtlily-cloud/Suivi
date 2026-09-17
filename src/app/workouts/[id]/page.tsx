@@ -128,7 +128,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
 
         {workout.completion_photo_path && (
           <Card className="mb-6">
-            <h2 className="mb-3 text-sm font-medium text-ink-soft">📸 Photo de la séance</h2>
+            <h2 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate"><span className="h-3 w-0.5 rounded-full bg-moss" />Photo de la séance</h2>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`/api/workouts/${workout.id}/completion-photo`}
@@ -140,14 +140,14 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
 
         {workout.intervals_json && (
           <Card className="mb-6">
-            <h2 className="mb-3 text-sm font-medium text-ink-soft">Structure de la séance</h2>
+            <h2 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate"><span className="h-3 w-0.5 rounded-full bg-moss" />Déroulé de la séance</h2>
             <IntervalList json={workout.intervals_json} />
           </Card>
         )}
 
         {workout.links_json && JSON.parse(workout.links_json).length > 0 && (
           <Card className="mb-6">
-            <h2 className="mb-3 text-sm font-medium text-ink-soft">Liens utiles</h2>
+            <h2 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate"><span className="h-3 w-0.5 rounded-full bg-moss" />Liens utiles</h2>
             <ul className="flex flex-col gap-1.5">
               {(JSON.parse(workout.links_json) as { label: string; url: string }[]).map((l, i) => (
                 <li key={i}>
@@ -168,7 +168,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
 
         {blocks.length > 0 && (
           <Card className="mb-6">
-            <h2 className="mb-3 text-sm font-medium text-ink-soft">Structure de la séance</h2>
+            <h2 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate"><span className="h-3 w-0.5 rounded-full bg-moss" />Déroulé de la séance</h2>
             <div className="flex flex-col gap-3">
               {(() => {
                 const segments: { circuitId: string | null; rounds?: number; blocks: any[] }[] = [];
@@ -193,22 +193,37 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                       )}
                     </div>
                     {b.exerciseSets?.length > 0 && (
-                      <table className="mt-1 text-sm text-slate">
-                        <tbody>
-                          {b.exerciseSets.map((s: any) => (
-                            <tr key={s.id}>
-                              <td className="pr-3 text-ink-soft">Série {s.set_number}</td>
-                              <td className="pr-3">
-                                {b.rep_type === "time" ? "⏱ " : ""}
-                                {s.reps || "—"}
-                              </td>
-                              <td className="pr-3">{s.load || "—"}</td>
-                              {s.rest_seconds && <td className="pr-3 text-xs">Repos {s.rest_seconds}s</td>}
-                              {s.rpe && <td className="text-xs">RPE {s.rpe}</td>}
+                      /* En-têtes explicites : sans eux, « 10 » et « 60 » se
+                         ressemblent et rien ne dit lequel est la charge. */
+                      <div className="mt-2 overflow-hidden rounded-xl border border-line">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-paper-dim text-[10px] uppercase tracking-wider text-slate">
+                              <th className="px-2 py-1 text-left font-semibold">Série</th>
+                              <th className="px-2 py-1 text-left font-semibold">
+                                {b.rep_type === "time" ? "Durée" : "Répétitions"}
+                              </th>
+                              <th className="px-2 py-1 text-left font-semibold">Charge</th>
+                              <th className="px-2 py-1 text-left font-semibold">Repos</th>
+                              <th className="px-2 py-1 text-left font-semibold">RPE</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {b.exerciseSets.map((s: any) => (
+                              <tr key={s.id} className="border-t border-line">
+                                <td className="px-2 py-1.5 font-medium text-ink-soft">{s.set_number}</td>
+                                <td className="px-2 py-1.5 font-semibold text-ink">
+                                  {b.rep_type === "time" ? "⏱ " : ""}
+                                  {s.reps || "—"}
+                                </td>
+                                <td className="px-2 py-1.5 text-ink">{s.load || "—"}</td>
+                                <td className="px-2 py-1.5 text-slate">{s.rest_seconds ? `${s.rest_seconds} s` : "—"}</td>
+                                <td className="px-2 py-1.5 text-slate">{s.rpe || "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                     {b.notes && <p className="text-sm text-ink-soft">{b.notes}</p>}
                     {b.resource_id && (
@@ -262,13 +277,13 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
 
         {user.role === "athlete" && (
           <Card className="mb-6">
-            <h2 className="mb-3 text-sm font-medium text-ink-soft">Mettre à jour le statut de la séance</h2>
+            <h2 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate"><span className="h-3 w-0.5 rounded-full bg-moss" />Où en êtes-vous ?</h2>
             <StatusForm workoutId={workout.id} currentStatus={workout.status} sport={workout.sport} />
           </Card>
         )}
 
         <Card>
-          <h2 className="mb-3 text-sm font-medium text-ink-soft">Commentaires</h2>
+          <h2 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate"><span className="h-3 w-0.5 rounded-full bg-moss" />Échanges</h2>
           <div className="mb-4 flex flex-col gap-3">
             {comments.map((c) => (
               <div key={c.id} className="rounded-md bg-paper-dim p-2 text-sm">
