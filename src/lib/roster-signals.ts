@@ -55,6 +55,39 @@ export async function getRosterSignals(athleteId: string, today: string): Promis
   };
 }
 
+/**
+ * Même calcul que getRosterSignals, mais à partir de données DÉJÀ chargées —
+ * utilisé par le tableau de bord, qui récupère tout l'effectif en une poignée
+ * de requêtes au lieu d'en refaire huit par athlète.
+ */
+export function computeRosterSignals(params: {
+  allWorkouts: Workout[];
+  imports: { activity_date: string; duration_minutes: number | null; rpe: number | null }[];
+  lastCheckinDate: string | null;
+  today: string;
+  recentFromISO: string;
+}): RosterSignals {
+  const { allWorkouts, imports, lastCheckinDate, today, recentFromISO } = params;
+  const acwr = computeAcwr(allWorkouts, imports as any, today);
+  const recentPast = allWorkouts.filter((w) => w.date >= recentFromISO && w.date < today);
+
+  const futureWorkouts = allWorkouts
+    .filter((w) => w.date >= today && w.status !== "cancelled")
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const nextWorkout = futureWorkouts[0] ?? null;
+
+  return {
+    acwrHighRisk: acwr.status === "high_risk",
+    acwrRatio: acwr.ratio ?? null,
+    daysSinceCheckin: lastCheckinDate ? -daysUntil(lastCheckinDate) : null,
+    missedRecently: recentPast.filter((w) => w.status === "not_done").length,
+    // "planned" sur une date passée = l'athlète n'a jamais dit ce qu'il en a fait.
+    unvalidatedRecently: recentPast.filter((w) => w.status === "planned").length,
+    daysUntilNextWorkout: nextWorkout ? daysUntil(nextWorkout.date) : null,
+    nextWorkout,
+  };
+}
+
 // Score d'urgence, du plus au moins grave — sert à trier la liste des athlètes.
 export function signalScore(s?: RosterSignals): number {
   if (!s) return 0;

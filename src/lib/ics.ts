@@ -27,9 +27,15 @@ function toICSDateTime(dateISO: string, time: string): string {
 }
 
 function addDays(dateISO: string, days: number): string {
+  // Composants Y/M/D uniquement : passer par toISOString() reconvertirait en
+  // UTC un minuit interprété en heure locale, ce qui recule d'un jour dès que
+  // le fuseau est en avance sur UTC (cas de la France).
   const d = new Date(`${dateISO}T00:00:00`);
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function addMinutes(dateISO: string, time: string, minutes: number): string {

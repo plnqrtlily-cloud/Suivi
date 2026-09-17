@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { dbGet, dbRun, dbAll } from "./db";
-import { todayISO } from "./dates";
+import { todayISO, toISODate } from "./dates";
 import {
   createUser,
   findUserByEmail,
@@ -24,6 +24,7 @@ import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE
 import { parseGpx, simplifyRoute } from "./gpx";
 import { getResourceById, getBlocksForWorkout } from "./queries";
 import { createNotification, markNotificationRead, markAllNotificationsRead } from "./notifications";
+import { sendEmail, isEmailConfigured, appBaseUrl } from "./email";
 import { saveSubscription, removeSubscription } from "./push";
 
 // ---------- AUTH ----------
@@ -634,7 +635,7 @@ export async function copyWeekAction(params: {
 
   const sourceWorkouts = await dbAll<any>(
     `SELECT * FROM workouts WHERE athlete_id = ? AND coach_id = ? AND date BETWEEN ? AND ?`,
-    [params.athleteId, user.id, params.sourceWeekStart, sourceEnd.toISOString().slice(0, 10)]
+    [params.athleteId, user.id, params.sourceWeekStart, toISODate(sourceEnd)]
   );
 
   let count = 0;
@@ -666,7 +667,7 @@ export async function copyWeekAction(params: {
       category: w.category,
       priority: w.priority || undefined,
       title: w.title,
-      dates: [newDate.toISOString().slice(0, 10)],
+      dates: [toISODate(newDate)],
       time: w.time || undefined,
       durationMinutes: w.duration_minutes || undefined,
       description: w.description || undefined,
@@ -899,17 +900,38 @@ export async function deleteJournalEntryAction(entryId: string) {
 // Ici, le lien est simplement affiché à l'écran pour rester testable sans service d'email.
 export async function requestPasswordResetAction(formData: FormData) {
   const email = String(formData.get("email") || "").trim();
-  const user = await findUserByEmail(email);
-  if (!user) {
-    // Toujours répondre pareil, qu'un compte existe ou non, pour ne pas révéler
-    // quelles adresses sont enregistrées (bonne pratique de sécurité).
-    return { message: "Si un compte existe avec cet email, un lien de réinitialisation a été généré." };
+
+  // Le lien de réinitialisation ne doit JAMAIS repartir dans la réponse : il
+  // suffirait de saisir l'adresse de quelqu'un d'autre pour obtenir son lien
+  // et prendre son compte. Il part par email, ou pas du tout.
+  if (!isEmailConfigured()) {
+    return {
+      message:
+        "L'envoi d'emails n'est pas encore configuré sur cette installation. Contactez votre coach ou l'administrateur pour réinitialiser votre mot de passe.",
+    };
   }
-  const token = await createPasswordResetToken(user.id);
-  return {
-    message: "Lien de réinitialisation généré (affiché ci-dessous car aucun service d'email n'est branché dans ce prototype).",
-    resetLink: `/reset-password/${token}`,
-  };
+
+  const user = await findUserByEmail(email);
+  if (user) {
+    const token = await createPasswordResetToken(user.id);
+    await sendEmail({
+      to: email,
+      subject: "Réinitialiser votre mot de passe Rythme",
+      text: [
+        `Bonjour ${user.first_name},`,
+        "",
+        "Vous avez demandé à réinitialiser votre mot de passe. Ouvrez ce lien :",
+        `${appBaseUrl()}/reset-password/${token}`,
+        "",
+        "Ce lien expire dans une heure et ne peut servir qu'une fois.",
+        "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : votre mot de passe reste inchangé.",
+      ].join("\n"),
+    });
+  }
+
+  // Même réponse qu'un compte existe ou non, pour ne pas révéler quelles
+  // adresses sont enregistrées.
+  return { message: "Si un compte existe avec cet email, un lien de réinitialisation vient d'être envoyé." };
 }
 
 export async function resetPasswordAction(formData: FormData) {

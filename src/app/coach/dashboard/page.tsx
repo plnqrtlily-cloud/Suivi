@@ -3,14 +3,11 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import {
   getAthletesForCoach,
-  getWorkoutsForAthlete,
-  getRecentCheckins,
-  getUnreadMessageCount,
-  getJournalForAthlete,
   getCoachReminders,
 } from "@/lib/queries";
-import { getRosterSignals, signalScore, type RosterSignals } from "@/lib/roster-signals";
-import { todayISO } from "@/lib/dates";
+import { computeRosterSignals, signalScore, type RosterSignals } from "@/lib/roster-signals";
+import { loadDashboardBatch } from "@/lib/dashboard-batch";
+import { todayISO, toISODate } from "@/lib/dates";
 import { computeGlobalScore, scoreLabel } from "@/lib/checkin-types";
 import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
@@ -143,30 +140,43 @@ export default async function CoachDashboardPage() {
   // moyen de savoir qu'elles sont en attente, ni de les annuler.
   const pendingInvites = links.filter((l) => l.status === "pending");
 
-  const rows = await Promise.all(
-    activeAthletes.map(async (l) => {
-      const athleteId = l.athlete_id as string;
-      const [todayWorkouts, checkins, unread, signals, journal] = await Promise.all([
-        getWorkoutsForAthlete(athleteId, today, today),
-        getRecentCheckins(athleteId, 1),
-        getUnreadMessageCount(user.id, athleteId, user.id),
-        getRosterSignals(athleteId, today),
-        getJournalForAthlete(athleteId, today),
-      ]);
-      const checkin = checkins[0];
-      const isToday = checkin?.check_date === today;
-      return {
-        athleteId,
-        link: l,
-        todayWorkouts,
-        score: checkin && isToday ? computeGlobalScore(checkin) : null,
-        checkinNote: isToday ? checkin?.notes ?? null : null,
-        journalNote: (journal[0] as any)?.content ?? null,
-        signals,
-        unread,
-      };
-    })
+  // Tout l'effectif chargé en une poignée de requêtes plutôt que huit par
+  // athlète : à 30 athlètes, l'ancienne version faisait 240 allers-retours.
+  const acwrFrom = new Date();
+  acwrFrom.setDate(acwrFrom.getDate() - 27);
+  const recentFrom = new Date();
+  recentFrom.setDate(recentFrom.getDate() - 13);
+  const recentFromISO = toISODate(recentFrom);
+
+  const batch = await loadDashboardBatch(
+    user.id,
+    activeAthletes.map((l) => l.athlete_id as string),
+    today,
+    toISODate(acwrFrom),
+    recentFromISO
   );
+
+  const rows = activeAthletes.map((l) => {
+    const athleteId = l.athlete_id as string;
+    const checkin = batch.checkinByAthlete.get(athleteId);
+    const isToday = checkin?.check_date === today;
+    return {
+      athleteId,
+      link: l,
+      todayWorkouts: batch.workoutsByAthlete.get(athleteId) ?? [],
+      score: checkin && isToday ? computeGlobalScore(checkin) : null,
+      checkinNote: isToday ? checkin?.notes ?? null : null,
+      journalNote: batch.journalByAthlete.get(athleteId) ?? null,
+      signals: computeRosterSignals({
+        allWorkouts: batch.lastWorkoutsByAthlete.get(athleteId) ?? [],
+        imports: batch.importsByAthlete.get(athleteId) ?? [],
+        lastCheckinDate: checkin?.check_date ?? null,
+        today,
+        recentFromISO,
+      }),
+      unread: batch.unreadByAthlete.get(athleteId) ?? 0,
+    };
+  });
 
   // Les athlètes qui demandent attention remontent en tête — le coach n'a pas
   // à parcourir toute la liste pour trouver ce qui ne va pas.
@@ -203,14 +213,27 @@ export default async function CoachDashboardPage() {
           </p>
 
           {activeAthletes.length === 0 ? (
+            /* Premier lancement : le formulaire d'invitation directement, plutôt
+               qu'un message renvoyant vers une page à trouver. */
             <Card className="rounded-3xl">
-              <p className="text-slate">
-                Aucun athlète actif pour l&apos;instant —{" "}
-                <Link href="/coach" className="font-medium text-moss-dark hover:underline">
-                  invitez votre premier athlète
-                </Link>
-                .
+              <h2 className="mb-1 font-display text-xl text-ink">Invitez votre premier athlète</h2>
+              <p className="mb-4 text-sm text-slate">
+                Générez un lien d&apos;invitation et transmettez-le. Dès qu&apos;il crée son compte, vous pourrez lui
+                programmer des séances et suivre sa forme au jour le jour.
               </p>
+              <InviteForm />
+              {pendingInvites.length > 0 && (
+                <div className="mt-4 flex flex-col gap-2 border-t border-line pt-4">
+                  {pendingInvites.map((link) => (
+                    <div key={link.link_id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <span className="text-ink-soft">
+                        En attente — {link.invite_email || "lien partagé sans email précisé"}
+                      </span>
+                      <RevokeButton linkId={link.link_id} label="Annuler" />
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
           ) : (
             <>

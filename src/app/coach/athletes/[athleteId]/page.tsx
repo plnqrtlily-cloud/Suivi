@@ -344,7 +344,7 @@ export default async function AthleteDetailPage({
               </label>
               <label className="flex flex-col gap-1.5 text-sm">
                 <span className="font-medium text-ink-soft">Date de la mesure</span>
-                <input type="date" name="recordedAt" defaultValue={new Date().toISOString().slice(0, 10)} className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss" />
+                <input type="date" name="recordedAt" defaultValue={todayISO()} className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss" />
               </label>
               <label className="flex flex-col gap-1.5 text-sm">
                 <span className="font-medium text-ink-soft">Appareil utilisé</span>

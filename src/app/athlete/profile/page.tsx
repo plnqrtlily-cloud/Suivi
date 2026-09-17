@@ -20,6 +20,7 @@ import { computeHrZones } from "@/lib/hr-zones";
 import { computePowerZones } from "@/lib/power-zones";
 import { computePaceZones } from "@/lib/pace-zones";
 import { ZoneGrid, formatPaceValue } from "@/components/zone-grid";
+import { todayISO } from "@/lib/dates";
 import { PERFORMANCE_METRICS, MEASUREMENT_DEVICES, deviceLabel, computeDerivedMetrics } from "@/lib/performance-metrics";
 import { Nav } from "@/components/nav";
 import { Card, Field, SelectField, Button, sportLabel } from "@/components/ui";
@@ -172,7 +173,7 @@ export default async function AthleteProfilePage() {
               ))}
             </SelectField>
             <Field label="Valeur" type="number" step="0.1" name="value" required />
-            <Field label="Date de la mesure" type="date" name="recordedAt" defaultValue={new Date().toISOString().slice(0, 10)} />
+            <Field label="Date de la mesure" type="date" name="recordedAt" defaultValue={todayISO()} />
             <SelectField label="Appareil utilisé" name="device">
               {MEASUREMENT_DEVICES.map((d) => (
                 <option key={d.value} value={d.value}>

@@ -5,7 +5,7 @@ import { requestPasswordResetAction } from "@/lib/actions";
 import { Field, Button } from "@/components/ui";
 
 export function ForgotPasswordForm() {
-  const [result, setResult] = useState<{ message?: string; resetLink?: string } | null>(null);
+  const [result, setResult] = useState<{ message?: string } | null>(null);
   const [pending, setPending] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -28,11 +28,6 @@ export function ForgotPasswordForm() {
       {result && (
         <div className="rounded-md border border-line bg-paper-dim px-3 py-2 text-sm">
           <p>{result.message}</p>
-          {result.resetLink && (
-            <a href={result.resetLink} className="break-all text-moss-dark underline">
-              {result.resetLink}
-            </a>
-          )}
         </div>
       )}
     </div>

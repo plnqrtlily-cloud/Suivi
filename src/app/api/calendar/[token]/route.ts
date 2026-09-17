@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbGet, dbAll } from "@/lib/db";
 import { buildWorkoutsICS } from "@/lib/ics";
+import { toISODate } from "@/lib/dates";
 import type { Workout } from "@/lib/queries";
 
 // Flux iCalendar auquel Google Agenda / Apple Calendrier s'abonnent. Ces
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const workouts = await dbAll<Workout>(
     `SELECT * FROM workouts WHERE athlete_id = ? AND date BETWEEN ? AND ? ORDER BY date ASC`,
-    [user.id, from.toISOString().slice(0, 10), to.toISOString().slice(0, 10)]
+    [user.id, toISODate(from), toISODate(to)]
   );
 
   const ics = buildWorkoutsICS(workouts, `${user.first_name} ${user.last_name}`);

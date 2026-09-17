@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { addCoachReminderAction, toggleCoachReminderAction, deleteCoachReminderAction } from "@/lib/actions";
 import { Button } from "@/components/ui";
+import { todayISO } from "@/lib/dates";
 
 export interface ReminderItem {
   id: string;
@@ -35,7 +36,7 @@ export function CoachReminders({
 
   const pendingReminders = items.filter((r) => !r.done_at);
   const doneReminders = items.filter((r) => r.done_at);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
 
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

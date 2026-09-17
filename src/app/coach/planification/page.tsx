@@ -34,8 +34,7 @@ function buildQuery(params: { vue?: string; semaine?: string; mois?: string; ath
 }
 
 // Vue de planification : le calendrier de tous les athlètes au même endroit,
-// filtrable — pensé pour construire la programmation, là où /coach/calendar
-// sert surtout à consulter la semaine en cours.
+// filtrable — le point d'entrée unique pour construire la programmation.
 export default async function PlanificationPage({
   searchParams,
 }: {

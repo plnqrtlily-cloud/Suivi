@@ -910,6 +910,29 @@ async function main() {
   const doneReminder = await dbGet<any>(`SELECT done_at FROM coach_reminders WHERE id = ?`, [reminderId]);
   assert(!!doneReminder?.done_at, "Un rappel peut être marqué comme fait");
 
+  // 54. Sécurité : la demande de réinitialisation ne doit JAMAIS renvoyer le
+  // lien dans sa réponse — sinon il suffit de saisir l'adresse de quelqu'un
+  // d'autre pour prendre son compte.
+  const { requestPasswordResetAction } = await import("../src/lib/actions");
+  const resetForm = new FormData();
+  resetForm.set("email", athlete.email);
+  const resetResult: any = await requestPasswordResetAction(resetForm);
+  assert(!("resetLink" in resetResult), "La réponse ne contient aucun lien de réinitialisation");
+  assert(
+    !JSON.stringify(resetResult).includes("/reset-password/"),
+    "Aucun jeton de réinitialisation ne transite par la réponse HTTP"
+  );
+
+  // La réponse doit être identique pour une adresse inconnue, sinon elle
+  // révèle quelles adresses sont enregistrées.
+  const unknownForm = new FormData();
+  unknownForm.set("email", "inconnu@exemple.fr");
+  const unknownResult: any = await requestPasswordResetAction(unknownForm);
+  assert(
+    unknownResult.message === resetResult.message,
+    "La réponse est la même pour une adresse connue et inconnue (pas d'énumération de comptes)"
+  );
+
   console.log("\nTest end-to-end terminé.");
 }
 
