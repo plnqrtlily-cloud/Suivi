@@ -22,7 +22,7 @@ export async function CoachSidebar({ user, activeHref }: { user: User; activeHre
     { href: "/coach/dashboard", icon: "dashboard", label: "Tableau de bord" },
     { href: "/coach/nouvelle-seance", icon: "add", label: "Créer une séance" },
     { href: "/coach/planification", icon: "calendar", label: "Planification" },
-    { href: "/coach/messagerie", icon: "messages", label: "Messagerie" },
+    { href: "/coach/messagerie", icon: "messages", label: "Messagerie", badge: unreadCount || undefined },
     { href: "/coach/resources", icon: "library", label: "Bibliothèque" },
   ];
 
@@ -49,13 +49,6 @@ export async function CoachSidebar({ user, activeHref }: { user: User; activeHre
             ) : null}
           </Link>
         ))}
-        {unreadCount > 0 && (
-          <Link href="/coach" className={itemClass("__messages")}>
-            <NavIcon name="messages" className="h-[17px] w-[17px]" />
-            Messages
-            <span className="ml-auto rounded-full bg-moss px-1.5 text-[11px] font-semibold text-white">{unreadCount}</span>
-          </Link>
-        )}
       </div>
 
       {activeAthletes.length > 0 && (
@@ -75,7 +68,7 @@ export async function CoachSidebar({ user, activeHref }: { user: User; activeHre
               </Link>
             ))}
             {activeAthletes.length > 8 && (
-              <Link href="/coach" className="px-3 py-1.5 text-xs text-slate hover:underline">
+              <Link href="/coach/dashboard" className="px-3 py-1.5 text-xs text-slate hover:underline">
                 + {activeAthletes.length - 8} autre{activeAthletes.length - 8 > 1 ? "s" : ""}
               </Link>
             )}

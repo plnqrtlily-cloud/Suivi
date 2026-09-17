@@ -32,7 +32,7 @@ interface CalendarEntry {
 export default async function AthleteDayPage({ params }: { params: Promise<{ date: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== "athlete") redirect("/coach");
+  if (user.role !== "athlete") redirect("/coach/dashboard");
 
   const { date } = await params;
   if (!DATE_RE.test(date)) notFound();

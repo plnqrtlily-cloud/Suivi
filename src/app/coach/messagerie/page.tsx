@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
-import { getAthletesForCoach, getMessages, getUnreadMessageCount } from "@/lib/queries";
+import { getAthletesForCoach } from "@/lib/queries";
+import { loadConversationsBatch } from "@/lib/dashboard-batch";
 import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
 import { Avatar } from "@/components/avatar";
@@ -18,19 +19,20 @@ export default async function CoachMessageriePage() {
   const links = await getAthletesForCoach(user.id);
   const activeAthletes = links.filter((l) => l.status === "active" && l.athlete_id);
 
-  const conversations = await Promise.all(
-    activeAthletes.map(async (l) => {
-      const athleteId = l.athlete_id as string;
-      const [messages, unread] = await Promise.all([
-        getMessages(user.id, athleteId, 1),
-        getUnreadMessageCount(user.id, athleteId, user.id),
-      ]);
-      // getMessages renvoie par ordre croissant : le dernier élément est le
-      // message le plus récent.
-      const last = (messages as any[])[messages.length - 1];
-      return { athleteId, link: l, last, unread };
-    })
+  // Deux requêtes pour tout l'effectif au lieu de deux par athlète.
+  const { lastByAthlete, unreadByAthlete } = await loadConversationsBatch(
+    user.id,
+    activeAthletes.map((l) => l.athlete_id as string)
   );
+  const conversations = activeAthletes.map((l) => {
+    const athleteId = l.athlete_id as string;
+    return {
+      athleteId,
+      link: l,
+      last: lastByAthlete.get(athleteId),
+      unread: unreadByAthlete.get(athleteId) ?? 0,
+    };
+  });
 
   // Les conversations non lues d'abord, puis les plus récentes.
   conversations.sort((a, b) => {

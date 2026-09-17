@@ -9,7 +9,7 @@ import { NavIcon, type NavIconName } from "./nav-icon";
 import { BottomNav } from "./bottom-nav";
 
 export async function Nav({ user }: { user: User }) {
-  const homeHref = user.role === "coach" ? "/coach" : "/athlete";
+  const homeHref = user.role === "coach" ? "/coach/dashboard" : "/athlete";
   const [notifications, avatar] = await Promise.all([
     getNotifications(user.id),
     user.role === "athlete" ? getUserAvatar(user.id) : Promise.resolve(undefined),

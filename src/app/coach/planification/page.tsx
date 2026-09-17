@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
-import { getAthletesForCoach, getWorkoutsForAthlete } from "@/lib/queries";
+import { getAthletesForCoach } from "@/lib/queries";
+import { loadWorkoutsForAthletes } from "@/lib/dashboard-batch";
 import { getWeekDates, todayISO, getMonthGrid, monthLabel } from "@/lib/dates";
 import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
@@ -72,9 +73,14 @@ export default async function PlanificationPage({
   const rangeFrom = vue === "semaine" ? weekDates[0] : monthGrid[0].date;
   const rangeTo = vue === "semaine" ? weekDates[6] : monthGrid[monthGrid.length - 1].date;
 
-  const workoutsByAthlete = await Promise.all(
-    shownAthletes.map((l) => getWorkoutsForAthlete(l.athlete_id as string, rangeFrom, rangeTo, true))
+  // Une seule requête pour tous les athlètes affichés (brouillons inclus :
+  // c'est la vue du coach).
+  const workoutsMap = await loadWorkoutsForAthletes(
+    shownAthletes.map((l) => l.athlete_id as string),
+    rangeFrom,
+    rangeTo
   );
+  const workoutsByAthlete = shownAthletes.map((l) => workoutsMap.get(l.athlete_id as string) ?? []);
   const allWorkouts = workoutsByAthlete.flat();
   const goals = allWorkouts
     .filter((w) => w.category === "objectif" || w.category === "evenement")

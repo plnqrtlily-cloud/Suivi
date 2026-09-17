@@ -70,7 +70,7 @@ export default async function AthleteDashboard({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== "athlete") redirect("/coach");
+  if (user.role !== "athlete") redirect("/coach/dashboard");
 
   const { week, day } = await searchParams;
   const offset = week ? Number(week) : 0;

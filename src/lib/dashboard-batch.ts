@@ -107,3 +107,65 @@ export async function loadDashboardBatch(
     lastWorkoutsByAthlete: groupBy(recentWorkouts),
   };
 }
+
+
+/**
+ * Dernier message et compteur de non-lus pour tout l'effectif d'un coup —
+ * la messagerie faisait deux requêtes par athlète.
+ */
+export async function loadConversationsBatch(coachId: string, athleteIds: string[]) {
+  if (athleteIds.length === 0) {
+    return { lastByAthlete: new Map<string, any>(), unreadByAthlete: new Map<string, number>() };
+  }
+  const ph = placeholders(athleteIds.length);
+
+  const [lastMessages, unread] = await Promise.all([
+    // Le dernier message de chaque conversation : on récupère celui dont la
+    // date est maximale pour chaque athlète, en une passe.
+    dbAll<any>(
+      `SELECT m.* FROM messages m
+       WHERE m.coach_id = ? AND m.athlete_id IN (${ph})
+         AND m.created_at = (
+           SELECT MAX(m2.created_at) FROM messages m2
+           WHERE m2.coach_id = m.coach_id AND m2.athlete_id = m.athlete_id
+         )`,
+      [coachId, ...athleteIds]
+    ),
+    dbAll<any>(
+      `SELECT athlete_id, COUNT(*) as count FROM messages
+       WHERE coach_id = ? AND athlete_id IN (${ph}) AND sender_id != ? AND read_at IS NULL
+       GROUP BY athlete_id`,
+      [coachId, ...athleteIds, coachId]
+    ),
+  ]);
+
+  return {
+    lastByAthlete: new Map(lastMessages.map((m) => [m.athlete_id, m])),
+    unreadByAthlete: new Map(unread.map((u) => [u.athlete_id, Number(u.count)])),
+  };
+}
+
+/**
+ * Séances de plusieurs athlètes sur une période — la planification faisait une
+ * requête par athlète affiché.
+ */
+export async function loadWorkoutsForAthletes(
+  athleteIds: string[],
+  fromDate: string,
+  toDate: string
+): Promise<Map<string, Workout[]>> {
+  if (athleteIds.length === 0) return new Map();
+  const rows = await dbAll<Workout>(
+    `SELECT w.* FROM workouts w
+     WHERE w.athlete_id IN (${placeholders(athleteIds.length)}) AND w.date BETWEEN ? AND ?
+     ORDER BY w.date ASC, w.time ASC`,
+    [...athleteIds, fromDate, toDate]
+  );
+  const map = new Map<string, Workout[]>();
+  for (const w of rows) {
+    const list = map.get(w.athlete_id);
+    if (list) list.push(w);
+    else map.set(w.athlete_id, [w]);
+  }
+  return map;
+}

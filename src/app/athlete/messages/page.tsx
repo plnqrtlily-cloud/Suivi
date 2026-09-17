@@ -9,7 +9,7 @@ import { Avatar } from "@/components/avatar";
 export default async function AthleteMessagesIndexPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== "athlete") redirect("/coach");
+  if (user.role !== "athlete") redirect("/coach/dashboard");
 
   const coaches = await getCoachesForAthlete(user.id);
   const unreadByCoach = await Promise.all(

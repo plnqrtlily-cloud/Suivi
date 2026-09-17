@@ -55,7 +55,7 @@ const SPORTS_LIST = [
 export default async function AthleteProfilePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== "athlete") redirect("/coach");
+  if (user.role !== "athlete") redirect("/coach/dashboard");
 
   // Requêtes indépendantes parties en parallèle plutôt qu'en série (chacune est
   // un aller-retour réseau vers la base distante en production — les enchaîner

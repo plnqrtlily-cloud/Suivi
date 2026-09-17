@@ -101,7 +101,7 @@ export default async function ProgrammationPage({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== "athlete") redirect("/coach");
+  if (user.role !== "athlete") redirect("/coach/dashboard");
 
   const { view, week, month } = await searchParams;
   const activeView = view === "month" ? "month" : "week";

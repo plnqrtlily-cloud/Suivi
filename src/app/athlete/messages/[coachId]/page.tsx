@@ -12,7 +12,7 @@ export default async function AthleteMessagesPage({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== "athlete") redirect("/coach");
+  if (user.role !== "athlete") redirect("/coach/dashboard");
 
   const { coachId } = await params;
   const [linked, coach] = await Promise.all([isCoachLinkedToAthlete(coachId, user.id), findUserById(coachId)]);
