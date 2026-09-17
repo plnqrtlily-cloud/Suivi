@@ -18,6 +18,7 @@ import { Avatar } from "@/components/avatar";
 import { Card } from "@/components/ui";
 import { CoachReminders } from "./coach-reminders";
 import { InviteForm } from "../invite-form";
+import { RevokeButton } from "../revoke-button";
 import { sportIconPath } from "@/lib/sport-icons";
 
 
@@ -138,6 +139,9 @@ export default async function CoachDashboardPage() {
 
   const [links, reminders] = await Promise.all([getAthletesForCoach(user.id), getCoachReminders(user.id)]);
   const activeAthletes = links.filter((l) => l.status === "active" && l.athlete_id);
+  // Invitations envoyées mais pas encore acceptées — sinon le coach n'a aucun
+  // moyen de savoir qu'elles sont en attente, ni de les annuler.
+  const pendingInvites = links.filter((l) => l.status === "pending");
 
   const rows = await Promise.all(
     activeAthletes.map(async (l) => {
@@ -234,6 +238,23 @@ export default async function CoachDashboardPage() {
 
               {/* Invitation : accessible depuis la page d'accueil du coach, la
                   liste « Mes athlètes » ayant été retirée de la navigation. */}
+              {pendingInvites.length > 0 && (
+                <div className="mt-4 flex flex-col gap-2">
+                  {pendingInvites.map((link) => (
+                    <div
+                      key={link.link_id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-paper-dim px-4 py-3"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-ink-soft">Invitation en attente</p>
+                        <p className="text-xs text-slate">{link.invite_email || "Lien partagé sans email précisé"}</p>
+                      </div>
+                      <RevokeButton linkId={link.link_id} label="Annuler" />
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <Card className="mt-4 rounded-3xl">
                 <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Inviter un athlète</h2>
                 <InviteForm />
