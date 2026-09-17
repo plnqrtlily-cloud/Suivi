@@ -4,11 +4,11 @@ import { useState } from "react";
 import { Button, SelectField } from "@/components/ui";
 import { sportConfig, templateStructure } from "@/lib/sport-config";
 
-// Séance structurée en étapes, façon Garmin Connect : chaque étape a un type
+// Séance structurée en blocs, façon Garmin Connect : chaque bloc a un type
 // (échauffement/effort/récupération/repos/retour au calme), une durée (temps,
 // distance, ou "manuelle" — l'athlète avance lui-même, ex. bouton lap), et une
 // cible facultative (zone FC/allure/puissance déjà calculée à partir des
-// données de l'athlète, ou texte libre). Les étapes peuvent être groupées dans
+// données de l'athlète, ou texte libre). Les blocs peuvent être groupés dans
 // un bloc "Répéter" (ex. "6x 400m effort / 90s récup") — un seul niveau
 // d'imbrication, comme dans l'éditeur simple de Garmin Connect.
 
@@ -210,7 +210,7 @@ export function IntervalBuilder({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate">
-        Construisez la séance étape par étape (échauffement, efforts, récupérations…), avec des cibles basées sur
+        Construisez la séance bloc par bloc (échauffement, efforts, récupérations…), avec des cibles basées sur
         les zones de l&apos;athlète — comme un entraînement structuré Garmin Connect ou TrainingPeaks.
       </p>
 
@@ -300,7 +300,7 @@ export function IntervalBuilder({
                   }
                   className="self-start text-xs font-medium text-moss-dark hover:underline"
                 >
-                  + Étape dans la répétition
+                  + Bloc dans la répétition
                 </button>
               </div>
             </div>
@@ -310,7 +310,7 @@ export function IntervalBuilder({
 
       <div className="flex gap-2">
         <Button type="button" variant="secondary" onClick={addStep}>
-          + Étape
+          + Bloc
         </Button>
         <Button type="button" variant="secondary" onClick={addRepeatGroup}>
           + Groupe répété

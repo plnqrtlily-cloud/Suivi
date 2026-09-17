@@ -10,6 +10,7 @@ import { getCoachesForAthlete, getExternalConnections, getImportedActivities } f
 import { SyncPanel } from "@/app/athlete/profile/sync-panel";
 import { JoinCoachForm } from "@/app/athlete/join-coach-form";
 import { RevokeButton } from "@/app/coach/revoke-button";
+import { InviteForm } from "@/app/coach/invite-form";
 
 function DownloadIcon() {
   return (
@@ -44,6 +45,13 @@ export default async function SettingsPage() {
           <h2 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate">Notifications push</h2>
           <PushNotificationsToggle publicKey={getPushPublicKey()} />
         </Card>
+
+        {!isAthlete && (
+          <Card className="mb-6 rounded-3xl">
+            <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Inviter un athlète</h2>
+            <InviteForm />
+          </Card>
+        )}
 
         {isAthlete && (
           <Card className="mb-6 rounded-3xl">

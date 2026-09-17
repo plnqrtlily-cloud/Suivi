@@ -17,6 +17,7 @@ import { CoachSidebar } from "@/components/coach-sidebar";
 import { Avatar } from "@/components/avatar";
 import { Card } from "@/components/ui";
 import { CoachReminders } from "./coach-reminders";
+import { InviteForm } from "../invite-form";
 import { sportIconPath } from "@/lib/sport-icons";
 
 
@@ -230,6 +231,13 @@ export default async function CoachDashboardPage() {
                   ))}
                 </div>
               )}
+
+              {/* Invitation : accessible depuis la page d'accueil du coach, la
+                  liste « Mes athlètes » ayant été retirée de la navigation. */}
+              <Card className="mt-4 rounded-3xl">
+                <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Inviter un athlète</h2>
+                <InviteForm />
+              </Card>
             </>
           )}
         </main>
