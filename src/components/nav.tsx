@@ -19,6 +19,7 @@ export async function Nav({ user }: { user: User }) {
     ...(user.role === "coach"
       ? [
           { href: "/coach/dashboard", icon: "dashboard" as const, label: "Tableau de bord" },
+          { href: "/coach/nouvelle-seance", icon: "add" as const, label: "Créer" },
           { href: "/coach/planification", icon: "calendar" as const, label: "Planification" },
           { href: "/coach/messagerie", icon: "messages" as const, label: "Messagerie" },
           { href: "/coach/resources", icon: "library" as const, label: "Bibliothèque" },
@@ -45,8 +46,12 @@ export async function Nav({ user }: { user: User }) {
   );
 
   // La barre du bas se limite à cinq onglets : au-delà, les libellés
-  // deviennent illisibles sur un écran étroit.
-  const bottomNavItems = navItems.slice(0, 5);
+  // deviennent illisibles sur un écran étroit. Paramètres y figure toujours —
+  // c'est la seule navigation sur mobile, et on y trouve le compte, les
+  // connexions de montre et les coachs liés : le tronquer les rendrait
+  // inaccessibles.
+  const settingsItem = navItems.find((i) => i.href === "/settings")!;
+  const bottomNavItems = [...navItems.filter((i) => i.href !== "/settings").slice(0, 4), settingsItem];
 
   return (
     <>
