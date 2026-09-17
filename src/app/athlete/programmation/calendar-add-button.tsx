@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { addImportedActivityAction, addAvailabilityBlockAction } from "@/lib/actions";
 import { Button, Field, SelectField, TextAreaField, ErrorText } from "@/components/ui";
 import { AVAILABILITY_SLOT_LABELS } from "@/lib/time-of-day";
+import { DateRangePicker, dateRangeToList } from "@/components/date-range-picker";
 
 const SPORTS = [
   { value: "running", label: "Course à pied" },
@@ -27,6 +28,11 @@ export function CalendarAddButton({ defaultDate }: { defaultDate: string }) {
   const [sport, setSport] = useState("running");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  // Plage de dates commune aux deux onglets : une activité peut s'étaler sur
+  // plusieurs jours (trek, stage), et une indisponibilité aussi (déplacement,
+  // vacances). Un seul jour reste possible : on clique deux fois le même.
+  const [rangeStart, setRangeStart] = useState<string | null>(defaultDate);
+  const [rangeEnd, setRangeEnd] = useState<string | null>(defaultDate);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -35,17 +41,33 @@ export function CalendarAddButton({ defaultDate }: { defaultDate: string }) {
     setPending(true);
     setError(undefined);
     try {
+      if (!rangeStart || !rangeEnd) {
+        setError("Choisissez au moins un jour.");
+        setPending(false);
+        return;
+      }
+      const dates = dateRangeToList(rangeStart, rangeEnd);
+
       if (mode === "activity") {
         formData.set("sport", sport);
-        await addImportedActivityAction(formData);
+        // Une activité par jour de la plage : chacune reste modifiable
+        // indépendamment (une étape de trek n'a pas la même durée qu'une autre).
+        for (const date of dates) {
+          const perDay = new FormData();
+          formData.forEach((value, key) => perDay.set(key, value));
+          perDay.set("activityDate", date);
+          await addImportedActivityAction(perDay);
+        }
       } else {
         await addAvailabilityBlockAction({
-          dates: [String(formData.get("date") || defaultDate)],
+          dates,
           timeOfDay: String(formData.get("timeOfDay") || "full_day"),
           reason: String(formData.get("reason") || ""),
         });
       }
       form.reset();
+      setRangeStart(defaultDate);
+      setRangeEnd(defaultDate);
       setOpen(false);
       router.refresh();
     } catch (err: any) {
@@ -96,8 +118,21 @@ export function CalendarAddButton({ defaultDate }: { defaultDate: string }) {
               Une séance faite de votre côté, en plus de ce que votre coach a programmé — elle comptera dans votre
               charge d&apos;entraînement.
             </p>
+            <div>
+              <span className="mb-1.5 block text-sm font-medium text-ink-soft">Jour(s)</span>
+              <p className="mb-2 text-xs text-slate">
+                Cliquez un jour, ou un second pour couvrir toute la période (stage, trek…).
+              </p>
+              <DateRangePicker
+                start={rangeStart}
+                end={rangeEnd}
+                onChange={({ start, end }) => {
+                  setRangeStart(start);
+                  setRangeEnd(end);
+                }}
+              />
+            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Date" type="date" name="activityDate" required defaultValue={defaultDate} />
               <Field label="Heure (facultatif)" type="time" name="activityTime" />
               <SelectField label="Sport" value={sport} onChange={(e) => setSport(e.target.value)}>
                 {SPORTS.map((s) => (
@@ -122,8 +157,21 @@ export function CalendarAddButton({ defaultDate }: { defaultDate: string }) {
             <p className="text-xs text-slate">
               Prévenez votre coach que vous n&apos;êtes pas disponible — il le verra en programmant vos séances.
             </p>
+            <div>
+              <span className="mb-1.5 block text-sm font-medium text-ink-soft">Jour(s)</span>
+              <p className="mb-2 text-xs text-slate">
+                Cliquez un jour, ou un second pour couvrir toute la période (déplacement, vacances…).
+              </p>
+              <DateRangePicker
+                start={rangeStart}
+                end={rangeEnd}
+                onChange={({ start, end }) => {
+                  setRangeStart(start);
+                  setRangeEnd(end);
+                }}
+              />
+            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Date" type="date" name="date" required defaultValue={defaultDate} />
               <SelectField label="Moment" name="timeOfDay" defaultValue="full_day">
                 {Object.entries(AVAILABILITY_SLOT_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
