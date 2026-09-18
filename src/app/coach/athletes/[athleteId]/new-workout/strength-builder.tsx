@@ -104,7 +104,11 @@ function newExercise(blockType: string, seriesId: string, rounds: number, rest: 
   };
 }
 
-/** "75%" + max connu -> "≈ 75 kg", pour que le coach voie ce qu'il prescrit. */
+/**
+ * "75%" + max connu -> "≈ 75 kg", pour que le coach voie ce qu'il prescrit.
+ * Sans max testé pour cet exercice, rien ne s'affiche : le pourcentage reste
+ * seul, et c'est l'athlète qui renseignera la charge réelle pendant sa séance.
+ */
 function loadPreview(load: string, maxKg?: number): string | null {
   if (!load.includes("%") || !maxKg) return null;
   const kg = resolveLoadKg(load, maxKg);
@@ -230,11 +234,6 @@ export function StrengthBuilder({
               <p className="text-[11px] text-slate">travail minuté</p>
             </div>
           </div>
-          {volume.hasUnresolvedPercent && (
-            <p className="mt-2 text-[11px] text-gold-light">
-              Tonnage partiel : certaines charges sont en % sans max testé pour cet exercice.
-            </p>
-          )}
         </div>
       )}
 
