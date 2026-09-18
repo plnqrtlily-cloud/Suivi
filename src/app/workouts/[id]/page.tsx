@@ -1,7 +1,8 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
-import { getWorkoutById, getBlocksForWorkout, getCommentsForWorkout, getAthletesForCoach } from "@/lib/queries";
+import { getWorkoutById, getBlocksForWorkout, getCommentsForWorkout, getAthletesForCoach, getLatestExerciseMaxes } from "@/lib/queries";
+import { computeVolume, formatSeconds } from "@/lib/strength-volume";
 import { Nav } from "@/components/nav";
 import { Card, StatusBadge, sportLabel } from "@/components/ui";
 import { StatusForm } from "./status-form";
@@ -63,6 +64,25 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
       !!a.athlete_id && a.athlete_id !== workout.athlete_id && a.status === "active"
     )
     .map((a) => ({ athlete_id: a.athlete_id, first_name: a.first_name, last_name: a.last_name }));
+
+  // Volume de musculation, calculé depuis les blocs enregistrés. Les charges en
+  // pourcentage sont converties via les maxima de l'athlète quand ils existent.
+  const strengthMaxes = blocks.length > 0 ? await getLatestExerciseMaxes(workout.athlete_id) : {};
+  const strengthVolume = computeVolume(
+    blocks.map((b: any) => ({
+      exercise_name: b.exercise_name,
+      rep_type: b.rep_type === "time" ? "time" : "reps",
+      circuit_id: b.circuit_id || undefined,
+      circuit_rounds: b.circuit_rounds || undefined,
+      sets: (b.exerciseSets || []).map((st: any) => ({
+        reps: st.reps || "",
+        load: st.load || "",
+        rpe: st.rpe ? String(st.rpe) : "",
+        rir: st.rir != null ? String(st.rir) : "",
+      })),
+    })),
+    strengthMaxes
+  );
 
   return (
     <div className="min-h-screen bg-paper">
@@ -169,6 +189,33 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
         {blocks.length > 0 && (
           <Card className="mb-6">
             <h2 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate"><span className="h-3 w-0.5 rounded-full bg-moss" />Déroulé de la séance</h2>
+
+            {/* Récapitulatif réservé au coach : c'est un outil de dosage de la
+                charge, pas une information dont l'athlète a besoin pour
+                exécuter sa séance. */}
+            {user.role === "coach" && strengthVolume.exerciseCount > 0 && (
+              <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl bg-paper-dim p-3 sm:grid-cols-4">
+                <div>
+                  <p className="text-base font-semibold text-ink">{strengthVolume.totalSets}</p>
+                  <p className="text-[11px] text-slate">séries</p>
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-ink">{strengthVolume.totalReps || "—"}</p>
+                  <p className="text-[11px] text-slate">répétitions</p>
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-ink">
+                    {strengthVolume.totalLoadKg ? `${strengthVolume.totalLoadKg.toLocaleString("fr-FR")} kg` : "—"}
+                  </p>
+                  <p className="text-[11px] text-slate">tonnage</p>
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-ink">{formatSeconds(strengthVolume.totalTimeSeconds)}</p>
+                  <p className="text-[11px] text-slate">travail minuté</p>
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-col gap-3">
               {(() => {
                 const segments: { circuitId: string | null; rounds?: number; blocks: any[] }[] = [];
@@ -206,6 +253,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                               <th className="px-2 py-1 text-left font-semibold">Charge</th>
                               <th className="px-2 py-1 text-left font-semibold">Repos</th>
                               <th className="px-2 py-1 text-left font-semibold">RPE</th>
+                              <th className="px-2 py-1 text-left font-semibold">RIR</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -219,6 +267,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                                 <td className="px-2 py-1.5 text-ink">{s.load || "—"}</td>
                                 <td className="px-2 py-1.5 text-slate">{s.rest_seconds ? `${s.rest_seconds} s` : "—"}</td>
                                 <td className="px-2 py-1.5 text-slate">{s.rpe || "—"}</td>
+                                <td className="px-2 py-1.5 text-slate">{s.rir ?? "—"}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -250,7 +299,19 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                   if (!segment.circuitId) return <div key={`s${i}`}>{segment.blocks.map(renderBlock)}</div>;
                   return (
                     <div key={segment.circuitId} className="rounded-xl border-2 border-dashed border-moss/40 p-3">
-                      <p className="mb-2 text-sm font-semibold text-moss-dark">🔁 Circuit — {segment.rounds || 3} tours</p>
+                      <p className="mb-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-moss-dark">
+                        <span>Série × {segment.rounds || 1}</span>
+                        {segment.blocks[0]?.circuit_rest_seconds ? (
+                          <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-ink-soft">
+                            récup. {segment.blocks[0].circuit_rest_seconds}s entre séries
+                          </span>
+                        ) : null}
+                        {segment.blocks.length > 1 && (
+                          <span className="text-[11px] font-normal text-ink-soft">
+                            {segment.blocks.length} exercices enchaînés
+                          </span>
+                        )}
+                      </p>
                       <div className="flex flex-col gap-3">{segment.blocks.map(renderBlock)}</div>
                     </div>
                   );

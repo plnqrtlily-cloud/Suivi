@@ -933,6 +933,55 @@ async function main() {
     "La réponse est la même pour une adresse connue et inconnue (pas d'énumération de comptes)"
   );
 
+  // 55. Musculation : structure bloc > série > exercice, et calcul du volume
+  const { computeVolume, resolveLoadKg, parseReps } = await import("../src/lib/strength-volume");
+
+  assert(resolveLoadKg("80kg") === 80, "Une charge en kilogrammes est lue telle quelle");
+  assert(resolveLoadKg("75%", 100) === 75, "Une charge en % est convertie via le max de l'athlète");
+  assert(resolveLoadKg("75%") === null, "Un % sans max connu ne produit pas de tonnage inventé");
+  assert(resolveLoadKg("poids du corps") === null, "Une charge non chiffrable n'est pas comptée");
+  assert(parseReps("8-10") === 9, "Une fourchette de répétitions est moyennée");
+
+  const vol = computeVolume(
+    [
+      { exercise_name: "Squat", rep_type: "reps", sets: [{ reps: "10", load: "80kg" }, { reps: "8", load: "85kg" }] },
+      { exercise_name: "Burpees", rep_type: "reps", circuit_id: "s1", circuit_rounds: 3, sets: [{ reps: "12", load: "" }] },
+      { exercise_name: "Planche", rep_type: "time", circuit_id: "s1", circuit_rounds: 3, sets: [{ reps: "45s", load: "" }] },
+    ],
+    { Squat: 100 }
+  );
+  assert(vol.totalLoadKg === 1480, "Le tonnage vaut bien la somme des (répétitions x charge)");
+  assert(vol.totalReps === 54, "Les répétitions d'une série comptent autant de fois que la série est répétée");
+  assert(vol.totalSets === 8, "Le nombre de séries tient compte des répétitions de série");
+  assert(vol.totalTimeSeconds === 135, "Les exercices minutés sont cumulés à part des répétitions");
+
+  const partial = computeVolume([{ exercise_name: "Développé", rep_type: "reps", sets: [{ reps: "5", load: "80%" }] }], {});
+  assert(partial.hasUnresolvedPercent, "Un % sans max est signalé pour que le tonnage affiché soit compris comme partiel");
+
+  // Les colonnes de la structure en trois niveaux sont bien persistées.
+  const structuredWorkoutId = randomUUID();
+  await dbRun(
+    `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, title, date) VALUES (?, ?, ?, 'strength', 'entrainement', 'Séance structurée', '2027-07-01')`,
+    [structuredWorkoutId, coach.id, athlete.id]
+  );
+  const seriesId = randomUUID();
+  const exBlockId = randomUUID();
+  await dbRun(
+    `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, circuit_id, circuit_rounds, circuit_rest_seconds, order_index) VALUES (?, ?, 'main', 'Squat', ?, 4, 120, 0)`,
+    [exBlockId, structuredWorkoutId, seriesId]
+  );
+  await dbRun(
+    `INSERT INTO exercise_sets (id, block_id, set_number, reps, load, rest_seconds, rpe, rir, order_index) VALUES (?, ?, 1, '8', '75%', 60, 8, 2, 0)`,
+    [randomUUID(), exBlockId]
+  );
+  const savedBlock = await dbGet<any>(`SELECT circuit_rounds, circuit_rest_seconds FROM workout_blocks WHERE id = ?`, [exBlockId]);
+  assert(
+    savedBlock?.circuit_rounds === 4 && savedBlock?.circuit_rest_seconds === 120,
+    "Le nombre de séries et la récupération entre séries sont bien enregistrés"
+  );
+  const savedSet = await dbGet<any>(`SELECT rir, rest_seconds FROM exercise_sets WHERE block_id = ?`, [exBlockId]);
+  assert(savedSet?.rir === 2 && savedSet?.rest_seconds === 60, "Le RIR et la récupération entre exercices sont bien enregistrés");
+
   console.log("\nTest end-to-end terminé.");
 }
 

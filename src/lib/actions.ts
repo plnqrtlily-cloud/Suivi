@@ -148,6 +148,8 @@ export interface SetInput {
   load?: string;
   restSeconds?: number;
   rpe?: number;
+  /** Répétitions en réserve — complémentaire du RPE en musculation. */
+  rir?: number;
 }
 
 // Qualité physique travaillée — cf. periodisation classique (Bompa/NSCA) :
@@ -165,6 +167,8 @@ export interface BlockInput {
   rep_type?: "reps" | "time";
   circuit_id?: string;
   circuit_rounds?: number;
+  /** Récupération entre deux passages de la série, en secondes. */
+  circuit_rest_seconds?: number;
   sets?: SetInput[];
 }
 
@@ -241,17 +245,17 @@ export async function createWorkoutAction(params: {
       for (const b of resolvedBlocks) {
         const blockId = randomUUID();
         await dbRun(
-          `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, notes, resource_id, order_index, training_quality, rep_type, circuit_id, circuit_rounds)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [blockId, workoutId, b.block_type, b.exercise_name, b.notes || null, b.resourceId, idx, b.training_quality || null, b.rep_type || "reps", b.circuit_id || null, b.circuit_rounds || null]
+          `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, notes, resource_id, order_index, training_quality, rep_type, circuit_id, circuit_rounds, circuit_rest_seconds)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [blockId, workoutId, b.block_type, b.exercise_name, b.notes || null, b.resourceId, idx, b.training_quality || null, b.rep_type || "reps", b.circuit_id || null, b.circuit_rounds || null, b.circuit_rest_seconds || null]
         );
 
         let setIdx = 0;
         for (const s of b.sets || []) {
           if (s.reps || s.load) {
             await dbRun(
-              `INSERT INTO exercise_sets (id, block_id, set_number, reps, load, rest_seconds, rpe, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-              [randomUUID(), blockId, setIdx + 1, s.reps || null, s.load || null, s.restSeconds || null, s.rpe || null, setIdx]
+              `INSERT INTO exercise_sets (id, block_id, set_number, reps, load, rest_seconds, rpe, rir, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [randomUUID(), blockId, setIdx + 1, s.reps || null, s.load || null, s.restSeconds || null, s.rpe || null, s.rir ?? null, setIdx]
             );
           }
           setIdx++;
@@ -359,17 +363,17 @@ export async function updateWorkoutAction(params: {
   for (const b of resolvedBlocks) {
     const blockId = randomUUID();
     await dbRun(
-      `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, notes, resource_id, order_index, training_quality, rep_type, circuit_id, circuit_rounds)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [blockId, params.workoutId, b.block_type, b.exercise_name, b.notes || null, b.resourceId, idx, b.training_quality || null, b.rep_type || "reps", b.circuit_id || null, b.circuit_rounds || null]
+      `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, notes, resource_id, order_index, training_quality, rep_type, circuit_id, circuit_rounds, circuit_rest_seconds)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [blockId, params.workoutId, b.block_type, b.exercise_name, b.notes || null, b.resourceId, idx, b.training_quality || null, b.rep_type || "reps", b.circuit_id || null, b.circuit_rounds || null, b.circuit_rest_seconds || null]
     );
 
     let setIdx = 0;
     for (const s of b.sets || []) {
       if (s.reps || s.load) {
         await dbRun(
-          `INSERT INTO exercise_sets (id, block_id, set_number, reps, load, rest_seconds, rpe, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [randomUUID(), blockId, setIdx + 1, s.reps || null, s.load || null, s.restSeconds || null, s.rpe || null, setIdx]
+          `INSERT INTO exercise_sets (id, block_id, set_number, reps, load, rest_seconds, rpe, rir, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [randomUUID(), blockId, setIdx + 1, s.reps || null, s.load || null, s.restSeconds || null, s.rpe || null, s.rir ?? null, setIdx]
         );
       }
       setIdx++;
@@ -554,11 +558,13 @@ export async function duplicateWorkoutAction(params: { workoutId: string; target
     rep_type: b.rep_type || undefined,
     circuit_id: b.circuit_id || undefined,
     circuit_rounds: b.circuit_rounds || undefined,
+    circuit_rest_seconds: b.circuit_rest_seconds || undefined,
     sets: (b.exerciseSets || []).map((s: any) => ({
       reps: s.reps || undefined,
       load: s.load || undefined,
       restSeconds: s.rest_seconds || undefined,
       rpe: s.rpe || undefined,
+        rir: s.rir || undefined,
     })),
   }));
 
@@ -650,11 +656,13 @@ export async function copyWeekAction(params: {
       rep_type: b.rep_type || undefined,
       circuit_id: b.circuit_id || undefined,
       circuit_rounds: b.circuit_rounds || undefined,
+      circuit_rest_seconds: b.circuit_rest_seconds || undefined,
       sets: (b.exerciseSets || []).map((s: any) => ({
         reps: s.reps || undefined,
         load: s.load || undefined,
         restSeconds: s.rest_seconds || undefined,
         rpe: s.rpe || undefined,
+        rir: s.rir || undefined,
       })),
     }));
 

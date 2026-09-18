@@ -132,11 +132,13 @@ export function WorkoutForm({
         rep_type: (b as any).rep_type === "time" ? "time" : "reps",
         circuit_id: (b as any).circuit_id || undefined,
         circuit_rounds: (b as any).circuit_rounds || undefined,
+        circuit_rest_seconds: (b as any).circuit_rest_seconds || undefined,
         sets: (b.sets && b.sets.length ? b.sets : [{}]).map((s) => ({
           reps: s.reps || "",
           load: s.load || "",
           restSeconds: s.restSeconds ? String(s.restSeconds) : "",
           rpe: s.rpe ? String(s.rpe) : "",
+          rir: (s as any).rir ? String((s as any).rir) : "",
         })),
       }))
     );
@@ -172,6 +174,10 @@ export function WorkoutForm({
           notes: b.notes || undefined,
           resource_id: b.resource_id || undefined,
           training_quality: b.training_quality || undefined,
+          rep_type: b.rep_type,
+          circuit_id: b.circuit_id,
+          circuit_rounds: b.circuit_rounds,
+          circuit_rest_seconds: b.circuit_rest_seconds,
           sets: b.sets
             .filter((s) => s.reps || s.load)
             .map((s) => ({
@@ -179,6 +185,7 @@ export function WorkoutForm({
               load: s.load,
               restSeconds: s.restSeconds ? Number(s.restSeconds) : undefined,
               rpe: s.rpe ? Number(s.rpe) : undefined,
+              rir: s.rir ? Number(s.rir) : undefined,
             })),
         }))
       : undefined;

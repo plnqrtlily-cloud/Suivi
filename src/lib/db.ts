@@ -444,6 +444,14 @@ const MIGRATIONS: string[] = [
   // migration de availability_blocks plus haut). Une séance en brouillon est
   // invisible pour l'athlète tant que le coach ne la publie pas.
   `ALTER TABLE workouts ADD COLUMN is_draft INTEGER NOT NULL DEFAULT 0`,
+  // Musculation en trois niveaux : bloc (échauffement/corps/gainage/retour au
+  // calme) > série (groupe d'exercices répété N fois, colonnes circuit_*) >
+  // exercice. La récupération ENTRE séries appartient à la série ; celle entre
+  // exercices est déjà portée par exercise_sets.rest_seconds.
+  `ALTER TABLE workout_blocks ADD COLUMN circuit_rest_seconds INTEGER`,
+  // RIR (répétitions en réserve) : complémentaire du RPE, très utilisé en
+  // musculation pour doser l'effort sans passer par un pourcentage.
+  `ALTER TABLE exercise_sets ADD COLUMN rir INTEGER`,
   `ALTER TABLE workouts ADD COLUMN avg_hr INTEGER`,
   `ALTER TABLE workouts ADD COLUMN elevation_gain_m INTEGER`,
   `ALTER TABLE workouts ADD COLUMN avg_power_w INTEGER`,

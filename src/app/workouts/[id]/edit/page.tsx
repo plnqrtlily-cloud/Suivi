@@ -35,6 +35,7 @@ export default async function EditWorkoutPage({ params }: { params: Promise<{ id
     rep_type: b.rep_type === "time" ? "time" : "reps",
     circuit_id: b.circuit_id || undefined,
     circuit_rounds: b.circuit_rounds || undefined,
+    circuit_rest_seconds: b.circuit_rest_seconds || undefined,
     sets:
       b.exerciseSets.length > 0
         ? b.exerciseSets.map((s: any) => ({
@@ -42,8 +43,9 @@ export default async function EditWorkoutPage({ params }: { params: Promise<{ id
             load: s.load || "",
             restSeconds: s.rest_seconds ? String(s.rest_seconds) : "",
             rpe: s.rpe ? String(s.rpe) : "",
+            rir: s.rir ? String(s.rir) : "",
           }))
-        : [{ reps: "", load: "", restSeconds: "", rpe: "" }],
+        : [{ reps: "", load: "", restSeconds: "", rpe: "", rir: "" }],
   }));
 
   let intervals: IntervalItem[] = [];
