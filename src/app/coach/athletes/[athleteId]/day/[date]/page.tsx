@@ -148,7 +148,7 @@ export default async function CoachAthleteDayPage({ params }: { params: Promise<
         <div className="lg:hidden">
           <Nav user={user} />
         </div>
-      <main className="mx-auto max-w-3xl px-6 py-10">
+      <main className="mx-auto max-w-3xl px-4 sm:px-6 py-10">
         <Link href={`/coach/athletes/${athleteId}`} className="mb-4 inline-block text-sm text-moss-dark hover:underline">
           ← Retour à {athlete.first_name}
         </Link>

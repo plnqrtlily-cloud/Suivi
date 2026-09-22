@@ -51,7 +51,7 @@ export default async function CoachMessageriePage() {
         <div className="lg:hidden">
           <Nav user={user} />
         </div>
-        <main className="mx-auto max-w-3xl px-6 py-8">
+        <main className="mx-auto max-w-3xl px-4 sm:px-6 py-8">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="mb-1 font-display text-3xl text-ink">Messagerie</h1>

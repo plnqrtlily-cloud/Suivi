@@ -35,7 +35,7 @@ export function UploadResourceForm() {
         <option value="equipment">Matériel</option>
       </SelectField>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field label="Titre" name="title" required placeholder="ex. Squat — vue de face" />
         <Field label="Sport concerné (facultatif)" name="sport" placeholder="ex. Musculation" />
       </div>

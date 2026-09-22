@@ -37,7 +37,14 @@ import {
   periodsOnDate,
   templateWeeks,
 } from "../src/lib/periodization";
-import { getTrainingPeriods, getTrainingPeriodsForRange, getTrainingPeriodsForAthletes } from "../src/lib/queries";
+import {
+  getTrainingPeriods,
+  getTrainingPeriodsForRange,
+  getTrainingPeriodsForAthletes,
+  getCheckinsForRange,
+  getCoachNoteEntries,
+} from "../src/lib/queries";
+import { bilanRangeDays } from "../src/lib/dates";
 
 function assert(cond: any, message: string) {
   if (!cond) {
@@ -1065,6 +1072,61 @@ async function main() {
   assert(!outOfRange.some((p) => p.id === periodId), "Une période hors fenêtre n'est pas remontée");
   const batched = await getTrainingPeriodsForAthletes([athlete.id], "2026-11-01", "2026-11-30");
   assert((batched.get(athlete.id) ?? []).some((p) => p.id === periodId), "La requête groupée rend les périodes de chaque athlète");
+
+  // --- Plage de bilan libre --------------------------------------------------
+  assert(bilanRangeDays("2026-09-01", "2026-09-10") === 10, "Une plage libre compte ses deux bornes");
+  assert(bilanRangeDays("2026-09-01", "2026-09-01") === 1, "Une plage libre d'un seul jour vaut un jour");
+
+  // --- Forme : relevés sur une fenêtre ---------------------------------------
+  await dbRun(
+    `INSERT INTO daily_checkins (id, athlete_id, check_date, physical_level, mental_level, sleep_quality, soreness, stress)
+     VALUES (?, ?, '2026-10-05', 8, 8, 8, 2, 2)`,
+    [randomUUID(), athlete.id]
+  );
+  await dbRun(
+    `INSERT INTO daily_checkins (id, athlete_id, check_date, physical_level, mental_level, sleep_quality, soreness, stress)
+     VALUES (?, ?, '2026-10-20', 3, 4, 3, 8, 7)`,
+    [randomUUID(), athlete.id]
+  );
+  const octCheckins = await getCheckinsForRange(athlete.id, "2026-10-01", "2026-10-31");
+  assert(octCheckins.length === 2, "Les relevés de forme de la fenêtre sont tous remontés");
+  assert(octCheckins[0].check_date < octCheckins[1].check_date, "Les relevés de forme sortent en ordre chronologique");
+  assert(
+    computeGlobalScore(octCheckins[0]) > computeGlobalScore(octCheckins[1]),
+    "Un relevé en bonne forme donne un score plus haut qu'un relevé fatigué"
+  );
+  const novCheckins = await getCheckinsForRange(athlete.id, "2026-11-01", "2026-11-30");
+  assert(novCheckins.length === 0, "Une fenêtre sans relevé de forme ne remonte rien");
+
+  // --- Journal de notes du coach ---------------------------------------------
+  const noteA = randomUUID();
+  await dbRun(
+    `INSERT INTO coach_note_entries (id, coach_id, athlete_id, entry_date, body) VALUES (?, ?, ?, '2026-10-02', 'Bonne séance de seuil.')`,
+    [noteA, coach.id, athlete.id]
+  );
+  await dbRun(
+    `INSERT INTO coach_note_entries (id, coach_id, athlete_id, entry_date, body) VALUES (?, ?, ?, '2026-10-09', 'Se plaint du mollet droit.')`,
+    [randomUUID(), coach.id, athlete.id]
+  );
+  const journalEntries = await getCoachNoteEntries(coach.id, athlete.id);
+  assert(journalEntries.length === 2, "Les notes journalières s'accumulent au lieu de se remplacer");
+  assert(journalEntries[0].entry_date === "2026-10-09", "Les notes journalières sortent de la plus récente à la plus ancienne");
+  // Cloisonnement : les notes d'un coach ne fuient pas vers un autre coach.
+  const otherCoachNotes = await getCoachNoteEntries(athlete.id, athlete.id);
+  assert(otherCoachNotes.length === 0, "Les notes journalières d'un coach ne sont visibles que par lui");
+
+  // --- Saisie du réalisé par le coach ----------------------------------------
+  const reportedWorkoutId = randomUUID();
+  await dbRun(
+    `INSERT INTO workouts (id, coach_id, athlete_id, sport, title, date, status, rpe, reported_by)
+     VALUES (?, ?, ?, 'running', 'Sortie longue', '2026-10-11', 'done', 6, 'coach')`,
+    [reportedWorkoutId, coach.id, athlete.id]
+  );
+  const reported = await dbGet<any>(`SELECT reported_by, status FROM workouts WHERE id = ?`, [reportedWorkoutId]);
+  assert(
+    reported?.reported_by === "coach" && reported?.status === "done",
+    "Une séance renseignée par le coach garde la trace de son auteur"
+  );
 
   console.log("\nTest end-to-end terminé.");
 }

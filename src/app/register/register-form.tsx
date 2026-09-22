@@ -36,7 +36,7 @@ export function RegisterForm({ defaultInviteToken }: { defaultInviteToken?: stri
       </div>
       <input type="hidden" name="role" value={role} />
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field label="Prénom" name="firstName" required />
         <Field label="Nom" name="lastName" required />
       </div>

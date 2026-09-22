@@ -456,8 +456,12 @@ export async function updateWorkoutStatusAction(params: {
     ? { rpe: null, athleteFeedback: null, actualDurationMinutes: null, distanceKm: null, avgHr: null, elevationGainM: null, avgPowerW: null }
     : params;
 
+  // Trace de l'auteur de la saisie : le coach peut renseigner à la place de
+  // l'athlète (infos reçues hors appli), et l'athlète doit pouvoir le voir.
+  const reportedBy = isReschedule ? null : workout.athlete_id === user.id ? "athlete" : "coach";
+
   await dbRun(
-    `UPDATE workouts SET status = ?, date = ?, rpe = ?, athlete_feedback = ?, actual_duration_minutes = ?, distance_km = ?, avg_hr = ?, elevation_gain_m = ?, avg_power_w = ?
+    `UPDATE workouts SET status = ?, date = ?, rpe = ?, athlete_feedback = ?, actual_duration_minutes = ?, distance_km = ?, avg_hr = ?, elevation_gain_m = ?, avg_power_w = ?, reported_by = ?
      WHERE id = ?`,
     [
       finalStatus,
@@ -469,6 +473,7 @@ export async function updateWorkoutStatusAction(params: {
       feedbackFields.avgHr ?? null,
       feedbackFields.elevationGainM ?? null,
       feedbackFields.avgPowerW ?? null,
+      reportedBy,
       params.workoutId,
     ]
   );
@@ -1882,4 +1887,71 @@ export async function deleteTrainingPeriodAction(formData: FormData) {
   revalidatePath(`/coach/athletes/${period.athlete_id}/periodisation`);
   revalidatePath(`/coach/athletes/${period.athlete_id}`);
   revalidatePath(`/coach/planification`);
+}
+
+// ---------- NOTES JOURNALIÈRES DU COACH ----------
+
+export async function addCoachNoteEntryAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const athleteId = String(formData.get("athleteId") || "");
+  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+
+  const body = String(formData.get("body") || "").trim();
+  if (!body) return;
+
+  // Date d'écriture par défaut ; modifiable pour consigner après coup une
+  // observation de la veille sans fausser la chronologie.
+  const raw = String(formData.get("entryDate") || "");
+  const entryDate = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : todayISO();
+
+  await dbRun(
+    `INSERT INTO coach_note_entries (id, coach_id, athlete_id, entry_date, body) VALUES (?, ?, ?, ?, ?)`,
+    [randomUUID(), user.id, athleteId, entryDate, body]
+  );
+
+  revalidatePath(`/coach/athletes/${athleteId}`);
+}
+
+export async function updateCoachNoteEntryAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const entryId = String(formData.get("entryId") || "");
+  const entry = await dbGet<{ coach_id: string; athlete_id: string }>(
+    `SELECT coach_id, athlete_id FROM coach_note_entries WHERE id = ?`,
+    [entryId]
+  );
+  // Une note privée n'est modifiable que par son auteur, même si un autre
+  // coach suit le même athlète.
+  if (!entry || entry.coach_id !== user.id) throw new Error("Non autorisé.");
+
+  const body = String(formData.get("body") || "").trim();
+  if (!body) return;
+  const raw = String(formData.get("entryDate") || "");
+  const entryDate = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : undefined;
+
+  await dbRun(
+    `UPDATE coach_note_entries SET body = ?, entry_date = COALESCE(?, entry_date), updated_at = datetime('now')
+     WHERE id = ?`,
+    [body, entryDate ?? null, entryId]
+  );
+
+  revalidatePath(`/coach/athletes/${entry.athlete_id}`);
+}
+
+export async function deleteCoachNoteEntryAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const entryId = String(formData.get("entryId") || "");
+  const entry = await dbGet<{ coach_id: string; athlete_id: string }>(
+    `SELECT coach_id, athlete_id FROM coach_note_entries WHERE id = ?`,
+    [entryId]
+  );
+  if (!entry || entry.coach_id !== user.id) throw new Error("Non autorisé.");
+
+  await dbRun(`DELETE FROM coach_note_entries WHERE id = ?`, [entryId]);
+  revalidatePath(`/coach/athletes/${entry.athlete_id}`);
 }

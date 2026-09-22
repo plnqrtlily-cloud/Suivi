@@ -43,7 +43,7 @@ export default async function NouvelleSeancePage({
           <div className="lg:hidden">
             <Nav user={user} />
           </div>
-          <main className="mx-auto max-w-3xl px-6 py-8">
+          <main className="mx-auto max-w-3xl px-4 sm:px-6 py-8">
             <h1 className="mb-1 font-display text-3xl text-ink">Créer une séance</h1>
             <p className="mb-6 text-slate">Pour qui construisez-vous cette séance ?</p>
 
@@ -112,7 +112,7 @@ export default async function NouvelleSeancePage({
         <div className="lg:hidden">
           <Nav user={user} />
         </div>
-        <main className="mx-auto max-w-3xl px-6 py-8">
+        <main className="mx-auto max-w-3xl px-4 sm:px-6 py-8">
           <h1 className="mb-1 font-display text-3xl text-ink">Créer une séance</h1>
           <p className="mb-6 flex flex-wrap items-center gap-2 text-slate">
             Pour {selected.first_name} {selected.last_name}

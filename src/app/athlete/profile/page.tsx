@@ -11,7 +11,6 @@ import {
   getUserAvatar,
   profileCompletion,
   getExerciseMaxes,
-  getCalendarToken,
 } from "@/lib/queries";
 import { addMeasurementAction, addInjuryAction, setGenderAction, setAthleteSportsAction } from "@/lib/actions";
 import { AvatarUpload } from "./avatar-upload";
@@ -27,7 +26,6 @@ import { Card, Field, SelectField, Button, sportLabel } from "@/components/ui";
 import { CyclePanel } from "./cycle-panel";
 import { PerformanceStats, MeasurementPoint } from "./performance-stats";
 import { ExerciseMaxesPanel } from "@/app/coach/athletes/[athleteId]/exercise-maxes-panel";
-import { CalendarSyncPanel } from "./calendar-sync-panel";
 
 function formatPace(minPerKm: number): string {
   const min = Math.floor(minPerKm);
@@ -60,7 +58,7 @@ export default async function AthleteProfilePage() {
   // Requêtes indépendantes parties en parallèle plutôt qu'en série (chacune est
   // un aller-retour réseau vers la base distante en production — les enchaîner
   // une par une multipliait la latence de la page par leur nombre).
-  const [latest, historyAll, injuries, completion, gender, athleteSports, avatar, personalRecords, exerciseMaxes, calendarToken] =
+  const [latest, historyAll, injuries, completion, gender, athleteSports, avatar, personalRecords, exerciseMaxes] =
     await Promise.all([
       getLatestMeasurements(user.id),
       getMeasurementsForAthlete(user.id),
@@ -71,7 +69,6 @@ export default async function AthleteProfilePage() {
       getUserAvatar(user.id),
       getPersonalRecordsForAthlete(user.id),
       getExerciseMaxes(user.id),
-      getCalendarToken(user.id),
     ]);
   const history = historyAll.slice(0, 10);
   const seriesByMetric: Record<string, MeasurementPoint[]> = {};
@@ -103,7 +100,7 @@ export default async function AthleteProfilePage() {
   return (
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
-      <main className="mx-auto max-w-3xl px-6 py-10">
+      <main className="mx-auto max-w-3xl px-4 sm:px-6 py-10">
         <h1 className="mb-1 font-display text-3xl text-ink">Mon profil</h1>
         <p className="mb-8 text-slate">Profil complété à {completion}% — visible par vos coachs actifs.</p>
 
@@ -292,14 +289,6 @@ export default async function AthleteProfilePage() {
         </Card>
 
         <Card className="mb-8 rounded-3xl">
-          <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Mon calendrier</h2>
-          <p className="mb-3 text-xs text-slate">
-            Synchronisez vos séances avec Google Agenda, Apple Calendrier ou Outlook.
-          </p>
-          <CalendarSyncPanel initialToken={calendarToken} />
-        </Card>
-
-        <Card className="mb-8 rounded-3xl">
           <h2 className="mb-4 text-[11px] font-bold uppercase tracking-wider text-slate">Antécédents de blessures</h2>
           <ul className="mb-4 space-y-2 text-sm">
             {injuries.map((i) => (
@@ -313,7 +302,7 @@ export default async function AthleteProfilePage() {
             ))}
             {injuries.length === 0 && <p className="text-slate">Aucun antécédent renseigné.</p>}
           </ul>
-          <form action={addInjuryAction} className="grid grid-cols-2 gap-3">
+          <form action={addInjuryAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Zone" name="zone" required placeholder="ex. Genou droit" />
             <Field label="Description" name="description" placeholder="ex. Tendinite" />
             <Field label="Date de début" type="date" name="dateStart" required />

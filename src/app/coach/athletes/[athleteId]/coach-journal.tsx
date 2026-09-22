@@ -1,0 +1,173 @@
+"use client";
+
+import { useRef, useState, useEffect } from "react";
+import type { CoachNoteEntry } from "@/lib/queries";
+import {
+  addCoachNoteEntryAction,
+  updateCoachNoteEntryAction,
+  deleteCoachNoteEntryAction,
+} from "@/lib/actions";
+
+/**
+ * Zone de saisie dont la hauteur suit le texte : une note d'une ligne n'occupe
+ * qu'une ligne, une observation de quinze lignes se lit sans barre de
+ * défilement interne. Un champ à hauteur fixe force à écrire court ou à faire
+ * défiler dans une fenêtre de trois lignes ; ni l'un ni l'autre ne convient à
+ * des notes prises au fil de l'eau.
+ */
+function AutoTextarea({
+  name,
+  defaultValue,
+  placeholder,
+  minRows = 2,
+}: {
+  name: string;
+  defaultValue?: string;
+  placeholder?: string;
+  minRows?: number;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  function resize(el: HTMLTextAreaElement) {
+    // Remise à zéro avant mesure : sans elle, scrollHeight ne redescend jamais
+    // quand on efface du texte, et le champ resterait grand pour toujours.
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }
+
+  useEffect(() => {
+    if (ref.current) resize(ref.current);
+  }, []);
+
+  return (
+    <textarea
+      ref={ref}
+      name={name}
+      rows={minRows}
+      defaultValue={defaultValue}
+      placeholder={placeholder}
+      onInput={(e) => resize(e.currentTarget)}
+      className="w-full resize-none overflow-hidden rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-moss"
+    />
+  );
+}
+
+function frLong(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString("fr-FR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function EntryCard({ entry }: { entry: CoachNoteEntry }) {
+  const [editing, setEditing] = useState(false);
+  const edited = entry.updated_at !== entry.created_at;
+
+  return (
+    <li className="rounded-2xl border border-line bg-white px-3 py-2.5">
+      <div className="mb-1 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold capitalize text-ink-soft">{frLong(entry.entry_date)}</span>
+        {edited && <span className="text-[10px] text-slate">modifiée</span>}
+        <button
+          type="button"
+          onClick={() => setEditing((v) => !v)}
+          className="ml-auto text-xs font-semibold text-slate hover:text-ink"
+        >
+          {editing ? "Annuler" : "Modifier"}
+        </button>
+      </div>
+
+      {editing ? (
+        <>
+          <form action={updateCoachNoteEntryAction} className="flex flex-col gap-2">
+            <input type="hidden" name="entryId" value={entry.id} />
+            <AutoTextarea name="body" defaultValue={entry.body} />
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="date"
+                name="entryDate"
+                defaultValue={entry.entry_date}
+                className="rounded-xl border border-line bg-paper-dim px-2 py-1 text-xs text-ink"
+              />
+              <button type="submit" className="rounded-xl bg-moss px-3 py-1.5 text-xs font-semibold text-white">
+                Enregistrer
+              </button>
+            </div>
+          </form>
+          <form action={deleteCoachNoteEntryAction} className="mt-2">
+            <input type="hidden" name="entryId" value={entry.id} />
+            <button type="submit" className="text-xs font-semibold text-clay hover:underline">
+              Supprimer cette note
+            </button>
+          </form>
+        </>
+      ) : (
+        // whitespace-pre-wrap : les retours à la ligne saisis sont conservés,
+        // une note prise en liste reste une liste.
+        <p className="whitespace-pre-wrap text-sm text-ink">{entry.body}</p>
+      )}
+    </li>
+  );
+}
+
+export function CoachJournal({
+  athleteId,
+  entries,
+  today,
+}: {
+  athleteId: string;
+  entries: CoachNoteEntry[];
+  today: string;
+}) {
+  // Les notes s'empilent vite ; on en montre vingt et le reste sur demande.
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? entries : entries.slice(0, 20);
+
+  return (
+    <div>
+      <form action={addCoachNoteEntryAction} className="mb-4 flex flex-col gap-2">
+        <input type="hidden" name="athleteId" value={athleteId} />
+        <AutoTextarea
+          name="body"
+          placeholder="Ce que vous avez observé aujourd'hui…"
+          minRows={2}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="date"
+            name="entryDate"
+            defaultValue={today}
+            className="rounded-xl border border-line bg-paper-dim px-2 py-1 text-xs text-ink"
+          />
+          <button type="submit" className="rounded-xl bg-moss px-4 py-1.5 text-sm font-semibold text-white">
+            Ajouter la note
+          </button>
+          <span className="text-xs text-slate">Datée du jour, modifiable si vous notez après coup.</span>
+        </div>
+      </form>
+
+      {entries.length === 0 ? (
+        <p className="text-sm text-slate">Aucune note pour l&apos;instant.</p>
+      ) : (
+        <>
+          <ul className="flex flex-col gap-2">
+            {visible.map((e) => (
+              <EntryCard key={e.id} entry={e} />
+            ))}
+          </ul>
+          {entries.length > visible.length && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="mt-3 text-xs font-semibold text-moss-dark hover:underline"
+            >
+              Voir les {entries.length - visible.length} notes plus anciennes
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

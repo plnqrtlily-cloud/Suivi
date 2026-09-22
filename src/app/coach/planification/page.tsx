@@ -105,7 +105,7 @@ export default async function PlanificationPage({
         <div className="lg:hidden">
           <Nav user={user} />
         </div>
-        <main className="mx-auto max-w-5xl px-6 py-8">
+        <main className="mx-auto max-w-5xl px-4 sm:px-6 py-8">
           <h1 className="mb-1 font-display text-3xl text-ink">Planification</h1>
           <p className="mb-5 text-slate">Construisez la programmation de vos athlètes sur la période de votre choix.</p>
 
@@ -245,11 +245,17 @@ export default async function PlanificationPage({
                 </Link>
               </div>
 
+              {/* Le tableau garde sept colonnes quelle que soit la largeur : on
+                  le fait défiler horizontalement plutôt que de le comprimer
+                  jusqu'à l'illisible, et on le dit sur petit écran. */}
+              <p className="mb-2 text-center text-[11px] text-slate sm:hidden">
+                Faites glisser le tableau horizontalement pour voir toute la semaine.
+              </p>
               <div className="overflow-x-auto rounded-3xl border border-line bg-white">
-                <table className="w-full min-w-[760px] border-collapse text-sm">
+                <table className="w-full min-w-[620px] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-line">
-                      <th className="w-44 p-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate">Athlète</th>
+                      <th className="w-32 p-2 text-left sm:w-44 sm:p-3 text-[11px] font-bold uppercase tracking-wider text-slate">Athlète</th>
                       {weekDates.map((date, i) => (
                         <th key={date} className={`p-2 text-center text-[11px] font-bold uppercase tracking-wider ${date === today ? "text-gold-light" : "text-slate"}`}>
                           {DAY_LABELS[i]} {date.slice(8, 10)}

@@ -110,7 +110,7 @@ export default async function ProgrammationPage({
   return (
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
-      <main className="mx-auto max-w-3xl px-6 py-10">
+      <main className="mx-auto max-w-3xl px-4 sm:px-6 py-10">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h1 className="font-display text-3xl text-ink">Calendrier</h1>
           {/* Point d'entrée unique : séance faite hors programmation OU

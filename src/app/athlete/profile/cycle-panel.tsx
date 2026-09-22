@@ -83,7 +83,7 @@ export function CyclePanel({
         {nextPeriod && <p className="mt-3 text-center text-sm text-slate">Prochaines règles estimées autour du {nextPeriod}</p>}
       </div>
 
-      <form onSubmit={handleEntrySubmit} className="grid grid-cols-2 gap-3">
+      <form onSubmit={handleEntrySubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <SelectField label="Type d'entrée" name="entryType" defaultValue="period_start">
           <option value="period_start">Début des règles</option>
           <option value="period_end">Fin des règles</option>
@@ -125,7 +125,7 @@ export function CyclePanel({
           <input type="checkbox" name="share" defaultChecked={!!settings.share_with_coaches} />
           Partager la phase de mon cycle avec mes coachs
         </label>
-        <div className="mb-3 grid grid-cols-2 gap-3">
+        <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field
             label="Durée moyenne du cycle (jours)"
             type="number"

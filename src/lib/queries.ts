@@ -69,6 +69,7 @@ export interface Workout {
   avg_hr: number | null;
   elevation_gain_m: number | null;
   avg_power_w: number | null;
+  reported_by: string | null;
   coach_first_name?: string;
   coach_last_name?: string;
 }
@@ -661,4 +662,32 @@ export async function getTrainingPeriodsForAthletes(
 
 export async function getTrainingPeriod(id: string): Promise<TrainingPeriod | undefined> {
   return dbGet(`SELECT * FROM training_periods WHERE id = ?`, [id]);
+}
+
+/** Check-ins de forme sur une fenêtre, dans l'ordre chronologique. */
+export async function getCheckinsForRange(athleteId: string, from: string, to: string): Promise<Checkin[]> {
+  return dbAll(
+    `SELECT * FROM daily_checkins WHERE athlete_id = ? AND check_date >= ? AND check_date <= ?
+     ORDER BY check_date ASC`,
+    [athleteId, from, to]
+  );
+}
+
+export interface CoachNoteEntry {
+  id: string;
+  coach_id: string;
+  athlete_id: string;
+  entry_date: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Notes journalières du coach, de la plus récente à la plus ancienne. */
+export async function getCoachNoteEntries(coachId: string, athleteId: string): Promise<CoachNoteEntry[]> {
+  return dbAll(
+    `SELECT * FROM coach_note_entries WHERE coach_id = ? AND athlete_id = ?
+     ORDER BY entry_date DESC, created_at DESC`,
+    [coachId, athleteId]
+  );
 }

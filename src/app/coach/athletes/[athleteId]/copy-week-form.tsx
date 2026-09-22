@@ -39,7 +39,7 @@ export function CopyWeekForm({ athleteId }: { athleteId: string }) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded-2xl border border-line bg-white p-3">
       <p className="text-xs text-slate">Indiquez le lundi de chaque semaine (les 7 jours suivants seront copiés).</p>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <Field label="Semaine à copier (lundi)" type="date" name="sourceWeekStart" required />
         <Field label="Semaine cible (lundi)" type="date" name="targetWeekStart" required />
       </div>

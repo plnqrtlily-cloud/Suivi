@@ -306,7 +306,7 @@ export function WorkoutForm({
         ))}
       </SelectField>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field
           key={`title-${templateKey}`}
           label="Titre de la séance"
@@ -402,7 +402,7 @@ export function WorkoutForm({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="Heure (facultatif)" type="time" name="time" defaultValue={initial?.time ?? ""} />
         <Field
           key={`duration-${templateKey}`}

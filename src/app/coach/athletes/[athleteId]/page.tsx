@@ -18,20 +18,30 @@ import {
   getExerciseMaxes,
   getCoachExerciseHistory,
   getTrainingPeriods,
+  getCheckinsForRange,
+  getCoachNoteEntries,
 } from "@/lib/queries";
 import { UpcomingGoals } from "@/components/upcoming-goals";
 import { getCycleSettings, estimateCyclePhase, PHASE_LABELS } from "@/lib/cycle";
-import { computeGlobalScore, scoreLabel, scoreColor } from "@/lib/checkin-types";
 import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
 import { Card, LinkButton, sportLabel, Button } from "@/components/ui";
 import { Avatar } from "@/components/avatar";
 import { RevokeButton } from "@/app/coach/revoke-button";
-import { todayISO, toISODate, computeBilanWindow, shiftBilanAnchor, type BilanPeriodValue } from "@/lib/dates";
+import {
+  todayISO,
+  toISODate,
+  computeBilanWindow,
+  shiftBilanAnchor,
+  bilanRangeDays,
+  type BilanPeriodValue,
+} from "@/lib/dates";
 import { AthleteCalendar } from "./athlete-calendar";
 import { TrainingInsights } from "./training-insights";
 import { PeriodizationPanel } from "./periodization-panel";
 import { PeriodBadge } from "@/components/period-badge";
+import { FormOfTheDay, FormHistory } from "./form-panel";
+import { CoachJournal } from "./coach-journal";
 import { computeAcwr } from "@/lib/training-stats";
 import { computeHrZones } from "@/lib/hr-zones";
 import { computePowerZones } from "@/lib/power-zones";
@@ -62,14 +72,22 @@ export default async function AthleteDetailPage({
   searchParams,
 }: {
   params: Promise<{ athleteId: string }>;
-  searchParams: Promise<{ view?: string; week?: string; month?: string; bilan?: string; bilanDate?: string }>;
+  searchParams: Promise<{
+    view?: string;
+    week?: string;
+    month?: string;
+    bilan?: string;
+    bilanDate?: string;
+    bilanFrom?: string;
+    bilanTo?: string;
+  }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "coach") redirect("/athlete");
 
   const { athleteId } = await params;
-  const { view, week, month, bilan, bilanDate } = await searchParams;
+  const { view, week, month, bilan, bilanDate, bilanFrom, bilanTo } = await searchParams;
 
   // Garde de permission (cf. prompt : règle la plus critique du produit).
   if (!(await isCoachLinkedToAthlete(user.id, athleteId))) {
@@ -82,7 +100,22 @@ export default async function AthleteDetailPage({
   // Le format est validé ici pour qu'une URL trafiquée ne produise pas de dates
   // « Invalid Date » dans tous les calculs en aval.
   const bilanAnchor = bilanDate && /^\d{4}-\d{2}-\d{2}$/.test(bilanDate) ? bilanDate : today;
-  const bilanWindow = computeBilanWindow(bilanPeriod.value, bilanAnchor);
+  // Plage libre : deux dates quelconques priment sur la période calée, pour
+  // répondre aux questions qui ne tombent pas sur une semaine ou un mois
+  // entier (« du début du stage au jour de la course »).
+  const isoRe = /^\d{4}-\d{2}-\d{2}$/;
+  const customRange =
+    bilanFrom && bilanTo && isoRe.test(bilanFrom) && isoRe.test(bilanTo) && bilanFrom <= bilanTo
+      ? { from: bilanFrom, to: bilanTo }
+      : null;
+  const bilanWindow = customRange
+    ? {
+        from: customRange.from,
+        to: customRange.to,
+        days: bilanRangeDays(customRange.from, customRange.to),
+        label: `Du ${customRange.from.slice(8, 10)}/${customRange.from.slice(5, 7)} au ${customRange.to.slice(8, 10)}/${customRange.to.slice(5, 7)}`,
+      }
+    : computeBilanWindow(bilanPeriod.value, bilanAnchor);
   const statsFromISO = bilanWindow.from;
   const statsToISO = bilanWindow.to;
   const bilanPrev = shiftBilanAnchor(bilanPeriod.value, bilanAnchor, -1);
@@ -91,7 +124,7 @@ export default async function AthleteDetailPage({
     `/coach/athletes/${athleteId}?bilan=${period}&bilanDate=${anchor}`;
   // Pas de navigation vers le futur : une fenêtre qui commence après aujourd'hui
   // ne contiendrait que des séances prévues, jamais de bilan.
-  const canGoNext = computeBilanWindow(bilanPeriod.value, bilanNext).from <= today;
+  const canGoNext = !customRange && computeBilanWindow(bilanPeriod.value, bilanNext).from <= today;
   const isCurrentWindow = today >= bilanWindow.from && today <= bilanWindow.to;
   // Fenêtre fixe à 28 jours pour l'alerte de charge (ACWR), indépendante du
   // filtre de période choisi pour le bilan — sinon le ratio changerait de
@@ -123,6 +156,8 @@ export default async function AthleteDetailPage({
     exerciseSuggestions,
     acwrImports,
     trainingPeriods,
+    bilanCheckins,
+    coachNoteEntries,
   ] = await Promise.all([
     findUserById(athleteId),
     getUserAvatar(athleteId),
@@ -143,6 +178,8 @@ export default async function AthleteDetailPage({
     getCoachExerciseHistory(user.id),
     getImportedActivitiesForRange(athleteId, acwrFromISO, today),
     getTrainingPeriods(athleteId),
+    getCheckinsForRange(athleteId, statsFromISO, statsToISO),
+    getCoachNoteEntries(user.id, athleteId),
   ]);
   if (!athlete) notFound();
 
@@ -182,7 +219,7 @@ export default async function AthleteDetailPage({
         <div className="lg:hidden">
           <Nav user={user} />
         </div>
-      <main className="mx-auto max-w-5xl px-6 py-10">
+      <main className="mx-auto max-w-5xl px-4 sm:px-6 py-10">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Avatar userId={athleteId} firstName={athlete.first_name} hasAvatar={!!athleteAvatar?.avatar_path} size="lg" />
@@ -233,11 +270,6 @@ export default async function AthleteDetailPage({
               <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
             <div className="flex flex-col gap-6">
         <div className="mb-8">
-          <UpcomingGoals goals={upcomingGoals} />
-        </div>
-
-
-        <div className="mb-8">
           <CopyWeekForm athleteId={athleteId} />
         </div>
 
@@ -258,16 +290,7 @@ export default async function AthleteDetailPage({
           {latestCheckin && (
             <Card className="rounded-3xl">
               <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Forme du jour</h2>
-              {(() => {
-                const score = computeGlobalScore(latestCheckin);
-                return (
-                  <p className={`text-lg font-semibold ${scoreColor(score)}`}>
-                    {score}/10 · {scoreLabel(score)}
-                  </p>
-                );
-              })()}
-              <p className="text-xs text-slate">Relevé le {latestCheckin.check_date}</p>
-              {latestCheckin.notes && <p className="mt-1 text-sm text-ink-soft">{latestCheckin.notes}</p>}
+              <FormOfTheDay checkin={latestCheckin} />
             </Card>
           )}
 
@@ -297,6 +320,12 @@ export default async function AthleteDetailPage({
           <PeriodBadge periods={trainingPeriods} date={today} prefix="Aujourd'hui :" />
         </div>
         <AthleteCalendar athleteId={athleteId} view={view} week={week} month={month} today={today} />
+
+        {/* Les objectifs vivent ici et nulle part ailleurs : c'est en programmant
+            qu'on a besoin de voir vers quoi on programme. */}
+        <div className="mt-8">
+          <UpcomingGoals goals={upcomingGoals} />
+        </div>
 
               </>
             ),
@@ -365,7 +394,7 @@ export default async function AthleteDetailPage({
               Aller
             </button>
           </form>
-          {!isCurrentWindow && (
+          {(!isCurrentWindow || customRange) && (
             <Link
               href={bilanHref(bilanPeriod.value, today)}
               scroll={false}
@@ -375,6 +404,39 @@ export default async function AthleteDetailPage({
             </Link>
           )}
         </div>
+
+        {/* Plage libre, pour les questions qui ne tombent pas sur une semaine
+            ou un mois entier. */}
+        <form
+          action={`/coach/athletes/${athleteId}`}
+          className="mb-3 flex flex-wrap items-end gap-2 rounded-2xl border border-line bg-white px-3 py-2"
+        >
+          <input type="hidden" name="bilan" value={bilanPeriod.value} />
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate">Du</label>
+            <input
+              type="date"
+              name="bilanFrom"
+              defaultValue={customRange?.from ?? statsFromISO}
+              max={today}
+              className="rounded-xl border border-line bg-paper-dim px-2 py-1 text-xs text-ink"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate">Au</label>
+            <input
+              type="date"
+              name="bilanTo"
+              defaultValue={customRange?.to ?? statsToISO}
+              max={today}
+              className="rounded-xl border border-line bg-paper-dim px-2 py-1 text-xs text-ink"
+            />
+          </div>
+          <button type="submit" className="rounded-xl bg-moss px-3 py-1.5 text-xs font-semibold text-white">
+            Afficher cette plage
+          </button>
+          {customRange && <span className="text-xs text-slate">Plage personnalisée active</span>}
+        </form>
         <p className="mb-3 text-sm text-slate">
           Séances faites et activités importées du {statsFromISO.slice(8, 10)}/{statsFromISO.slice(5, 7)} au{" "}
           {statsToISO.slice(8, 10)}/{statsToISO.slice(5, 7)} ({bilanWindow.days} jour{bilanWindow.days > 1 ? "s" : ""}).
@@ -387,6 +449,13 @@ export default async function AthleteDetailPage({
             periodEnd={statsToISO < today ? statsToISO : today}
           />
         </div>
+
+        {/* La forme subjective se lit à côté de la charge, pas ailleurs : c'est
+            leur mise en regard qui dit si la charge passe bien. */}
+        <Card className="mb-8 rounded-3xl">
+          <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Évolution de la forme</h3>
+          <FormHistory checkins={bilanCheckins} />
+        </Card>
 
 
               </>
@@ -530,8 +599,6 @@ export default async function AthleteDetailPage({
           <ExerciseMaxesPanel athleteId={athleteId} maxes={exerciseMaxes} exerciseSuggestions={exerciseSuggestions} />
         </Card>
 
-        <h2 className="mb-3 font-display text-xl text-ink">Prochains objectifs</h2>
-
               </div>
             ),
             sante: (
@@ -567,16 +634,7 @@ export default async function AthleteDetailPage({
           {latestCheckin && (
             <Card className="rounded-3xl">
               <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Forme du jour</h2>
-              {(() => {
-                const score = computeGlobalScore(latestCheckin);
-                return (
-                  <p className={`text-lg font-semibold ${scoreColor(score)}`}>
-                    {score}/10 · {scoreLabel(score)}
-                  </p>
-                );
-              })()}
-              <p className="text-xs text-slate">Relevé le {latestCheckin.check_date}</p>
-              {latestCheckin.notes && <p className="mt-1 text-sm text-ink-soft">{latestCheckin.notes}</p>}
+              <FormOfTheDay checkin={latestCheckin} />
             </Card>
           )}
 
@@ -637,6 +695,18 @@ export default async function AthleteDetailPage({
           </form>
         </Card>
 
+        {/* Journal : des notes courtes ajoutées au fil des jours, chacune datée,
+            qui forment l'historique du suivi. Le portrait ci-dessus se réécrit,
+            celui-ci s'accumule. */}
+        <Card className="mb-8 rounded-3xl">
+          <div className="mb-2 flex items-center gap-2">
+            <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate">Journal de suivi</h2>
+            <span className="rounded-full bg-paper-dim px-2 py-0.5 text-[10px] font-semibold text-slate">
+              Visibles par vous seul·e
+            </span>
+          </div>
+          <CoachJournal athleteId={athleteId} entries={coachNoteEntries} today={today} />
+        </Card>
 
               </>
             ),

@@ -32,7 +32,7 @@ export default async function CoachMessagesPage({
         <div className="lg:hidden">
           <Nav user={user} />
         </div>
-      <main className="mx-auto max-w-2xl px-6 py-10">
+      <main className="mx-auto max-w-2xl px-4 sm:px-6 py-10">
         <h1 className="mb-1 font-display text-3xl text-ink">
           Discussion avec {athlete.first_name} {athlete.last_name}
         </h1>

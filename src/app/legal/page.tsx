@@ -2,7 +2,7 @@ import { Card } from "@/components/ui";
 
 export default function LegalPage() {
   return (
-    <main className="mx-auto max-w-2xl px-6 py-12">
+    <main className="mx-auto max-w-2xl px-4 sm:px-6 py-12">
       <h1 className="mb-2 font-display text-3xl text-ink">Conditions d&apos;utilisation &amp; confidentialité</h1>
       <p className="mb-8 text-sm text-clay">
         ⚠️ Ceci est un squelette de prototype, pas un document juridique valide. À faire rédiger et valider par un

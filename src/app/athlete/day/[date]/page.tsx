@@ -150,7 +150,7 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
   return (
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
-      <main className="mx-auto max-w-3xl px-6 py-10">
+      <main className="mx-auto max-w-3xl px-4 sm:px-6 py-10">
         <Link href="/athlete" className="mb-4 inline-block text-sm text-moss-dark hover:underline">
           ← Retour au calendrier
         </Link>

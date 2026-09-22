@@ -87,7 +87,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
   return (
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
-      <main className="mx-auto max-w-3xl px-6 py-10">
+      <main className="mx-auto max-w-3xl px-4 sm:px-6 py-10">
         <div className="mb-6 flex items-start justify-between">
           <div>
             <p className="text-sm text-slate">
@@ -323,7 +323,14 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
 
         {(workout.status !== "planned" || workout.rpe) && (
           <Card className="mb-6">
-            <h2 className="mb-2 text-sm font-medium text-ink-soft">Retour de l&apos;athlète</h2>
+            <h2 className="mb-2 flex flex-wrap items-center gap-2 text-sm font-medium text-ink-soft">
+              Retour de l&apos;athlète
+              {workout.reported_by === "coach" && (
+                <span className="rounded-full bg-paper-dim px-2 py-0.5 text-[10px] font-semibold text-slate">
+                  saisi par le coach
+                </span>
+              )}
+            </h2>
             <p className="text-sm text-ink">
               {workout.rpe ? `RPE ${workout.rpe}/10` : "Pas de RPE renseigné"}
               {workout.actual_duration_minutes ? ` · ${workout.actual_duration_minutes} min réelles` : ""}
@@ -340,6 +347,25 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
           <Card className="mb-6">
             <h2 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate"><span className="h-3 w-0.5 rounded-full bg-moss" />Où en êtes-vous ?</h2>
             <StatusForm workoutId={workout.id} currentStatus={workout.status} sport={workout.sport} />
+          </Card>
+        )}
+
+        {/* Le coach saisit le réalisé quand l'athlète le lui a transmis hors
+            application — par message, par téléphone, ou de vive voix à
+            l'entraînement. Replié par défaut : c'est le cas particulier, pas
+            la marche normale, et la saisie de l'athlète reste la référence. */}
+        {user.role === "coach" && (
+          <Card className="mb-6">
+            <details>
+              <summary className="cursor-pointer text-[11px] font-bold uppercase tracking-wider text-slate">
+                Renseigner la séance à la place de l&apos;athlète
+              </summary>
+              <p className="mb-3 mt-2 text-xs text-slate">
+                À utiliser si l&apos;athlète vous a transmis son retour en dehors de l&apos;application. La saisie sera
+                signalée comme venant de vous.
+              </p>
+              <StatusForm workoutId={workout.id} currentStatus={workout.status} sport={workout.sport} asCoach />
+            </details>
           </Card>
         )}
 

@@ -410,6 +410,21 @@ CREATE TABLE IF NOT EXISTS training_periods (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_training_periods_athlete ON training_periods(athlete_id, start_date);
+-- Notes journalières du coach sur un athlète : ajoutées au fil de l'eau et
+-- datées du jour d'écriture, elles forment un historique. Distinctes de
+-- coach_athlete_notes (points forts / axes de travail), qui est un portrait
+-- durable réécrit, pas un journal. Privées comme elles : jamais visibles par
+-- l'athlète ni par un autre coach.
+CREATE TABLE IF NOT EXISTS coach_note_entries (
+  id TEXT PRIMARY KEY,
+  coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  athlete_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  entry_date TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_coach_note_entries ON coach_note_entries(coach_id, athlete_id, entry_date);
 `;
 
 let initialized: Promise<void> | null = null;
@@ -422,6 +437,11 @@ let initialized: Promise<void> | null = null;
 // plus. Échoue silencieusement si la colonne existe déjà (base neuve ou migration
 // déjà appliquée), ce qui la rend sûre à ré-exécuter à chaque démarrage.
 const MIGRATIONS: string[] = [
+  // Qui a renseigné le réalisé : l'athlète lui-même, ou le coach quand
+  // l'athlète lui a transmis ses infos hors application (SMS, message vocal,
+  // oral à l'entraînement). Sans cette trace, un retour saisi par le coach
+  // serait indiscernable d'un retour de l'athlète.
+  `ALTER TABLE workouts ADD COLUMN reported_by TEXT`,
   // Charges de référence : type de variable (charge/temps/répétitions, façon
   // Garmin qui distingue durée et répétitions) + note libre. "value_kg" reste
   // le nom de colonne pour des raisons historiques mais porte désormais la

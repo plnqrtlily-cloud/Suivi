@@ -196,7 +196,7 @@ export default async function CoachDashboardPage() {
         <div className="lg:hidden">
           <Nav user={user} />
         </div>
-        <main className="mx-auto max-w-5xl px-6 py-8">
+        <main className="mx-auto max-w-5xl px-4 sm:px-6 py-8">
           <h1 className="mb-1 font-display text-3xl text-ink">Mes athlètes</h1>
           <p className="mb-6 text-slate">
             {activeAthletes.length} athlète{activeAthletes.length > 1 ? "s" : ""} suivi{activeAthletes.length > 1 ? "s" : ""}

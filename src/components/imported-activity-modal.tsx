@@ -62,7 +62,7 @@ export function EditImportedActivityModal({ activity, className }: { activity: E
       </button>
       {open && (
         <Modal title="Modifier l'activité" subtitle="Ajustez les données de cette activité importée." onClose={() => setOpen(false)}>
-          <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Date" type="date" name="activityDate" required defaultValue={activity.activity_date} />
             <Field label="Heure (facultatif)" type="time" name="activityTime" defaultValue={activity.activity_time || ""} />
             <SelectField label="Sport" name="sport" value={sport} onChange={(e) => setSport(e.target.value)}>

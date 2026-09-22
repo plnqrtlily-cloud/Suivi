@@ -127,7 +127,7 @@ export default async function AthleteDashboard({
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
       <CheckinModal date={today} existing={todaysCheckin} firstName={user.first_name} userId={user.id} />
-      <main className="mx-auto max-w-5xl px-6 py-10">
+      <main className="mx-auto max-w-5xl px-4 sm:px-6 py-10">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-display text-3xl text-ink">Aujourd&apos;hui</h1>
           <div className="flex items-center gap-4">

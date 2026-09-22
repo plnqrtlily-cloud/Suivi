@@ -6,8 +6,9 @@ import { Card } from "@/components/ui";
 import { LogoutAllButton, DeleteAccountButton } from "./account-buttons";
 import { PushNotificationsToggle } from "@/components/push-notifications-toggle";
 import Link from "next/link";
-import { getCoachesForAthlete, getExternalConnections, getImportedActivities } from "@/lib/queries";
+import { getCoachesForAthlete, getExternalConnections, getImportedActivities, getCalendarToken } from "@/lib/queries";
 import { SyncPanel } from "@/app/athlete/profile/sync-panel";
+import { CalendarSyncPanel } from "@/app/athlete/profile/calendar-sync-panel";
 import { JoinCoachForm } from "@/app/athlete/join-coach-form";
 import { RevokeButton } from "@/app/coach/revoke-button";
 import { InviteForm } from "@/app/coach/invite-form";
@@ -27,18 +28,19 @@ export default async function SettingsPage() {
   // Connexions externes et coachs liés : regroupés ici plutôt que sur le profil,
   // qui concerne les données sportives de l'athlète (mesures, zones, blessures).
   const isAthlete = user.role === "athlete";
-  const [coaches, externalConnections, importedActivities] = isAthlete
+  const [coaches, externalConnections, importedActivities, calendarToken] = isAthlete
     ? await Promise.all([
         getCoachesForAthlete(user.id),
         getExternalConnections(user.id),
         getImportedActivities(user.id),
+        getCalendarToken(user.id),
       ])
-    : [[], [], []];
+    : [[], [], [], null];
 
   return (
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
-      <main className="mx-auto max-w-2xl px-6 py-10">
+      <main className="mx-auto max-w-2xl px-4 sm:px-6 py-10">
         <h1 className="mb-8 font-display text-3xl text-ink">Paramètres du compte</h1>
 
         <Card className="mb-6 rounded-3xl">
@@ -79,6 +81,18 @@ export default async function SettingsPage() {
               ))}
             </ul>
             <JoinCoachForm />
+          </Card>
+        )}
+
+        {/* La synchronisation de calendrier est un réglage de compte, pas une
+            donnée sportive : sa place est ici, avec les autres connexions. */}
+        {isAthlete && (
+          <Card className="mb-6 rounded-3xl">
+            <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Mon calendrier</h2>
+            <p className="mb-3 text-xs text-slate">
+              Synchronisez vos séances avec Google Agenda, Apple Calendrier ou Outlook.
+            </p>
+            <CalendarSyncPanel initialToken={calendarToken} />
           </Card>
         )}
 

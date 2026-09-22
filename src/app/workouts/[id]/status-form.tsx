@@ -16,7 +16,19 @@ const STATUSES: { value: "done" | "not_done" | "partial" | "postponed"; label: s
 // Les mêmes champs que l'import manuel d'activité, affichés selon le sport de
 // la séance — inutile de demander une distance pour une séance de musculation,
 // ou une puissance moyenne hors vélo.
-export function StatusForm({ workoutId, currentStatus, sport }: { workoutId: string; currentStatus: string; sport: string }) {
+export function StatusForm({
+  workoutId,
+  currentStatus,
+  sport,
+  asCoach = false,
+}: {
+  workoutId: string;
+  currentStatus: string;
+  sport: string;
+  // Saisie par le coach : la photo « prise sur le moment » n'a alors aucun
+  // sens, c'est l'athlète qui l'aurait prise, pas lui.
+  asCoach?: boolean;
+}) {
   const router = useRouter();
   const [status, setStatus] = useState(currentStatus === "planned" ? "done" : currentStatus);
   const [rpe, setRpe] = useState(5);
@@ -86,7 +98,7 @@ export function StatusForm({ workoutId, currentStatus, sport }: { workoutId: str
           />
 
           {showDone && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {sport !== "strength" && <Field label="Distance (km)" type="number" step="0.1" name="distanceKm" min={0} />}
               <Field label="FC moyenne (bpm)" type="number" name="avgHr" min={0} />
               {(sport === "hiking" || sport === "cycling" || sport === "running") && (
@@ -96,7 +108,7 @@ export function StatusForm({ workoutId, currentStatus, sport }: { workoutId: str
             </div>
           )}
 
-          {showDone && (
+          {showDone && !asCoach && (
             <label className="flex cursor-pointer flex-col gap-1.5 rounded-2xl border border-dashed border-line p-3 text-sm hover:border-moss">
               <span className="font-medium text-ink-soft">📸 Photo de la séance (facultatif)</span>
               <span className="text-xs text-slate">
