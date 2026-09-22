@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { dbGet, dbRun, dbAll } from "./db";
 import { todayISO, toISODate } from "./dates";
-import { endDateForWeeks, focusLabel, focusPreset, blockTemplate, expandTemplate } from "./periodization";
+import { endDateForWeeks, focusLabel } from "./periodization";
 import {
   createUser,
   findUserByEmail,
@@ -1789,73 +1789,6 @@ export async function createTrainingPeriodAction(formData: FormData) {
       f.targetWorkoutId,
     ]
   );
-
-  revalidatePath(`/coach/athletes/${athleteId}/periodisation`);
-  revalidatePath(`/coach/athletes/${athleteId}`);
-  revalidatePath(`/coach/planification`);
-}
-
-/**
- * Crée un bloc ET ses cycles en une fois à partir d'un modèle de périodisation.
- * Construire un bloc cycle par cycle est le geste le plus fastidieux de la
- * planification ; c'est là que l'outil fait gagner du temps.
- */
-export async function createPeriodFromTemplateAction(formData: FormData) {
-  const user = await getCurrentUser();
-  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
-
-  const athleteId = String(formData.get("athleteId") || "");
-  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
-
-  const template = blockTemplate(String(formData.get("template") || ""));
-  if (!template) throw new Error("Modèle de périodisation inconnu.");
-
-  const startDate = String(formData.get("startDate") || "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) throw new Error("Date de début invalide.");
-
-  const steps = expandTemplate(template, startDate);
-  const blockName = String(formData.get("name") || "").trim() || template.label;
-  const blockId = randomUUID();
-  const blockEnd = steps[steps.length - 1].end;
-
-  await dbRun(
-    `INSERT INTO training_periods
-       (id, coach_id, athlete_id, level, name, start_date, end_date, load_pattern, objective)
-     VALUES (?, ?, ?, 'bloc', ?, ?, ?, ?, ?)`,
-    [
-      blockId,
-      user.id,
-      athleteId,
-      blockName,
-      startDate,
-      blockEnd,
-      template.loadPattern,
-      String(formData.get("objective") || "").trim() || null,
-    ]
-  );
-
-  for (const step of steps) {
-    const preset = focusPreset(step.focus);
-    await dbRun(
-      `INSERT INTO training_periods
-         (id, coach_id, athlete_id, parent_id, level, name, focus, start_date, end_date,
-          load_pattern, volume, intensity)
-       VALUES (?, ?, ?, ?, 'cycle', ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        randomUUID(),
-        user.id,
-        athleteId,
-        blockId,
-        focusLabel(step.focus),
-        step.focus,
-        step.start,
-        step.end,
-        template.loadPattern,
-        preset?.volume ?? null,
-        preset?.intensity ?? null,
-      ]
-    );
-  }
 
   revalidatePath(`/coach/athletes/${athleteId}/periodisation`);
   revalidatePath(`/coach/athletes/${athleteId}`);

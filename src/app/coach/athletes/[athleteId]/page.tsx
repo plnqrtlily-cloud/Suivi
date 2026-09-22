@@ -20,8 +20,12 @@ import {
   getTrainingPeriods,
   getCheckinsForRange,
   getCoachNoteEntries,
+  getPersonalRecordsForAthlete,
+  getUnreadMessageCount,
 } from "@/lib/queries";
 import { UpcomingGoals } from "@/components/upcoming-goals";
+import { computeRosterSignals } from "@/lib/roster-signals";
+import { computeGlobalScore, scoreLabel } from "@/lib/checkin-types";
 import { getCycleSettings, estimateCyclePhase, PHASE_LABELS } from "@/lib/cycle";
 import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
@@ -159,6 +163,8 @@ export default async function AthleteDetailPage({
     trainingPeriods,
     bilanCheckins,
     coachNoteEntries,
+    personalRecords,
+    unreadCount,
   ] = await Promise.all([
     findUserById(athleteId),
     getUserAvatar(athleteId),
@@ -181,6 +187,8 @@ export default async function AthleteDetailPage({
     getTrainingPeriods(athleteId),
     getCheckinsForRange(athleteId, statsFromISO, statsToISO),
     getCoachNoteEntries(user.id, athleteId),
+    getPersonalRecordsForAthlete(athleteId),
+    getUnreadMessageCount(user.id, athleteId, user.id),
   ]);
   if (!athlete) notFound();
 
@@ -216,6 +224,27 @@ export default async function AthleteDetailPage({
   const cycleEstimate =
     athleteGender === "female" && cycleSettings.share_with_coaches ? await estimateCyclePhase(athleteId) : null;
   const latestCheckin = recentCheckins[0];
+
+  // Signaux "aperçu" : recalculés à partir de données déjà chargées ci-dessus
+  // (aucune requête supplémentaire), même logique que le tableau de bord coach
+  // (cf. computeRosterSignals, réutilisée telle quelle pour garder le même
+  // vocabulaire d'alerte d'un écran à l'autre).
+  const recentFrom = new Date();
+  recentFrom.setDate(recentFrom.getDate() - 13);
+  const signals = computeRosterSignals({
+    allWorkouts,
+    imports: acwrImports,
+    lastCheckinDate: latestCheckin?.check_date ?? null,
+    today,
+    recentFromISO: toISODate(recentFrom),
+  });
+  const overviewAlerts: string[] = [];
+  if (signals.acwrHighRisk) overviewAlerts.push(`charge en hausse rapide (${signals.acwrRatio?.toFixed(2)})`);
+  if (signals.missedRecently > 0) overviewAlerts.push(`${signals.missedRecently} séance(s) non réalisée(s)`);
+  if (signals.unvalidatedRecently > 0) overviewAlerts.push(`${signals.unvalidatedRecently} séance(s) sans retour`);
+  if (signals.daysUntilNextWorkout === null) overviewAlerts.push("plus rien de programmé");
+  const activeInjury = injuries.find((i) => !i.date_end) ?? null;
+  const todayWorkouts = allWorkouts.filter((w) => w.date === today && w.status !== "cancelled");
 
   return (
     <div className="flex min-h-screen bg-paper">
@@ -272,49 +301,145 @@ export default async function AthleteDetailPage({
           storageKey={`rythme:athlete-tab:${athleteId}`}
           children={{
             apercu: (
-              <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-            <div className="flex flex-col gap-6">
-        <div className="mb-8">
-          <CopyWeekForm athleteId={athleteId} />
-        </div>
+              <div className="flex flex-col gap-6">
+                {(activeInjury || overviewAlerts.length > 0 || unreadCount > 0) && (
+                  <div className="flex flex-col gap-1.5 rounded-2xl border border-gold-light/50 bg-gold-light/5 px-4 py-3">
+                    {activeInjury && (
+                      <p className="text-sm font-medium text-clay">
+                        🩹 Blessure en cours — {activeInjury.zone} (depuis le {activeInjury.date_start.slice(8, 10)}/
+                        {activeInjury.date_start.slice(5, 7)})
+                      </p>
+                    )}
+                    {overviewAlerts.length > 0 && <p className="text-sm text-gold-light">⚠ {overviewAlerts.join(" · ")}</p>}
+                    {unreadCount > 0 && (
+                      <Link
+                        href={`/coach/athletes/${athleteId}/messages`}
+                        className="text-sm font-semibold text-moss-dark hover:underline"
+                      >
+                        💬 {unreadCount} message{unreadCount > 1 ? "s" : ""} non lu{unreadCount > 1 ? "s" : ""}
+                      </Link>
+                    )}
+                  </div>
+                )}
 
+                <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+                  <div className="flex flex-col gap-6">
+                    <Card className="rounded-3xl">
+                      <dl className="flex flex-col gap-2 text-sm">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <dt className="text-slate">Forme du jour</dt>
+                          <dd className="text-right font-medium text-ink">
+                            {latestCheckin ? (
+                              <>
+                                {computeGlobalScore(latestCheckin)}/10{" "}
+                                <span className="text-xs font-normal text-slate">
+                                  ({scoreLabel(computeGlobalScore(latestCheckin))})
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-xs font-normal text-slate">non renseignée</span>
+                            )}
+                          </dd>
+                        </div>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <dt className="shrink-0 text-slate">Aujourd&apos;hui</dt>
+                          <dd className="min-w-0 text-right font-medium text-ink">
+                            {todayWorkouts.length > 0 ? (
+                              <Link href={`/coach/athletes/${athleteId}/day/${today}`} className="hover:underline">
+                                {todayWorkouts[0].title}
+                                {todayWorkouts.length > 1 && ` +${todayWorkouts.length - 1}`}
+                              </Link>
+                            ) : (
+                              <span className="text-xs font-normal text-slate">repos</span>
+                            )}
+                          </dd>
+                        </div>
+                        {/* Masquée quand la prochaine séance est celle du jour : la ligne
+                            "Aujourd'hui" la montre déjà, la répéter n'ajoute rien. */}
+                        {signals.daysUntilNextWorkout !== 0 && (
+                          <div className="flex items-baseline justify-between gap-2">
+                            <dt className="shrink-0 text-slate">Prochaine séance</dt>
+                            <dd className="min-w-0 text-right font-medium text-ink">
+                              {signals.nextWorkout ? (
+                                <Link
+                                  href={`/coach/athletes/${athleteId}/day/${signals.nextWorkout.date}`}
+                                  className="hover:underline"
+                                >
+                                  {signals.nextWorkout.title}{" "}
+                                  <span className="text-xs font-normal text-slate">(dans {signals.daysUntilNextWorkout} j)</span>
+                                </Link>
+                              ) : (
+                                <span className="text-xs font-normal text-slate">aucune programmée</span>
+                              )}
+                            </dd>
+                          </div>
+                        )}
+                      </dl>
+                      <div className="mt-3 border-t border-line pt-3">
+                        <PeriodBadge periods={trainingPeriods} date={today} prefix="Période :" />
+                      </div>
+                    </Card>
 
-            </div>
-            <div className="flex flex-col gap-6">
+                    {upcomingGoals.length > 0 && (
+                      <div>
+                        <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Prochain objectif</h2>
+                        <UpcomingGoals goals={upcomingGoals.slice(0, 1)} />
+                      </div>
+                    )}
 
+                    {personalRecords.length > 0 && (
+                      <Card className="rounded-3xl">
+                        <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Records personnels</h2>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {personalRecords.slice(0, 2).map((r) => (
+                            <div key={r.sport} className="rounded-2xl border border-line p-3.5">
+                              <p className="mb-2 text-sm font-semibold text-ink">{sportLabel(r.sport)}</p>
+                              <ul className="space-y-1 text-sm">
+                                {r.bestDistanceKm !== null && (
+                                  <li className="flex items-baseline justify-between gap-2">
+                                    <span className="text-slate">Plus longue distance</span>
+                                    <span className="font-medium text-ink">{r.bestDistanceKm} km</span>
+                                  </li>
+                                )}
+                                {r.bestPaceMinPerKm !== null && (
+                                  <li className="flex items-baseline justify-between gap-2">
+                                    <span className="text-slate">Meilleure allure</span>
+                                    <span className="font-medium text-ink">{formatPace(r.bestPaceMinPerKm)}</span>
+                                  </li>
+                                )}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      </Card>
+                    )}
+                  </div>
 
-          {cycleEstimate && (
-            <Card className="rounded-3xl">
-              <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Cycle menstruel</h2>
-              <p className="font-medium text-ink">{PHASE_LABELS[cycleEstimate.phase]}</p>
-              {cycleEstimate.dayOfCycle && <p className="text-sm text-slate">Jour {cycleEstimate.dayOfCycle} du cycle</p>}
-              <p className="mt-2 text-xs text-slate">Partagé volontairement par l&apos;athlète — détail des entrées non visible.</p>
-            </Card>
-          )}
+                  <div className="flex flex-col gap-6">
+                    {cycleEstimate && (
+                      <Card className="rounded-3xl">
+                        <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Cycle menstruel</h2>
+                        <p className="font-medium text-ink">{PHASE_LABELS[cycleEstimate.phase]}</p>
+                        {cycleEstimate.dayOfCycle && <p className="text-sm text-slate">Jour {cycleEstimate.dayOfCycle} du cycle</p>}
+                        <p className="mt-2 text-xs text-slate">Partagé volontairement par l&apos;athlète — détail des entrées non visible.</p>
+                      </Card>
+                    )}
 
-          {latestCheckin && (
-            <Card className="rounded-3xl">
-              <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Forme du jour</h2>
-              <FormOfTheDay checkin={latestCheckin} />
-            </Card>
-          )}
-
-
-          <Card className="rounded-3xl">
-            <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Journal de bord récent</h2>
-            {journal.length === 0 && <p className="text-sm text-slate">Aucune entrée pour l&apos;instant.</p>}
-            <ul className="space-y-2 text-sm">
-              {journal.map((j) => (
-                <li key={j.id}>
-                  <span className="text-slate">{j.entry_date} — </span>
-                  <span className="text-ink">{j.content.slice(0, 80)}</span>
-                </li>
-              ))}
-            </ul>
-          </Card>
-
-            </div>
-          </div>
+                    <Card className="rounded-3xl">
+                      <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Journal de bord récent</h2>
+                      {journal.length === 0 && <p className="text-sm text-slate">Aucune entrée pour l&apos;instant.</p>}
+                      <ul className="space-y-2 text-sm">
+                        {journal.map((j) => (
+                          <li key={j.id}>
+                            <span className="text-slate">{j.entry_date} — </span>
+                            <span className="text-ink">{j.content.slice(0, 80)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </Card>
+                  </div>
+                </div>
+              </div>
             ),
             programmation: (
               <>
@@ -323,6 +448,9 @@ export default async function AthleteDetailPage({
         {/* Rappel de la période en cours : on programme dans un cycle, pas dans le vide. */}
         <div className="mb-3">
           <PeriodBadge periods={trainingPeriods} date={today} prefix="Aujourd'hui :" />
+        </div>
+        <div className="mb-8">
+          <CopyWeekForm athleteId={athleteId} />
         </div>
         <AthleteCalendar athleteId={athleteId} view={view} week={week} month={month} today={today} />
 
@@ -411,42 +539,49 @@ export default async function AthleteDetailPage({
         </div>
 
         {/* Plage libre, pour les questions qui ne tombent pas sur une semaine
-            ou un mois entier. */}
-        <form
-          action={`/coach/athletes/${athleteId}`}
-          className="mb-3 flex flex-wrap items-end gap-2 rounded-2xl border border-line bg-white px-3 py-2"
-        >
-          <input type="hidden" name="bilan" value={bilanPeriod.value} />
-          <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate">Du</label>
-            <input
-              type="date"
-              name="bilanFrom"
-              defaultValue={customRange?.from ?? statsFromISO}
-              max={today}
-              className="rounded-xl border border-line bg-paper-dim px-2 py-1 text-xs text-ink"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate">Au</label>
-            <input
-              type="date"
-              name="bilanTo"
-              defaultValue={customRange?.to ?? statsToISO}
-              max={today}
-              className="rounded-xl border border-line bg-paper-dim px-2 py-1 text-xs text-ink"
-            />
-          </div>
-          <button type="submit" className="rounded-xl bg-moss px-3 py-1.5 text-xs font-semibold text-white">
-            Afficher cette plage
-          </button>
-          {customRange && <span className="text-xs text-slate">Plage personnalisée active</span>}
-        </form>
-        <p className="mb-3 text-sm text-slate">
-          Séances faites et activités importées du {statsFromISO.slice(8, 10)}/{statsFromISO.slice(5, 7)} au{" "}
-          {statsToISO.slice(8, 10)}/{statsToISO.slice(5, 7)} ({bilanWindow.days} jour{bilanWindow.days > 1 ? "s" : ""}).
-        </p>
+            ou un mois entier — repliée par défaut : la navigation par période
+            ci-dessus couvre l'essentiel des usages, cette option reste secondaire
+            sauf quand elle est déjà appliquée. */}
+        <details className="mb-8 rounded-2xl border border-line bg-white px-3 py-2" open={!!customRange}>
+          <summary className="cursor-pointer text-[11px] font-bold uppercase tracking-wider text-slate">
+            Plage personnalisée
+          </summary>
+          <form
+            action={`/coach/athletes/${athleteId}`}
+            className="mt-3 flex flex-wrap items-end gap-2"
+          >
+            <input type="hidden" name="bilan" value={bilanPeriod.value} />
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate">Du</label>
+              <input
+                type="date"
+                name="bilanFrom"
+                defaultValue={customRange?.from ?? statsFromISO}
+                max={today}
+                className="rounded-xl border border-line bg-paper-dim px-2 py-1 text-xs text-ink"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate">Au</label>
+              <input
+                type="date"
+                name="bilanTo"
+                defaultValue={customRange?.to ?? statsToISO}
+                max={today}
+                className="rounded-xl border border-line bg-paper-dim px-2 py-1 text-xs text-ink"
+              />
+            </div>
+            <button type="submit" className="rounded-xl bg-moss px-3 py-1.5 text-xs font-semibold text-white">
+              Afficher cette plage
+            </button>
+            {customRange && <span className="text-xs text-slate">Plage personnalisée active</span>}
+          </form>
+        </details>
+
+        {/* Statistiques et forme : deux sections de poids égal, plutôt qu'une
+            grille sans titre suivie d'une seule Card titrée. */}
         <div className="mb-8">
+          <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Statistiques d&apos;entraînement</h3>
           <TrainingInsights
             workouts={allWorkouts.filter((w) => w.date >= statsFromISO && w.date <= statsToISO)}
             imports={recentImports}

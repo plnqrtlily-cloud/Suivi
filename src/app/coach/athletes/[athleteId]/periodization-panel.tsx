@@ -4,8 +4,6 @@ import {
   PERIOD_LEVELS,
   FOCUS_PRESETS,
   LOAD_PATTERNS,
-  BLOCK_TEMPLATES,
-  templateWeeks,
   focusLabel,
   periodColor,
   periodWeeks,
@@ -16,7 +14,6 @@ import {
 } from "@/lib/periodization";
 import {
   createTrainingPeriodAction,
-  createPeriodFromTemplateAction,
   updateTrainingPeriodAction,
   deleteTrainingPeriodAction,
 } from "@/lib/actions";
@@ -284,57 +281,10 @@ export function PeriodizationPanel({
 
       <Timeline periods={periods} today={today} />
 
-      {/* Créer un bloc complet depuis un modèle : le raccourci qui évite de
-          saisir chaque cycle à la main. */}
       <Card className="rounded-3xl">
-        <h3 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Construire un bloc complet</h3>
-        <p className="mb-3 text-xs text-slate">
-          Le modèle crée le bloc et ses cycles enchaînés, avec volumes et intensités indicatifs. Tout reste modifiable
-          ensuite.
-        </p>
-        <form action={createPeriodFromTemplateAction} className="flex flex-col gap-3">
-          <input type="hidden" name="athleteId" value={athleteId} />
-          <div>
-            <label className={labelClass}>Modèle</label>
-            <select name="template" className={inputClass} defaultValue={BLOCK_TEMPLATES[0].value}>
-              {BLOCK_TEMPLATES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label} — {templateWeeks(t)} semaines
-                </option>
-              ))}
-            </select>
-          </div>
-          <ul className="flex flex-col gap-1 text-xs text-slate">
-            {BLOCK_TEMPLATES.map((t) => (
-              <li key={t.value}>
-                <span className="font-semibold text-ink-soft">{t.label}</span> — {t.description}
-              </li>
-            ))}
-          </ul>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelClass}>Début du bloc</label>
-              <input type="date" name="startDate" defaultValue={today} required className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Nom du bloc</label>
-              <input name="name" placeholder="Ex. Bloc hivernal" className={inputClass} />
-            </div>
-          </div>
-          <div>
-            <label className={labelClass}>Objectif du bloc</label>
-            <input name="objective" placeholder="Ex. être prêt pour le 10 km de mars" className={inputClass} />
-          </div>
-          <button type="submit" className="self-start rounded-xl bg-moss px-4 py-2 text-sm font-semibold text-white">
-            Créer le bloc et ses cycles
-          </button>
-        </form>
-      </Card>
-
-      <Card className="rounded-3xl">
-        <details>
+        <details open>
           <summary className="cursor-pointer text-[11px] font-bold uppercase tracking-wider text-slate">
-            Ajouter une période seule
+            Ajouter une période
           </summary>
           <form action={createTrainingPeriodAction} className="mt-3 flex flex-col gap-3">
             <input type="hidden" name="athleteId" value={athleteId} />
@@ -410,7 +360,7 @@ export function PeriodizationPanel({
       {periods.length === 0 && (
         <Card className="rounded-3xl">
           <p className="text-sm text-slate">
-            Aucune période pour l&apos;instant. Commencez par un bloc depuis un modèle, puis ajustez ses cycles.
+            Aucune période pour l&apos;instant. Ajoutez une période ci-dessus pour commencer.
           </p>
         </Card>
       )}
