@@ -385,6 +385,31 @@ CREATE TABLE IF NOT EXISTS coach_athlete_notes (
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (coach_id, athlete_id)
 );
+-- Périodisation : découpage de la saison de l'athlète en périodes emboîtées
+-- (saison > bloc > cycle). parent_id porte l'emboîtement ; il est volontairement
+-- facultatif, un coach pouvant poser un cycle isolé sans avoir décrit la saison
+-- entière. Les périodes peuvent se chevaucher : c'est le cas normal, un cycle
+-- vivant DANS un bloc qui vit DANS une saison.
+CREATE TABLE IF NOT EXISTS training_periods (
+  id TEXT PRIMARY KEY,
+  coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  athlete_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  parent_id TEXT REFERENCES training_periods(id) ON DELETE SET NULL,
+  level TEXT NOT NULL CHECK (level IN ('saison','bloc','cycle')),
+  name TEXT NOT NULL,
+  focus TEXT,
+  start_date TEXT NOT NULL,
+  end_date TEXT NOT NULL,
+  load_pattern TEXT,
+  volume TEXT,
+  intensity TEXT,
+  objective TEXT,
+  notes TEXT,
+  color TEXT,
+  target_workout_id TEXT REFERENCES workouts(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_training_periods_athlete ON training_periods(athlete_id, start_date);
 `;
 
 let initialized: Promise<void> | null = null;

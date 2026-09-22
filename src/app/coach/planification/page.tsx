@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
-import { getAthletesForCoach } from "@/lib/queries";
+import { getAthletesForCoach, getTrainingPeriodsForAthletes } from "@/lib/queries";
 import { loadWorkoutsForAthletes } from "@/lib/dashboard-batch";
 import { getWeekDates, todayISO, getMonthGrid, monthLabel } from "@/lib/dates";
 import { Nav } from "@/components/nav";
@@ -11,6 +11,8 @@ import { Card } from "@/components/ui";
 import { sportIconPath } from "@/lib/sport-icons";
 import { buildAthleteColorMap } from "@/lib/athlete-colors";
 import { sportLabelPlain } from "@/lib/sport-labels";
+import { PeriodBadge } from "@/components/period-badge";
+import { periodsOnDate, periodColor } from "@/lib/periodization";
 
 const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
@@ -76,6 +78,13 @@ export default async function PlanificationPage({
   // Une seule requête pour tous les athlètes affichés (brouillons inclus :
   // c'est la vue du coach).
   const workoutsMap = await loadWorkoutsForAthletes(
+    shownAthletes.map((l) => l.athlete_id as string),
+    rangeFrom,
+    rangeTo
+  );
+  // Périodisation de la fenêtre affichée : c'est elle qui donne son sens à la
+  // suite de séances, un coach planifie « dans un cycle » et pas dans le vide.
+  const periodsMap = await getTrainingPeriodsForAthletes(
     shownAthletes.map((l) => l.athlete_id as string),
     rangeFrom,
     rangeTo
@@ -161,6 +170,31 @@ export default async function PlanificationPage({
                 objectif · pictogramme = type de séance
               </span>
             </div>
+          )}
+
+          {/* Où en est chaque athlète dans sa périodisation aujourd'hui */}
+          {shownAthletes.some((a) => (periodsMap.get(a.athlete_id as string) ?? []).length > 0) && (
+            <Card className="mb-5 rounded-3xl">
+              <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Périodisation en cours</h2>
+              <ul className="flex flex-col gap-2">
+                {shownAthletes.map((a) => {
+                  const periods = periodsMap.get(a.athlete_id as string) ?? [];
+                  if (periodsOnDate(periods, today).length === 0) return null;
+                  return (
+                    <li key={a.link_id} className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/coach/athletes/${a.athlete_id}`}
+                        className="flex items-center gap-1.5 text-sm text-ink hover:underline"
+                      >
+                        <span className="h-3 w-3 rounded" style={{ backgroundColor: athleteColors[a.athlete_id as string] }} />
+                        {a.first_name}
+                      </Link>
+                      <PeriodBadge periods={periods} date={today} />
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
           )}
 
           {/* Objectifs et événements de la période */}
@@ -301,12 +335,24 @@ export default async function PlanificationPage({
                   {monthGrid.map((cell) => {
                     const dayWorkouts = allWorkouts.filter((w) => w.date === cell.date);
                     const isToday = cell.date === today;
+                    // Liseré supérieur = cycle en cours ce jour-là. Réservé à la
+                    // vue d'un seul athlète : superposées, plusieurs
+                    // périodisations ne se liraient plus.
+                    const cellPeriod = selectedAthleteId
+                      ? periodsOnDate(periodsMap.get(selectedAthleteId) ?? [], cell.date).slice(-1)[0]
+                      : undefined;
                     return (
                       <div
                         key={cell.date}
                         className={`min-h-[80px] rounded-lg border p-1 ${
                           isToday ? "border-gold-light bg-gold-light/5" : "border-line"
                         } ${cell.inMonth ? "" : "opacity-40"}`}
+                        style={
+                          cellPeriod
+                            ? { borderTopColor: periodColor(cellPeriod.focus, cellPeriod.color), borderTopWidth: 3 }
+                            : undefined
+                        }
+                        title={cellPeriod ? `${cellPeriod.name}` : undefined}
                       >
                         <span className="text-[11px] font-semibold text-ink-soft">{cell.day}</span>
                         {/* La couleur identifie l'athlète, le pictogramme le type

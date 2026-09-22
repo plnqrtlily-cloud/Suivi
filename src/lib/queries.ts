@@ -590,3 +590,75 @@ export async function getRecentCheckins(athleteId: string, limit = 7): Promise<C
     limit,
   ]);
 }
+
+// --- Périodisation ---------------------------------------------------------
+
+export interface TrainingPeriod {
+  id: string;
+  coach_id: string;
+  athlete_id: string;
+  parent_id: string | null;
+  level: string;
+  name: string;
+  focus: string | null;
+  start_date: string;
+  end_date: string;
+  load_pattern: string | null;
+  volume: string | null;
+  intensity: string | null;
+  objective: string | null;
+  notes: string | null;
+  color: string | null;
+  target_workout_id: string | null;
+  created_at: string;
+}
+
+/** Toutes les périodes d'un athlète, du plus large au plus fin puis par date. */
+export async function getTrainingPeriods(athleteId: string): Promise<TrainingPeriod[]> {
+  return dbAll(
+    `SELECT * FROM training_periods WHERE athlete_id = ?
+     ORDER BY CASE level WHEN 'saison' THEN 0 WHEN 'bloc' THEN 1 ELSE 2 END, start_date ASC`,
+    [athleteId]
+  );
+}
+
+/** Périodes qui recouvrent, même partiellement, la fenêtre demandée. */
+export async function getTrainingPeriodsForRange(
+  athleteId: string,
+  from: string,
+  to: string
+): Promise<TrainingPeriod[]> {
+  return dbAll(
+    `SELECT * FROM training_periods
+     WHERE athlete_id = ? AND start_date <= ? AND end_date >= ?
+     ORDER BY CASE level WHEN 'saison' THEN 0 WHEN 'bloc' THEN 1 ELSE 2 END, start_date ASC`,
+    [athleteId, to, from]
+  );
+}
+
+/**
+ * Même chose pour plusieurs athlètes d'un coup — la page Planification affiche
+ * tout le groupe, une requête par athlète y multipliait les allers-retours.
+ */
+export async function getTrainingPeriodsForAthletes(
+  athleteIds: string[],
+  from: string,
+  to: string
+): Promise<Map<string, TrainingPeriod[]>> {
+  const map = new Map<string, TrainingPeriod[]>();
+  if (athleteIds.length === 0) return map;
+  const placeholders = athleteIds.map(() => "?").join(",");
+  const rows = await dbAll<TrainingPeriod>(
+    `SELECT * FROM training_periods
+     WHERE athlete_id IN (${placeholders}) AND start_date <= ? AND end_date >= ?
+     ORDER BY CASE level WHEN 'saison' THEN 0 WHEN 'bloc' THEN 1 ELSE 2 END, start_date ASC`,
+    [...athleteIds, to, from]
+  );
+  for (const id of athleteIds) map.set(id, []);
+  for (const r of rows) map.get(r.athlete_id)?.push(r);
+  return map;
+}
+
+export async function getTrainingPeriod(id: string): Promise<TrainingPeriod | undefined> {
+  return dbGet(`SELECT * FROM training_periods WHERE id = ?`, [id]);
+}

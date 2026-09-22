@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import {
   getWorkoutsForAthlete,
+  getTrainingPeriodsForRange,
   profileCompletion,
   getCheckinForDate,
   getImportedActivitiesForRange,
@@ -14,6 +15,7 @@ import { addJournalEntryAction } from "@/lib/actions";
 import { estimateCyclePhase } from "@/lib/cycle";
 import { getWeekDates, todayISO, daysUntil } from "@/lib/dates";
 import { Nav } from "@/components/nav";
+import { PeriodBadge } from "@/components/period-badge";
 import { Card, sportLabel, LinkButton, Field, TextAreaField, Button } from "@/components/ui";
 import { SnapScrollNav } from "@/components/snap-scroll-nav";
 import { JournalEntry } from "./journal-entry";
@@ -82,8 +84,17 @@ export default async function AthleteDashboard({
   // Toutes ces requêtes sont indépendantes : parties en parallèle plutôt qu'en
   // série pour ne pas payer N×latence réseau vers la base distante (Turso) à
   // chaque chargement de la page.
-  const [journal, completion, todaysCheckin, otherDayCheckin, selectedWorkouts, selectedImports, gender, nextGoal] =
-    await Promise.all([
+  const [
+    journal,
+    completion,
+    todaysCheckin,
+    otherDayCheckin,
+    selectedWorkouts,
+    selectedImports,
+    gender,
+    nextGoal,
+    activePeriods,
+  ] = await Promise.all([
       getJournalForAthlete(user.id, selectedDate),
       profileCompletion(user.id),
       getCheckinForDate(user.id, today),
@@ -92,6 +103,9 @@ export default async function AthleteDashboard({
       getImportedActivitiesForRange(user.id, selectedDate, selectedDate),
       getUserGender(user.id),
       getNextGoalForAthlete(user.id, today),
+      // Le bloc en cours, pour que l'athlète sache dans quelle logique il
+      // s'entraîne et pas seulement ce qu'il a à faire aujourd'hui.
+      getTrainingPeriodsForRange(user.id, selectedDate, selectedDate),
     ]);
   const selectedCheckin = isToday ? todaysCheckin : otherDayCheckin;
   const primaryWorkout = [...selectedWorkouts].sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"))[0];
@@ -114,7 +128,7 @@ export default async function AthleteDashboard({
       <Nav user={user} />
       <CheckinModal date={today} existing={todaysCheckin} firstName={user.first_name} userId={user.id} />
       <main className="mx-auto max-w-5xl px-6 py-10">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-display text-3xl text-ink">Aujourd&apos;hui</h1>
           <div className="flex items-center gap-4">
             {(offset !== 0 || selectedDate !== today) && (
@@ -129,6 +143,10 @@ export default async function AthleteDashboard({
               </svg>
             </Link>
           </div>
+        </div>
+
+        <div className="mb-6">
+          <PeriodBadge periods={activePeriods} date={selectedDate} />
         </div>
 
         {completion < 100 && (

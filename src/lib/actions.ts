@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { dbGet, dbRun, dbAll } from "./db";
 import { todayISO, toISODate } from "./dates";
+import { endDateForWeeks, focusLabel, focusPreset, blockTemplate, expandTemplate } from "./periodization";
 import {
   createUser,
   findUserByEmail,
@@ -1668,4 +1669,217 @@ export async function markMessagesReadAction(coachId: string, athleteId: string)
   // ligne pendant le rendu de la page de conversation — revalidatePath y est
   // interdit par Next.js (uniquement autorisé hors du flux de rendu) et
   // faisait planter toute la messagerie.
+}
+
+// ---------- PÉRIODISATION ----------
+
+const PERIOD_LEVELS_SET = new Set(["saison", "bloc", "cycle"]);
+
+function readPeriodFields(formData: FormData) {
+  const level = String(formData.get("level") || "cycle");
+  const name = String(formData.get("name") || "").trim();
+  const focus = String(formData.get("focus") || "").trim();
+  const startDate = String(formData.get("startDate") || "");
+  // Le coach saisit soit une date de fin, soit un nombre de semaines — les deux
+  // façons de penser une période coexistent chez les entraîneurs.
+  const weeksRaw = String(formData.get("weeks") || "").trim();
+  let endDate = String(formData.get("endDate") || "");
+  if (weeksRaw) {
+    const weeks = Number(weeksRaw);
+    if (Number.isFinite(weeks) && weeks > 0) endDate = endDateForWeeks(startDate, Math.round(weeks));
+  }
+  return {
+    level: PERIOD_LEVELS_SET.has(level) ? level : "cycle",
+    name,
+    focus: focus || null,
+    startDate,
+    endDate,
+    loadPattern: String(formData.get("loadPattern") || "").trim() || null,
+    volume: String(formData.get("volume") || "").trim() || null,
+    intensity: String(formData.get("intensity") || "").trim() || null,
+    objective: String(formData.get("objective") || "").trim() || null,
+    notes: String(formData.get("notes") || "").trim() || null,
+    color: String(formData.get("color") || "").trim() || null,
+    parentId: String(formData.get("parentId") || "").trim() || null,
+    targetWorkoutId: String(formData.get("targetWorkoutId") || "").trim() || null,
+  };
+}
+
+function assertPeriodDates(startDate: string, endDate: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+    throw new Error("Dates de période invalides.");
+  }
+  if (endDate < startDate) throw new Error("La fin de la période précède son début.");
+}
+
+export async function createTrainingPeriodAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const athleteId = String(formData.get("athleteId") || "");
+  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+
+  const f = readPeriodFields(formData);
+  assertPeriodDates(f.startDate, f.endDate);
+  const name = f.name || focusLabel(f.focus);
+
+  await dbRun(
+    `INSERT INTO training_periods
+       (id, coach_id, athlete_id, parent_id, level, name, focus, start_date, end_date,
+        load_pattern, volume, intensity, objective, notes, color, target_workout_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      randomUUID(),
+      user.id,
+      athleteId,
+      f.parentId,
+      f.level,
+      name,
+      f.focus,
+      f.startDate,
+      f.endDate,
+      f.loadPattern,
+      f.volume,
+      f.intensity,
+      f.objective,
+      f.notes,
+      f.color,
+      f.targetWorkoutId,
+    ]
+  );
+
+  revalidatePath(`/coach/athletes/${athleteId}/periodisation`);
+  revalidatePath(`/coach/athletes/${athleteId}`);
+  revalidatePath(`/coach/planification`);
+}
+
+/**
+ * Crée un bloc ET ses cycles en une fois à partir d'un modèle de périodisation.
+ * Construire un bloc cycle par cycle est le geste le plus fastidieux de la
+ * planification ; c'est là que l'outil fait gagner du temps.
+ */
+export async function createPeriodFromTemplateAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const athleteId = String(formData.get("athleteId") || "");
+  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+
+  const template = blockTemplate(String(formData.get("template") || ""));
+  if (!template) throw new Error("Modèle de périodisation inconnu.");
+
+  const startDate = String(formData.get("startDate") || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) throw new Error("Date de début invalide.");
+
+  const steps = expandTemplate(template, startDate);
+  const blockName = String(formData.get("name") || "").trim() || template.label;
+  const blockId = randomUUID();
+  const blockEnd = steps[steps.length - 1].end;
+
+  await dbRun(
+    `INSERT INTO training_periods
+       (id, coach_id, athlete_id, level, name, start_date, end_date, load_pattern, objective)
+     VALUES (?, ?, ?, 'bloc', ?, ?, ?, ?, ?)`,
+    [
+      blockId,
+      user.id,
+      athleteId,
+      blockName,
+      startDate,
+      blockEnd,
+      template.loadPattern,
+      String(formData.get("objective") || "").trim() || null,
+    ]
+  );
+
+  for (const step of steps) {
+    const preset = focusPreset(step.focus);
+    await dbRun(
+      `INSERT INTO training_periods
+         (id, coach_id, athlete_id, parent_id, level, name, focus, start_date, end_date,
+          load_pattern, volume, intensity)
+       VALUES (?, ?, ?, ?, 'cycle', ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        randomUUID(),
+        user.id,
+        athleteId,
+        blockId,
+        focusLabel(step.focus),
+        step.focus,
+        step.start,
+        step.end,
+        template.loadPattern,
+        preset?.volume ?? null,
+        preset?.intensity ?? null,
+      ]
+    );
+  }
+
+  revalidatePath(`/coach/athletes/${athleteId}/periodisation`);
+  revalidatePath(`/coach/athletes/${athleteId}`);
+  revalidatePath(`/coach/planification`);
+}
+
+export async function updateTrainingPeriodAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const periodId = String(formData.get("periodId") || "");
+  const period = await dbGet<{ athlete_id: string; coach_id: string }>(
+    `SELECT athlete_id, coach_id FROM training_periods WHERE id = ?`,
+    [periodId]
+  );
+  // Double garde : la période doit appartenir à ce coach ET le lien doit être
+  // toujours actif — un coach révoqué ne modifie plus la planification.
+  if (!period || period.coach_id !== user.id) throw new Error("Non autorisé.");
+  if (!(await isCoachLinkedToAthlete(user.id, period.athlete_id))) throw new Error("Non autorisé.");
+
+  const f = readPeriodFields(formData);
+  assertPeriodDates(f.startDate, f.endDate);
+
+  await dbRun(
+    `UPDATE training_periods
+       SET level = ?, name = ?, focus = ?, start_date = ?, end_date = ?, load_pattern = ?,
+           volume = ?, intensity = ?, objective = ?, notes = ?, color = ?
+     WHERE id = ?`,
+    [
+      f.level,
+      f.name || focusLabel(f.focus),
+      f.focus,
+      f.startDate,
+      f.endDate,
+      f.loadPattern,
+      f.volume,
+      f.intensity,
+      f.objective,
+      f.notes,
+      f.color,
+      periodId,
+    ]
+  );
+
+  revalidatePath(`/coach/athletes/${period.athlete_id}/periodisation`);
+  revalidatePath(`/coach/athletes/${period.athlete_id}`);
+  revalidatePath(`/coach/planification`);
+}
+
+export async function deleteTrainingPeriodAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const periodId = String(formData.get("periodId") || "");
+  const period = await dbGet<{ athlete_id: string; coach_id: string }>(
+    `SELECT athlete_id, coach_id FROM training_periods WHERE id = ?`,
+    [periodId]
+  );
+  if (!period || period.coach_id !== user.id) throw new Error("Non autorisé.");
+  if (!(await isCoachLinkedToAthlete(user.id, period.athlete_id))) throw new Error("Non autorisé.");
+
+  // Les cycles rattachés perdent leur parent mais survivent (ON DELETE SET NULL) :
+  // supprimer un bloc ne doit pas effacer silencieusement le travail de détail.
+  await dbRun(`DELETE FROM training_periods WHERE id = ?`, [periodId]);
+
+  revalidatePath(`/coach/athletes/${period.athlete_id}/periodisation`);
+  revalidatePath(`/coach/athletes/${period.athlete_id}`);
+  revalidatePath(`/coach/planification`);
 }

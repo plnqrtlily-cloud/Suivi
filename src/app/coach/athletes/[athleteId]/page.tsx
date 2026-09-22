@@ -17,6 +17,7 @@ import {
   getImportedActivitiesForRange,
   getExerciseMaxes,
   getCoachExerciseHistory,
+  getTrainingPeriods,
 } from "@/lib/queries";
 import { UpcomingGoals } from "@/components/upcoming-goals";
 import { getCycleSettings, estimateCyclePhase, PHASE_LABELS } from "@/lib/cycle";
@@ -29,6 +30,8 @@ import { RevokeButton } from "@/app/coach/revoke-button";
 import { todayISO, toISODate, computeBilanWindow, shiftBilanAnchor, type BilanPeriodValue } from "@/lib/dates";
 import { AthleteCalendar } from "./athlete-calendar";
 import { TrainingInsights } from "./training-insights";
+import { PeriodizationPanel } from "./periodization-panel";
+import { PeriodBadge } from "@/components/period-badge";
 import { computeAcwr } from "@/lib/training-stats";
 import { computeHrZones } from "@/lib/hr-zones";
 import { computePowerZones } from "@/lib/power-zones";
@@ -119,6 +122,7 @@ export default async function AthleteDetailPage({
     exerciseMaxes,
     exerciseSuggestions,
     acwrImports,
+    trainingPeriods,
   ] = await Promise.all([
     findUserById(athleteId),
     getUserAvatar(athleteId),
@@ -138,6 +142,7 @@ export default async function AthleteDetailPage({
     getExerciseMaxes(athleteId),
     getCoachExerciseHistory(user.id),
     getImportedActivitiesForRange(athleteId, acwrFromISO, today),
+    getTrainingPeriods(athleteId),
   ]);
   if (!athlete) notFound();
 
@@ -287,10 +292,15 @@ export default async function AthleteDetailPage({
               <>
         <h2 className="mb-3 font-display text-xl text-ink">Programmation</h2>
         <p className="mb-3 text-sm text-slate">Séances récentes, à venir et activités importées, en un coup d&apos;œil.</p>
+        {/* Rappel de la période en cours : on programme dans un cycle, pas dans le vide. */}
+        <div className="mb-3">
+          <PeriodBadge periods={trainingPeriods} date={today} prefix="Aujourd'hui :" />
+        </div>
         <AthleteCalendar athleteId={athleteId} view={view} week={week} month={month} today={today} />
 
               </>
             ),
+            periodisation: <PeriodizationPanel athleteId={athleteId} periods={trainingPeriods} today={today} />,
             bilan: (
               <>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">

@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 export const ATHLETE_TABS = [
   { value: "apercu", label: "Aperçu" },
   { value: "programmation", label: "Programmation" },
+  { value: "periodisation", label: "Périodisation" },
   { value: "bilan", label: "Bilan" },
   { value: "mesures", label: "Mesures" },
   { value: "sante", label: "Santé" },

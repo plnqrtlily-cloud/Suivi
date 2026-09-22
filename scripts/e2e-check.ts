@@ -26,6 +26,18 @@ import { saveUploadedFile, readUploadedFile, deleteUploadedFile } from "../src/l
 import { createNotification, getNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead } from "../src/lib/notifications";
 import { computeGlobalScore, computeHooperIndex, scoreLabel } from "../src/lib/checkin-types";
 import { computeBilanWindow, shiftBilanAnchor } from "../src/lib/dates";
+import {
+  deloadWeeks,
+  periodWeeks,
+  periodDays,
+  endDateForWeeks,
+  expandTemplate,
+  blockTemplate,
+  weekPosition,
+  periodsOnDate,
+  templateWeeks,
+} from "../src/lib/periodization";
+import { getTrainingPeriods, getTrainingPeriodsForRange, getTrainingPeriodsForAthletes } from "../src/lib/queries";
 
 function assert(cond: any, message: string) {
   if (!cond) {
@@ -1005,6 +1017,54 @@ async function main() {
 
   const j = computeBilanWindow("jour", "2026-09-17");
   assert(j.from === "2026-09-17" && j.to === "2026-09-17" && j.days === 1, "La journée du bilan ne couvre que la date choisie");
+
+  // --- Périodisation ---------------------------------------------------------
+  assert(periodDays("2026-09-01", "2026-09-01") === 1, "Une période d'un jour dure bien un jour");
+  assert(periodDays("2026-09-01", "2026-09-28") === 28, "La durée d'une période est inclusive des deux bornes");
+  assert(periodWeeks("2026-09-01", "2026-09-28") === 4, "Quatre semaines pleines comptent quatre semaines");
+  assert(endDateForWeeks("2026-09-07", 4) === "2026-10-04", "Quatre semaines à partir d'un lundi finissent un dimanche");
+
+  assert(JSON.stringify(deloadWeeks("3:1", 8)) === "[4,8]", "Le schéma 3:1 place une décharge toutes les 4 semaines");
+  assert(JSON.stringify(deloadWeeks("2:1", 9)) === "[3,6,9]", "Le schéma 2:1 place une décharge toutes les 3 semaines");
+  assert(JSON.stringify(deloadWeeks("4:1", 10)) === "[5,10]", "Le schéma 4:1 place une décharge toutes les 5 semaines");
+  assert(deloadWeeks("plat", 12).length === 0, "Le schéma sans décharge n'en programme aucune");
+
+  const tpl = blockTemplate("blocs-issurin")!;
+  assert(templateWeeks(tpl) === 9, "Le modèle par blocs dure 9 semaines");
+  const expanded = expandTemplate(tpl, "2026-09-07");
+  assert(expanded.length === 3, "Le modèle par blocs crée trois cycles");
+  assert(expanded[0].start === "2026-09-07" && expanded[0].end === "2026-10-04", "Le premier cycle du modèle part de la date choisie");
+  assert(expanded[1].start === "2026-10-05", "Les cycles d'un modèle s'enchaînent sans trou ni chevauchement");
+  assert(expanded[2].end === endDateForWeeks("2026-09-07", 9), "Le dernier cycle finit à la fin du bloc");
+
+  const fakeCycle = {
+    id: "c", level: "cycle", name: "Accumulation", focus: "accumulation",
+    start_date: "2026-09-07", end_date: "2026-10-04", load_pattern: "3:1", color: null,
+  };
+  const pos = weekPosition(fakeCycle, "2026-09-30");
+  assert(pos?.week === 4 && pos.totalWeeks === 4 && pos.isDeload === true, "La 4e semaine d'un cycle 3:1 est signalée en décharge");
+  assert(weekPosition(fakeCycle, "2026-09-08")?.isDeload === false, "La première semaine d'un cycle n'est pas une décharge");
+  assert(weekPosition(fakeCycle, "2026-11-01") === null, "Une date hors période n'a pas de rang de semaine");
+
+  const fakeSeason = { ...fakeCycle, id: "s", level: "saison", name: "Saison", end_date: "2027-06-30" };
+  const stack = periodsOnDate([fakeCycle, fakeSeason], "2026-09-15");
+  assert(stack.length === 2 && stack[0].level === "saison" && stack[1].level === "cycle", "Les périodes actives sont rendues de la plus large à la plus fine");
+
+  // Persistance et cloisonnement
+  const periodId = randomUUID();
+  await dbRun(
+    `INSERT INTO training_periods (id, coach_id, athlete_id, level, name, focus, start_date, end_date, load_pattern)
+     VALUES (?, ?, ?, 'bloc', 'Bloc hivernal', 'accumulation', '2026-11-02', '2027-01-03', '3:1')`,
+    [periodId, coach.id, athlete.id]
+  );
+  const stored = await getTrainingPeriods(athlete.id);
+  assert(stored.some((p) => p.id === periodId), "Une période enregistrée est bien relue pour son athlète");
+  const inRange = await getTrainingPeriodsForRange(athlete.id, "2026-12-01", "2026-12-31");
+  assert(inRange.some((p) => p.id === periodId), "Une période est retrouvée par une fenêtre qu'elle recouvre");
+  const outOfRange = await getTrainingPeriodsForRange(athlete.id, "2027-03-01", "2027-03-31");
+  assert(!outOfRange.some((p) => p.id === periodId), "Une période hors fenêtre n'est pas remontée");
+  const batched = await getTrainingPeriodsForAthletes([athlete.id], "2026-11-01", "2026-11-30");
+  assert((batched.get(athlete.id) ?? []).some((p) => p.id === periodId), "La requête groupée rend les périodes de chaque athlète");
 
   console.log("\nTest end-to-end terminé.");
 }
