@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Card } from "@/components/ui";
-import { FREE_PLAN_ATHLETE_LIMIT, PRO_PLAN_PRICE_EUR, upgradeMailtoHref } from "@/lib/billing";
+import { FREE_PLAN_ATHLETE_LIMIT, PRO_PLAN_PRICE_EUR, TRIAL_DURATION_DAYS, upgradeMailtoHref } from "@/lib/billing";
 
 export default function TarifsPage() {
   return (
@@ -46,6 +46,11 @@ export default function TarifsPage() {
           </a>
         </Card>
       </div>
+
+      <p className="mt-6 text-sm text-slate">
+        Envie de tester le plan Pro avant de vous décider ? {TRIAL_DURATION_DAYS} jours d&apos;essai gratuit, sans
+        carte bancaire, activables depuis votre tableau de bord.
+      </p>
 
       <p className="mt-8 text-sm text-slate">
         Une question sur les tarifs, ou un besoin particulier (plusieurs coachs, une structure) ?{" "}

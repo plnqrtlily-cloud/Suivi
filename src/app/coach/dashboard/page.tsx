@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import {
   getAthletesForCoach,
   getCoachReminders,
-  getCoachPlan,
+  getCoachPlanStatus,
 } from "@/lib/queries";
 import { FREE_PLAN_ATHLETE_LIMIT } from "@/lib/billing";
 import { computeRosterSignals, signalScore, type RosterSignals } from "@/lib/roster-signals";
@@ -18,6 +18,7 @@ import { Card } from "@/components/ui";
 import { CoachReminders } from "./coach-reminders";
 import { InviteForm } from "../invite-form";
 import { RevokeButton } from "../revoke-button";
+import { StartTrialButton } from "../start-trial-button";
 import { sportIconPath } from "@/lib/sport-icons";
 
 
@@ -136,10 +137,10 @@ export default async function CoachDashboardPage() {
 
   const today = todayISO();
 
-  const [links, reminders, plan] = await Promise.all([
+  const [links, reminders, planStatus] = await Promise.all([
     getAthletesForCoach(user.id),
     getCoachReminders(user.id),
-    getCoachPlan(user.id),
+    getCoachPlanStatus(user.id),
   ]);
   const activeAthletes = links.filter((l) => l.status === "active" && l.athlete_id);
   // Invitations envoyées mais pas encore acceptées — sinon le coach n'a aucun
@@ -204,7 +205,7 @@ export default async function CoachDashboardPage() {
         </div>
         <main className="mx-auto max-w-5xl px-4 sm:px-6 py-8">
           <h1 className="mb-1 font-display text-3xl text-ink">Mes athlètes</h1>
-          <p className={plan === "pro" ? "mb-6 text-slate" : "mb-1 text-slate"}>
+          <p className={planStatus.plan === "pro" ? "mb-6 text-slate" : "mb-1 text-slate"}>
             {activeAthletes.length} athlète{activeAthletes.length > 1 ? "s" : ""} suivi{activeAthletes.length > 1 ? "s" : ""}
             {" · "}
             {new Date(`${today}T00:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
@@ -217,13 +218,24 @@ export default async function CoachDashboardPage() {
               </>
             )}
           </p>
-          {plan !== "pro" && (
+          {planStatus.trialActive && (
             <p className="mb-6 text-xs text-slate">
-              Offre gratuite — {links.length}/{FREE_PLAN_ATHLETE_LIMIT} athlètes.{" "}
+              Essai Pro — encore {planStatus.trialDaysLeft} jour{(planStatus.trialDaysLeft ?? 0) > 1 ? "s" : ""}.{" "}
               <Link href="/tarifs" className="font-semibold text-moss-dark hover:underline">
-                Passer au plan Pro
+                Voir les tarifs
               </Link>
             </p>
+          )}
+          {!planStatus.isPro && (
+            <div className="mb-6 flex flex-wrap items-center gap-3">
+              <p className="text-xs text-slate">
+                Offre gratuite — {links.length}/{FREE_PLAN_ATHLETE_LIMIT} athlètes.{" "}
+                <Link href="/tarifs" className="font-semibold text-moss-dark hover:underline">
+                  Passer au plan Pro
+                </Link>
+              </p>
+              {planStatus.trialAvailable && <StartTrialButton />}
+            </div>
           )}
 
           {activeAthletes.length === 0 ? (
@@ -235,7 +247,7 @@ export default async function CoachDashboardPage() {
                 Générez un lien d&apos;invitation et transmettez-le. Dès qu&apos;il crée son compte, vous pourrez lui
                 programmer des séances et suivre sa forme au jour le jour.
               </p>
-              <InviteForm />
+              <InviteForm key={planStatus.isPro ? "pro" : "free"} />
               {pendingInvites.length > 0 && (
                 <div className="mt-4 flex flex-col gap-2 border-t border-line pt-4">
                   {pendingInvites.map((link) => (
@@ -294,7 +306,7 @@ export default async function CoachDashboardPage() {
 
               <Card className="mt-4 rounded-3xl">
                 <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Inviter un athlète</h2>
-                <InviteForm />
+                <InviteForm key={planStatus.isPro ? "pro" : "free"} />
               </Card>
             </>
           )}

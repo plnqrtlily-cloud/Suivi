@@ -1,6 +1,7 @@
 import { dbGet, dbAll } from "./db";
 import type { Checkin } from "./checkin-types";
 import type { AvailabilitySlot } from "./time-of-day";
+import { computePlanStatus, type PlanStatus } from "./billing";
 
 export interface AthleteLink {
   link_id: string;
@@ -25,10 +26,13 @@ export async function getAthletesForCoach(coachId: string): Promise<AthleteLink[
   );
 }
 
-/** 'free' ou 'pro' — cf. src/lib/billing.ts pour ce que chaque offre permet. */
-export async function getCoachPlan(coachId: string): Promise<string> {
-  const row = await dbGet<{ plan: string }>(`SELECT plan FROM users WHERE id = ?`, [coachId]);
-  return row?.plan ?? "free";
+/** Offre + essai en cours — cf. src/lib/billing.ts pour ce que chaque état permet. */
+export async function getCoachPlanStatus(coachId: string): Promise<PlanStatus> {
+  const row = await dbGet<{ plan: string; trial_started_at: string | null }>(
+    `SELECT plan, trial_started_at FROM users WHERE id = ?`,
+    [coachId]
+  );
+  return computePlanStatus(row?.plan ?? "free", row?.trial_started_at ?? null);
 }
 
 export interface CoachLink {

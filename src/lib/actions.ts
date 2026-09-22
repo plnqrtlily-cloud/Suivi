@@ -23,7 +23,7 @@ import {
 } from "./auth";
 import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES } from "./storage";
 import { parseGpx, simplifyRoute } from "./gpx";
-import { getResourceById, getBlocksForWorkout, getAthletesForCoach, getCoachPlan } from "./queries";
+import { getResourceById, getBlocksForWorkout, getAthletesForCoach, getCoachPlanStatus } from "./queries";
 import { FREE_PLAN_ATHLETE_LIMIT } from "./billing";
 import { createNotification, markNotificationRead, markAllNotificationsRead } from "./notifications";
 import { sendEmail, isEmailConfigured, appBaseUrl } from "./email";
@@ -97,14 +97,16 @@ export async function createInviteAction(formData: FormData): Promise<{ token: s
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
 
   // Offre gratuite plafonnée en nombre d'athlètes (liens actifs ou en
-  // attente) — cf. src/lib/billing.ts. Un coach passé au plan Pro n'est
-  // jamais compté ici.
-  const plan = await getCoachPlan(user.id);
-  if (plan !== "pro") {
+  // attente) — cf. src/lib/billing.ts. Un essai Pro actif compte comme Pro.
+  const status = await getCoachPlanStatus(user.id);
+  if (!status.isPro) {
     const links = await getAthletesForCoach(user.id);
     if (links.length >= FREE_PLAN_ATHLETE_LIMIT) {
+      const suffix = status.trialAvailable
+        ? "Passez au plan Pro, ou essayez-le gratuitement 30 jours."
+        : "Passez au plan Pro pour en suivre davantage.";
       return {
-        error: `L'offre gratuite est limitée à ${FREE_PLAN_ATHLETE_LIMIT} athlètes. Passez au plan Pro pour en suivre davantage.`,
+        error: `L'offre gratuite est limitée à ${FREE_PLAN_ATHLETE_LIMIT} athlètes. ${suffix}`,
       };
     }
   }
@@ -120,6 +122,19 @@ export async function createInviteAction(formData: FormData): Promise<{ token: s
 
   revalidatePath("/coach");
   return { token };
+}
+
+export async function startTrialAction(): Promise<{ ok: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const status = await getCoachPlanStatus(user.id);
+  if (status.plan === "pro") return { error: "Vous êtes déjà au plan Pro." };
+  if (status.trialStartedAt) return { error: "L'essai gratuit a déjà été utilisé." };
+
+  await dbRun(`UPDATE users SET trial_started_at = datetime('now') WHERE id = ?`, [user.id]);
+  revalidatePath("/coach/dashboard");
+  return { ok: true };
 }
 
 export async function revokeAthleteAccessAction(linkId: string) {

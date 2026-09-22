@@ -508,6 +508,11 @@ const MIGRATIONS: string[] = [
   // ou 'pro' (illimité) — bascule manuelle pour l'instant, aucune facturation
   // automatisée (cf. page /tarifs, contact par email).
   `ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'`,
+  // Essai Pro (30 jours, une seule fois) : NULL = jamais démarré. La date de
+  // fin ne se stocke pas — elle se recalcule à la volée (cf. computePlanStatus
+  // dans billing.ts), même logique que l'expiration des sessions déjà en place
+  // dans getCurrentUser (pas de tâche cron nécessaire).
+  `ALTER TABLE users ADD COLUMN trial_started_at TEXT`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER
