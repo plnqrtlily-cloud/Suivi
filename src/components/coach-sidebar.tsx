@@ -2,6 +2,7 @@ import Link from "next/link";
 import { logoutAction } from "@/lib/actions";
 import { User } from "@/lib/auth";
 import { getAthletesForCoach, getUnreadMessageCountForCoach } from "@/lib/queries";
+import { ADMIN_EMAIL } from "@/lib/billing";
 import { Avatar } from "./avatar";
 import { NavIcon, type NavIconName } from "./nav-icon";
 
@@ -77,6 +78,12 @@ export async function CoachSidebar({ user, activeHref }: { user: User; activeHre
       )}
 
       <div className="mt-auto flex flex-col gap-0.5 border-t border-line px-2 py-2">
+        {user.email === ADMIN_EMAIL && (
+          <Link href="/admin" className={itemClass("/admin")}>
+            <span className="h-[17px] w-[17px]" aria-hidden />
+            Admin
+          </Link>
+        )}
         <Link href="/tarifs" className={itemClass("/tarifs")}>
           <span className="h-[17px] w-[17px]" aria-hidden />
           Tarifs

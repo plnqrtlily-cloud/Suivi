@@ -24,7 +24,7 @@ import {
 import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES } from "./storage";
 import { parseGpx, simplifyRoute } from "./gpx";
 import { getResourceById, getBlocksForWorkout, getAthletesForCoach, getCoachPlanStatus } from "./queries";
-import { FREE_PLAN_ATHLETE_LIMIT } from "./billing";
+import { FREE_PLAN_ATHLETE_LIMIT, ADMIN_EMAIL } from "./billing";
 import { createNotification, markNotificationRead, markAllNotificationsRead } from "./notifications";
 import { sendEmail, isEmailConfigured, appBaseUrl } from "./email";
 import { saveSubscription, removeSubscription } from "./push";
@@ -135,6 +135,14 @@ export async function startTrialAction(): Promise<{ ok: true } | { error: string
   await dbRun(`UPDATE users SET trial_started_at = datetime('now') WHERE id = ?`, [user.id]);
   revalidatePath("/coach/dashboard");
   return { ok: true };
+}
+
+export async function setCoachPlanAction(coachId: string, plan: "free" | "pro") {
+  const user = await getCurrentUser();
+  if (!user || user.email !== ADMIN_EMAIL) throw new Error("Non autorisé.");
+
+  await dbRun(`UPDATE users SET plan = ? WHERE id = ?`, [plan, coachId]);
+  revalidatePath("/admin");
 }
 
 export async function revokeAthleteAccessAction(linkId: string) {

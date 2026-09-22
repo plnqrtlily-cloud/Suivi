@@ -35,6 +35,26 @@ export async function getCoachPlanStatus(coachId: string): Promise<PlanStatus> {
   return computePlanStatus(row?.plan ?? "free", row?.trial_started_at ?? null);
 }
 
+export interface AdminCoachRow {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  plan: string;
+  trial_started_at: string | null;
+  created_at: string;
+  athlete_count: number;
+}
+
+/** Tous les coachs, pour la page /admin — cf. src/lib/billing.ts (ADMIN_EMAIL). */
+export async function getAllCoaches(): Promise<AdminCoachRow[]> {
+  return dbAll(
+    `SELECT u.id, u.email, u.first_name, u.last_name, u.plan, u.trial_started_at, u.created_at,
+       (SELECT COUNT(*) FROM coach_athlete_links l WHERE l.coach_id = u.id AND l.status != 'revoked') as athlete_count
+     FROM users u WHERE u.role = 'coach' ORDER BY u.created_at DESC`
+  );
+}
+
 export interface CoachLink {
   link_id: string;
   coach_id: string;

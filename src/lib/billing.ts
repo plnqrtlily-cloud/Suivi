@@ -8,6 +8,11 @@ export const FREE_PLAN_ATHLETE_LIMIT = 3;
 export const PRO_PLAN_PRICE_EUR = 19;
 export const UPGRADE_CONTACT_EMAIL = "plnqrtlily@gmail.com";
 export const TRIAL_DURATION_DAYS = 30;
+// Contrôle d'accès à /admin — même valeur que UPGRADE_CONTACT_EMAIL aujourd'hui,
+// mais un rôle différent (identifiant d'accès plutôt qu'adresse affichée aux
+// utilisateurs) : gardées séparées pour ne pas les faire dépendre l'une de
+// l'autre si l'une change un jour sans l'autre.
+export const ADMIN_EMAIL = "plnqrtlily@gmail.com";
 
 export interface PlanStatus {
   plan: string; // valeur brute de la colonne : 'free' | 'pro'
