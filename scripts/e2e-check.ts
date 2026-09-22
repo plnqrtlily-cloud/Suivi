@@ -25,6 +25,7 @@ import { getCoachExerciseHistory } from "../src/lib/queries";
 import { saveUploadedFile, readUploadedFile, deleteUploadedFile } from "../src/lib/storage";
 import { createNotification, getNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead } from "../src/lib/notifications";
 import { computeGlobalScore, computeHooperIndex, scoreLabel } from "../src/lib/checkin-types";
+import { computeBilanWindow, shiftBilanAnchor } from "../src/lib/dates";
 
 function assert(cond: any, message: string) {
   if (!cond) {
@@ -981,6 +982,29 @@ async function main() {
   );
   const savedSet = await dbGet<any>(`SELECT rir, rest_seconds FROM exercise_sets WHERE block_id = ?`, [exBlockId]);
   assert(savedSet?.rir === 2 && savedSet?.rest_seconds === 60, "Le RIR et la récupération entre exercices sont bien enregistrés");
+
+  // --- Fenêtres du bilan : choix d'une semaine précise -----------------------
+  const w = computeBilanWindow("semaine", "2026-09-17"); // un jeudi
+  assert(w.from === "2026-09-14" && w.to === "2026-09-20", "La semaine du bilan va du lundi au dimanche qui encadrent la date choisie");
+  assert(w.days === 7, "La semaine du bilan compte 7 jours");
+  assert(
+    shiftBilanAnchor("semaine", "2026-09-17", -1) === "2026-09-10",
+    "Reculer d'une semaine dans le bilan décale l'ancre de 7 jours"
+  );
+  const wPrev = computeBilanWindow("semaine", shiftBilanAnchor("semaine", "2026-09-17", -1));
+  assert(wPrev.from === "2026-09-07" && wPrev.to === "2026-09-13", "La semaine précédente est bien celle d'avant, sans chevauchement");
+
+  const m = computeBilanWindow("mois", "2026-02-15");
+  assert(m.from === "2026-02-01" && m.to === "2026-02-28" && m.days === 28, "Le mois du bilan couvre exactement le mois calendaire");
+  assert(shiftBilanAnchor("mois", "2026-03-31", -1) === "2026-02-01", "Reculer d'un mois depuis le 31 ne déborde pas sur un autre mois");
+
+  const c = computeBilanWindow("cycle", "2026-09-17");
+  assert(c.from === "2026-08-24" && c.to === "2026-09-20" && c.days === 28, "Le cycle du bilan couvre 4 semaines pleines");
+  const b = computeBilanWindow("bloc", "2026-09-17");
+  assert(b.days === 84 && b.to === "2026-09-20", "Le bloc du bilan couvre 12 semaines pleines");
+
+  const j = computeBilanWindow("jour", "2026-09-17");
+  assert(j.from === "2026-09-17" && j.to === "2026-09-17" && j.days === 1, "La journée du bilan ne couvre que la date choisie");
 
   console.log("\nTest end-to-end terminé.");
 }

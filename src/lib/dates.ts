@@ -81,3 +81,95 @@ export function getMonthGrid(year: number, month: number): MonthCell[] {
 export function monthLabel(year: number, month: number): string {
   return new Date(year, month - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
 }
+
+// ---------------------------------------------------------------------------
+// Fenêtres du bilan d'entraînement
+// ---------------------------------------------------------------------------
+// Le bilan ne se contentait que de fenêtres glissantes finissant aujourd'hui,
+// ce qui rendait impossible de revoir *une* semaine précise. On ancre donc
+// chaque période sur une date, et on cale la fenêtre sur des bornes lisibles :
+// semaine = lundi→dimanche, mois = 1er→dernier jour, cycle (4 sem.) et bloc
+// (12 sem.) = multiples de semaines finissant le dimanche de la semaine ancre.
+// Naviguer revient alors à décaler l'ancre d'exactement une période.
+
+export type BilanPeriodValue = "jour" | "semaine" | "cycle" | "mois" | "bloc";
+
+export interface BilanWindow {
+  from: string; // ISO inclusif
+  to: string; // ISO inclusif
+  days: number;
+  label: string;
+}
+
+function parseISO(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function addDays(iso: string, n: number): string {
+  const d = parseISO(iso);
+  d.setDate(d.getDate() + n);
+  return toISODate(d);
+}
+
+function mondayOf(iso: string): string {
+  const d = parseISO(iso);
+  const dow = d.getDay(); // 0 = dimanche
+  d.setDate(d.getDate() + (dow === 0 ? -6 : 1 - dow));
+  return toISODate(d);
+}
+
+function shortFR(iso: string): string {
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+}
+
+export function computeBilanWindow(period: BilanPeriodValue, anchorISO: string): BilanWindow {
+  if (period === "jour") {
+    const d = parseISO(anchorISO);
+    return {
+      from: anchorISO,
+      to: anchorISO,
+      days: 1,
+      label: d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }),
+    };
+  }
+
+  if (period === "mois") {
+    const d = parseISO(anchorISO);
+    const first = new Date(d.getFullYear(), d.getMonth(), 1);
+    const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    const from = toISODate(first);
+    const to = toISODate(last);
+    return {
+      from,
+      to,
+      days: last.getDate(),
+      label: monthLabel(d.getFullYear(), d.getMonth() + 1),
+    };
+  }
+
+  const weeks = period === "semaine" ? 1 : period === "cycle" ? 4 : 12;
+  const endMonday = mondayOf(anchorISO);
+  const from = addDays(endMonday, -7 * (weeks - 1));
+  const to = addDays(endMonday, 6);
+  const days = weeks * 7;
+  const label =
+    period === "semaine"
+      ? `Semaine du ${shortFR(from)} au ${shortFR(to)}`
+      : `${weeks} semaines — du ${shortFR(from)} au ${shortFR(to)}`;
+  return { from, to, days, label };
+}
+
+// Ancre de la période précédente / suivante : on recule ou avance d'exactement
+// la durée de la fenêtre courante, pour que « ‹ » depuis la semaine du 15
+// tombe sur celle du 8 et non sur un lundi intermédiaire.
+export function shiftBilanAnchor(period: BilanPeriodValue, anchorISO: string, direction: -1 | 1): string {
+  if (period === "jour") return addDays(anchorISO, direction);
+  if (period === "mois") {
+    const d = parseISO(anchorISO);
+    // Le 1er du mois évite le débordement du 31 vers le mois suivant.
+    return toISODate(new Date(d.getFullYear(), d.getMonth() + direction, 1));
+  }
+  const weeks = period === "semaine" ? 1 : period === "cycle" ? 4 : 12;
+  return addDays(anchorISO, direction * weeks * 7);
+}

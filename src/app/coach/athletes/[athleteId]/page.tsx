@@ -26,7 +26,7 @@ import { CoachSidebar } from "@/components/coach-sidebar";
 import { Card, LinkButton, sportLabel, Button } from "@/components/ui";
 import { Avatar } from "@/components/avatar";
 import { RevokeButton } from "@/app/coach/revoke-button";
-import { todayISO, toISODate } from "@/lib/dates";
+import { todayISO, toISODate, computeBilanWindow, shiftBilanAnchor, type BilanPeriodValue } from "@/lib/dates";
 import { AthleteCalendar } from "./athlete-calendar";
 import { TrainingInsights } from "./training-insights";
 import { computeAcwr } from "@/lib/training-stats";
@@ -44,12 +44,12 @@ import { PerformanceStats, MeasurementPoint } from "@/app/athlete/profile/perfor
 // (mésocycle ~4 semaines, bloc plus large regroupant plusieurs cycles) plutôt
 // que des découpages calendaires stricts — aucune notion de bloc/cycle n'existe
 // en base, ce sont ici de simples fenêtres glissantes en jours.
-const BILAN_PERIODS: { value: string; label: string; days: number }[] = [
-  { value: "jour", label: "Journée", days: 1 },
-  { value: "semaine", label: "Semaine", days: 7 },
-  { value: "cycle", label: "Cycle", days: 28 },
-  { value: "mois", label: "Mois", days: 30 },
-  { value: "bloc", label: "Bloc", days: 84 },
+const BILAN_PERIODS: { value: BilanPeriodValue; label: string }[] = [
+  { value: "jour", label: "Journée" },
+  { value: "semaine", label: "Semaine" },
+  { value: "cycle", label: "Cycle" },
+  { value: "mois", label: "Mois" },
+  { value: "bloc", label: "Bloc" },
 ];
 
 
@@ -59,14 +59,14 @@ export default async function AthleteDetailPage({
   searchParams,
 }: {
   params: Promise<{ athleteId: string }>;
-  searchParams: Promise<{ view?: string; week?: string; month?: string; bilan?: string }>;
+  searchParams: Promise<{ view?: string; week?: string; month?: string; bilan?: string; bilanDate?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "coach") redirect("/athlete");
 
   const { athleteId } = await params;
-  const { view, week, month, bilan } = await searchParams;
+  const { view, week, month, bilan, bilanDate } = await searchParams;
 
   // Garde de permission (cf. prompt : règle la plus critique du produit).
   if (!(await isCoachLinkedToAthlete(user.id, athleteId))) {
@@ -75,9 +75,21 @@ export default async function AthleteDetailPage({
 
   const today = todayISO();
   const bilanPeriod = BILAN_PERIODS.find((p) => p.value === bilan) || BILAN_PERIODS.find((p) => p.value === "bloc")!;
-  const statsFrom = new Date();
-  statsFrom.setDate(statsFrom.getDate() - bilanPeriod.days);
-  const statsFromISO = toISODate(statsFrom);
+  // Ancre de la fenêtre : la date choisie dans le sélecteur, sinon aujourd'hui.
+  // Le format est validé ici pour qu'une URL trafiquée ne produise pas de dates
+  // « Invalid Date » dans tous les calculs en aval.
+  const bilanAnchor = bilanDate && /^\d{4}-\d{2}-\d{2}$/.test(bilanDate) ? bilanDate : today;
+  const bilanWindow = computeBilanWindow(bilanPeriod.value, bilanAnchor);
+  const statsFromISO = bilanWindow.from;
+  const statsToISO = bilanWindow.to;
+  const bilanPrev = shiftBilanAnchor(bilanPeriod.value, bilanAnchor, -1);
+  const bilanNext = shiftBilanAnchor(bilanPeriod.value, bilanAnchor, 1);
+  const bilanHref = (period: BilanPeriodValue, anchor: string) =>
+    `/coach/athletes/${athleteId}?bilan=${period}&bilanDate=${anchor}`;
+  // Pas de navigation vers le futur : une fenêtre qui commence après aujourd'hui
+  // ne contiendrait que des séances prévues, jamais de bilan.
+  const canGoNext = computeBilanWindow(bilanPeriod.value, bilanNext).from <= today;
+  const isCurrentWindow = today >= bilanWindow.from && today <= bilanWindow.to;
   // Fenêtre fixe à 28 jours pour l'alerte de charge (ACWR), indépendante du
   // filtre de période choisi pour le bilan — sinon le ratio changerait de
   // sens selon l'onglet actif.
@@ -122,7 +134,7 @@ export default async function AthleteDetailPage({
     getCoachNotes(user.id, athleteId),
     getRecentCheckins(athleteId, 1),
     getUpcomingGoals(athleteId),
-    getImportedActivitiesForRange(athleteId, statsFromISO, today),
+    getImportedActivitiesForRange(athleteId, statsFromISO, statsToISO),
     getExerciseMaxes(athleteId),
     getCoachExerciseHistory(user.id),
     getImportedActivitiesForRange(athleteId, acwrFromISO, today),
@@ -287,7 +299,7 @@ export default async function AthleteDetailPage({
             {BILAN_PERIODS.map((p) => (
               <Link
                 key={p.value}
-                href={`/coach/athletes/${athleteId}?bilan=${p.value}`}
+                href={bilanHref(p.value, bilanAnchor)}
                 scroll={false}
                 className={`rounded-xl px-3.5 py-1.5 text-center text-sm font-semibold transition-colors ${
                   bilanPeriod.value === p.value ? "bg-white text-ink shadow-sm" : "text-slate"
@@ -298,15 +310,71 @@ export default async function AthleteDetailPage({
             ))}
           </div>
         </div>
+        {/* Navigation de période : le bilan ne se limitait qu'à une fenêtre
+            glissante finissant aujourd'hui, impossible donc de revoir une
+            semaine précise. On peut maintenant reculer, avancer, ou choisir
+            directement une date dans la période voulue. */}
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2">
+          <Link
+            href={bilanHref(bilanPeriod.value, bilanPrev)}
+            scroll={false}
+            aria-label="Période précédente"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-lg leading-none text-slate transition-colors hover:bg-paper-dim hover:text-ink"
+          >
+            ‹
+          </Link>
+          <span className="min-w-0 flex-1 text-center text-sm font-semibold capitalize text-ink">{bilanWindow.label}</span>
+          {canGoNext ? (
+            <Link
+              href={bilanHref(bilanPeriod.value, bilanNext)}
+              scroll={false}
+              aria-label="Période suivante"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-lg leading-none text-slate transition-colors hover:bg-paper-dim hover:text-ink"
+            >
+              ›
+            </Link>
+          ) : (
+            <span
+              aria-hidden
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-lg leading-none text-line"
+            >
+              ›
+            </span>
+          )}
+          <form action={`/coach/athletes/${athleteId}`} className="flex items-center gap-2">
+            <input type="hidden" name="bilan" value={bilanPeriod.value} />
+            <input
+              type="date"
+              name="bilanDate"
+              defaultValue={bilanAnchor}
+              max={today}
+              aria-label="Aller à une date"
+              className="rounded-xl border border-line bg-paper-dim px-2 py-1 text-xs text-ink"
+            />
+            <button type="submit" className="rounded-xl bg-moss px-3 py-1.5 text-xs font-semibold text-white">
+              Aller
+            </button>
+          </form>
+          {!isCurrentWindow && (
+            <Link
+              href={bilanHref(bilanPeriod.value, today)}
+              scroll={false}
+              className="rounded-xl border border-line px-3 py-1.5 text-xs font-semibold text-slate transition-colors hover:text-ink"
+            >
+              Aujourd&apos;hui
+            </Link>
+          )}
+        </div>
         <p className="mb-3 text-sm text-slate">
           Séances faites et activités importées du {statsFromISO.slice(8, 10)}/{statsFromISO.slice(5, 7)} au{" "}
-          {today.slice(8, 10)}/{today.slice(5, 7)} ({bilanPeriod.days} jour{bilanPeriod.days > 1 ? "s" : ""}).
+          {statsToISO.slice(8, 10)}/{statsToISO.slice(5, 7)} ({bilanWindow.days} jour{bilanWindow.days > 1 ? "s" : ""}).
         </p>
         <div className="mb-8">
           <TrainingInsights
-            workouts={allWorkouts.filter((w) => w.date >= statsFromISO && w.date <= today)}
+            workouts={allWorkouts.filter((w) => w.date >= statsFromISO && w.date <= statsToISO)}
             imports={recentImports}
-            periodDays={bilanPeriod.days}
+            periodDays={bilanWindow.days}
+            periodEnd={statsToISO < today ? statsToISO : today}
           />
         </div>
 

@@ -197,7 +197,20 @@ function PeriodSummaryRow({ summary }: { summary: ReturnType<typeof computePerio
   );
 }
 
-export function TrainingInsights({ workouts, imports, periodDays }: { workouts: Workout[]; imports: ImportedActivity[]; periodDays: number }) {
+export function TrainingInsights({
+  workouts,
+  imports,
+  periodDays,
+  periodEnd,
+}: {
+  workouts: Workout[];
+  imports: ImportedActivity[];
+  periodDays: number;
+  // Fin de la fenêtre analysée. Sur une période passée, c'est son dernier jour
+  // et non aujourd'hui : sinon l'adhérence d'une semaine révolue se calculerait
+  // comme si toutes ses séances étaient encore à venir.
+  periodEnd?: string;
+}) {
   const weeklyLoad = computeWeeklyLoad(workouts, imports, Math.max(1, Math.ceil(periodDays / 7)));
   // Les séances sont déjà filtrées sur la période par l'appelant ; la limite
   // sert seulement de garde-fou d'affichage (un bloc de 84 jours peut contenir
@@ -206,7 +219,7 @@ export function TrainingInsights({ workouts, imports, periodDays }: { workouts: 
   const rpeEvolution = computeRpeEvolution(workouts, imports, Math.max(5, periodDays));
   const distribution = computeSportDistribution(workouts, imports);
   const summaries = computeSportSummaries(workouts, imports).slice(0, 4);
-  const periodSummary = computePeriodSummary(workouts, imports, periodDays, todayISO());
+  const periodSummary = computePeriodSummary(workouts, imports, periodDays, periodEnd ?? todayISO());
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
