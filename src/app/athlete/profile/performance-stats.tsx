@@ -27,29 +27,37 @@ export function PerformanceStats({
   const [selected, setSelected] = useState<string | null>(null);
   const selectedDef = metrics.find((m) => m.value === selected);
   const selectedSeries = selected ? seriesByMetric[selected] || [] : [];
+  // Avec la liste d'indicateurs disponibles (plusieurs dizaines, toutes
+  // disciplines confondues), afficher une case pour chacun — y compris ceux
+  // jamais renseignés — noierait les quelques mesures qui comptent vraiment
+  // sous des cases grisées. Seuls les indicateurs déjà mesurés apparaissent
+  // ici ; les autres restent sélectionnables dans le formulaire d'ajout.
+  const measured = metrics.filter((m) => !!latest[m.value]);
 
   return (
     <div className="mb-5">
-      <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-        {metrics.map((m) => {
-          const hasData = !!latest[m.value];
-          const isSelected = selected === m.value;
-          return (
-            <button
-              key={m.value}
-              type="button"
-              disabled={!hasData}
-              onClick={() => setSelected(isSelected ? null : m.value)}
-              className={`rounded-2xl border px-3 py-2 text-left transition-colors ${
-                isSelected ? "border-moss bg-moss/5" : "border-line bg-white"
-              } ${hasData ? "cursor-pointer hover:border-moss" : "cursor-default opacity-60"}`}
-            >
-              <dt className="text-slate">{m.label}</dt>
-              <dd className="font-medium text-ink">{latest[m.value]?.value ?? "—"}</dd>
-            </button>
-          );
-        })}
-      </dl>
+      {measured.length === 0 ? (
+        <p className="text-sm text-slate">Aucune mesure enregistrée pour l&apos;instant.</p>
+      ) : (
+        <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+          {measured.map((m) => {
+            const isSelected = selected === m.value;
+            return (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => setSelected(isSelected ? null : m.value)}
+                className={`cursor-pointer rounded-2xl border px-3 py-2 text-left transition-colors hover:border-moss ${
+                  isSelected ? "border-moss bg-moss/5" : "border-line bg-white"
+                }`}
+              >
+                <dt className="text-slate">{m.label}</dt>
+                <dd className="font-medium text-ink">{latest[m.value]?.value ?? "—"}</dd>
+              </button>
+            );
+          })}
+        </dl>
+      )}
 
       {selected && selectedDef && (
         <div className="mt-3 rounded-2xl border border-line bg-white p-4">

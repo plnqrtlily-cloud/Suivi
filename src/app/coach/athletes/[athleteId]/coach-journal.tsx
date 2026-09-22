@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import type { CoachNoteEntry } from "@/lib/queries";
 import {
   addCoachNoteEntryAction,
@@ -62,8 +63,33 @@ function frLong(iso: string): string {
 }
 
 function EntryCard({ entry }: { entry: CoachNoteEntry }) {
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [pending, setPending] = useState(false);
   const edited = entry.updated_at !== entry.created_at;
+
+  // Sans ce handler, le formulaire restait ouvert après "Enregistrer" — la
+  // note semblait ne pas avoir été prise en compte alors qu'elle l'était.
+  async function handleSave(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPending(true);
+    const formData = new FormData(e.currentTarget);
+    formData.set("entryId", entry.id);
+    await updateCoachNoteEntryAction(formData);
+    setPending(false);
+    setEditing(false);
+    router.refresh();
+  }
+
+  async function handleDelete() {
+    if (!confirm("Supprimer cette note ?")) return;
+    setPending(true);
+    const formData = new FormData();
+    formData.set("entryId", entry.id);
+    await deleteCoachNoteEntryAction(formData);
+    setPending(false);
+    router.refresh();
+  }
 
   return (
     <li className="rounded-2xl border border-line bg-white px-3 py-2.5">
@@ -81,8 +107,7 @@ function EntryCard({ entry }: { entry: CoachNoteEntry }) {
 
       {editing ? (
         <>
-          <form action={updateCoachNoteEntryAction} className="flex flex-col gap-2">
-            <input type="hidden" name="entryId" value={entry.id} />
+          <form onSubmit={handleSave} className="flex flex-col gap-2">
             <AutoTextarea name="body" defaultValue={entry.body} />
             <div className="flex flex-wrap items-center gap-2">
               <input
@@ -91,17 +116,23 @@ function EntryCard({ entry }: { entry: CoachNoteEntry }) {
                 defaultValue={entry.entry_date}
                 className="rounded-xl border border-line bg-paper-dim px-2 py-1 text-xs text-ink"
               />
-              <button type="submit" className="rounded-xl bg-moss px-3 py-1.5 text-xs font-semibold text-white">
-                Enregistrer
+              <button
+                type="submit"
+                disabled={pending}
+                className="rounded-xl bg-moss px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                {pending ? "Enregistrement…" : "Enregistrer"}
               </button>
             </div>
           </form>
-          <form action={deleteCoachNoteEntryAction} className="mt-2">
-            <input type="hidden" name="entryId" value={entry.id} />
-            <button type="submit" className="text-xs font-semibold text-clay hover:underline">
-              Supprimer cette note
-            </button>
-          </form>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={pending}
+            className="mt-2 text-xs font-semibold text-clay hover:underline"
+          >
+            Supprimer cette note
+          </button>
         </>
       ) : (
         // whitespace-pre-wrap : les retours à la ligne saisis sont conservés,
@@ -121,13 +152,30 @@ export function CoachJournal({
   entries: CoachNoteEntry[];
   today: string;
 }) {
+  const router = useRouter();
   // Les notes s'empilent vite ; on en montre vingt et le reste sur demande.
   const [showAll, setShowAll] = useState(false);
   const visible = showAll ? entries : entries.slice(0, 20);
+  const [pending, setPending] = useState(false);
+  // Remonter le champ (au lieu d'un simple form.reset()) le vide ET ramène sa
+  // hauteur à sa valeur de repos — un reset natif efface le texte mais laisse
+  // le textarea agrandi, aucun événement 'input' ne se déclenchant pour le
+  // rétrécir.
+  const [fieldKey, setFieldKey] = useState(0);
+
+  async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPending(true);
+    const formData = new FormData(e.currentTarget);
+    await addCoachNoteEntryAction(formData);
+    setPending(false);
+    setFieldKey((k) => k + 1);
+    router.refresh();
+  }
 
   return (
     <div>
-      <form action={addCoachNoteEntryAction} className="mb-4 flex flex-col gap-2">
+      <form key={fieldKey} onSubmit={handleAdd} className="mb-4 flex flex-col gap-2">
         <input type="hidden" name="athleteId" value={athleteId} />
         <AutoTextarea
           name="body"
@@ -141,8 +189,12 @@ export function CoachJournal({
             defaultValue={today}
             className="rounded-xl border border-line bg-paper-dim px-2 py-1 text-xs text-ink"
           />
-          <button type="submit" className="rounded-xl bg-moss px-4 py-1.5 text-sm font-semibold text-white">
-            Ajouter la note
+          <button
+            type="submit"
+            disabled={pending}
+            className="rounded-xl bg-moss px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {pending ? "Ajout…" : "Ajouter la note"}
           </button>
           <span className="text-xs text-slate">Datée du jour, modifiable si vous notez après coup.</span>
         </div>

@@ -152,7 +152,17 @@ export async function getCommentsForWorkout(workoutId: string) {
   );
 }
 
-export async function getMeasurementsForAthlete(athleteId: string) {
+export interface AthleteMeasurement {
+  id: string;
+  athlete_id: string;
+  metric: string;
+  value: number;
+  recorded_at: string;
+  note: string | null;
+  device: string | null;
+}
+
+export async function getMeasurementsForAthlete(athleteId: string): Promise<AthleteMeasurement[]> {
   return dbAll(`SELECT * FROM athlete_measurements WHERE athlete_id = ? ORDER BY recorded_at DESC`, [athleteId]);
 }
 

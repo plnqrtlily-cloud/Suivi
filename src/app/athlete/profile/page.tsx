@@ -20,12 +20,13 @@ import { computePowerZones } from "@/lib/power-zones";
 import { computePaceZones } from "@/lib/pace-zones";
 import { ZoneGrid, formatPaceValue } from "@/components/zone-grid";
 import { todayISO } from "@/lib/dates";
-import { PERFORMANCE_METRICS, MEASUREMENT_DEVICES, deviceLabel, computeDerivedMetrics } from "@/lib/performance-metrics";
+import { PERFORMANCE_METRICS, MEASUREMENT_DEVICES, computeDerivedMetrics, groupMetrics } from "@/lib/performance-metrics";
 import { Nav } from "@/components/nav";
 import { Card, Field, SelectField, Button, sportLabel } from "@/components/ui";
 import { CyclePanel } from "./cycle-panel";
 import { PerformanceStats, MeasurementPoint } from "./performance-stats";
 import { ExerciseMaxesPanel } from "@/app/coach/athletes/[athleteId]/exercise-maxes-panel";
+import { MeasurementsHistory } from "@/app/coach/athletes/[athleteId]/measurements-history";
 
 function formatPace(minPerKm: number): string {
   const min = Math.floor(minPerKm);
@@ -38,6 +39,7 @@ function formatPace(minPerKm: number): string {
 const METRICS = PERFORMANCE_METRICS.map((m) => ({
   value: m.value,
   label: m.unit ? `${m.label} (${m.unit})` : m.label,
+  group: m.group,
 }));
 
 const SPORTS_LIST = [
@@ -70,7 +72,6 @@ export default async function AthleteProfilePage() {
       getPersonalRecordsForAthlete(user.id),
       getExerciseMaxes(user.id),
     ]);
-  const history = historyAll.slice(0, 10);
   const seriesByMetric: Record<string, MeasurementPoint[]> = {};
   for (const h of historyAll as any[]) {
     (seriesByMetric[h.metric] ??= []).push({ value: h.value, recorded_at: h.recorded_at });
@@ -163,10 +164,14 @@ export default async function AthleteProfilePage() {
           <PerformanceStats metrics={METRICS} latest={latest} seriesByMetric={seriesByMetric} />
           <form action={addMeasurementAction} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
             <SelectField label="Indicateur" name="metric" required>
-              {METRICS.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
+              {groupMetrics(METRICS).map(({ group, items }) => (
+                <optgroup key={group} label={group}>
+                  {items.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </SelectField>
             <Field label="Valeur" type="number" step="0.1" name="value" required />
@@ -199,18 +204,12 @@ export default async function AthleteProfilePage() {
               </ul>
             </div>
           )}
-          {history.length > 0 && (
+          {historyAll.length > 0 && (
             <details className="mt-4 text-sm text-slate">
               <summary className="cursor-pointer">Historique des mesures</summary>
-              <ul className="mt-2 space-y-1">
-                {history.map((h) => (
-                  <li key={h.id}>
-                    {h.recorded_at.slice(0, 10)} — {METRICS.find((m) => m.value === h.metric)?.label}: {h.value}
-                    {h.device && ` · ${deviceLabel(h.device)}`}
-                    {h.note && ` — ${h.note}`}
-                  </li>
-                ))}
-              </ul>
+              <div className="mt-2">
+                <MeasurementsHistory athleteId={user.id} history={historyAll} metrics={METRICS} />
+              </div>
             </details>
           )}
         </Card>

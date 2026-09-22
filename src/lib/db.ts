@@ -141,11 +141,14 @@ CREATE TABLE IF NOT EXISTS workout_comments (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Mesures physiologiques dans le temps (cf. prompt : "avec historique dans le temps")
+-- Mesures physiologiques dans le temps (cf. prompt : "avec historique dans le temps").
+-- Pas de CHECK sur 'metric' : la liste des indicateurs (src/lib/performance-metrics.ts)
+-- s'enrichit régulièrement, et SQLite ne permet pas de l'étendre par ALTER TABLE — cf.
+-- migrateAthleteMeasurementsCheck ci-dessous pour les bases créées avant ce constat.
 CREATE TABLE IF NOT EXISTS athlete_measurements (
   id TEXT PRIMARY KEY,
   athlete_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  metric TEXT NOT NULL CHECK (metric IN ('weight_kg','fc_repos','fc_max','vo2max','ftp','pma_vma','height_cm')),
+  metric TEXT NOT NULL,
   value REAL NOT NULL,
   recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -562,10 +565,43 @@ async function migrateNotificationsCheck(): Promise<void> {
   }
 }
 
+// Même contrainte SQLite qu'au-dessus : la liste des indicateurs de performance
+// (src/lib/performance-metrics.ts) s'est étendue bien au-delà des sept valeurs
+// d'origine (seuil lactique, puis toute la série vélo/course ajoutée ensuite) —
+// sur une base créée avant cet ajout, la CHECK figée rejetait l'insertion de
+// tout nouvel indicateur. On la supprime purement et simplement : la validité
+// du champ est déjà garantie côté formulaire (select) plutôt que par la base.
+async function migrateAthleteMeasurementsCheck(): Promise<void> {
+  try {
+    const info = await client.execute(
+      `SELECT sql FROM sqlite_master WHERE type='table' AND name='athlete_measurements'`
+    );
+    const ddl = info.rows[0]?.sql as string | undefined;
+    if (!ddl || !ddl.includes("CHECK")) return; // table absente ou déjà migrée
+    await client.executeMultiple(`
+      CREATE TABLE IF NOT EXISTS athlete_measurements_new (
+        id TEXT PRIMARY KEY,
+        athlete_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        metric TEXT NOT NULL,
+        value REAL NOT NULL,
+        recorded_at TEXT NOT NULL DEFAULT (datetime('now')),
+        note TEXT,
+        device TEXT
+      );
+      INSERT INTO athlete_measurements_new SELECT * FROM athlete_measurements;
+      DROP TABLE athlete_measurements;
+      ALTER TABLE athlete_measurements_new RENAME TO athlete_measurements;
+    `);
+  } catch {
+    // Best effort — en cas d'échec, la contrainte reste stricte mais aucune donnée n'est perdue.
+  }
+}
+
 async function init(): Promise<void> {
   await client.executeMultiple(SCHEMA_SQL);
   await migrateAvailabilityBlocksCheck();
   await migrateNotificationsCheck();
+  await migrateAthleteMeasurementsCheck();
   for (const migration of MIGRATIONS) {
     try {
       await client.execute(migration);

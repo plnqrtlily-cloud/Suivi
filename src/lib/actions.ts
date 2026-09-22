@@ -797,6 +797,43 @@ export async function addMeasurementAction(formData: FormData) {
   revalidatePath(`/coach/athletes/${targetAthleteId}`);
 }
 
+export async function updateMeasurementAction(id: string, athleteId: string, formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Non autorisé.");
+  const isSelf = user.role === "athlete" && user.id === athleteId;
+  const isLinkedCoach = user.role === "coach" && (await isCoachLinkedToAthlete(user.id, athleteId));
+  if (!isSelf && !isLinkedCoach) throw new Error("Non autorisé.");
+
+  const metric = String(formData.get("metric") || "");
+  const value = Number(formData.get("value") || 0);
+  const recordedAt = String(formData.get("recordedAt") || "").trim();
+  const note = String(formData.get("note") || "").trim();
+  const device = String(formData.get("device") || "").trim();
+  if (!metric || Number.isNaN(value) || !recordedAt) throw new Error("Indicateur, valeur et date requis.");
+
+  await dbRun(
+    `UPDATE athlete_measurements SET metric = ?, value = ?, recorded_at = ?, note = ?, device = ?
+     WHERE id = ? AND athlete_id = ?`,
+    [metric, value, recordedAt, note || null, device || null, id, athleteId]
+  );
+
+  revalidatePath("/athlete/profile");
+  revalidatePath(`/coach/athletes/${athleteId}`);
+}
+
+export async function deleteMeasurementAction(id: string, athleteId: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Non autorisé.");
+  const isSelf = user.role === "athlete" && user.id === athleteId;
+  const isLinkedCoach = user.role === "coach" && (await isCoachLinkedToAthlete(user.id, athleteId));
+  if (!isSelf && !isLinkedCoach) throw new Error("Non autorisé.");
+
+  await dbRun(`DELETE FROM athlete_measurements WHERE id = ? AND athlete_id = ?`, [id, athleteId]);
+
+  revalidatePath("/athlete/profile");
+  revalidatePath(`/coach/athletes/${athleteId}`);
+}
+
 export async function addInjuryAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user || user.role !== "athlete") throw new Error("Non autorisé.");

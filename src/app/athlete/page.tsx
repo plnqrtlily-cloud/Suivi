@@ -11,12 +11,12 @@ import {
   getJournalForAthlete,
   getNextGoalForAthlete,
 } from "@/lib/queries";
-import { addJournalEntryAction } from "@/lib/actions";
+import { AddJournalEntryForm } from "./add-journal-entry-form";
 import { estimateCyclePhase } from "@/lib/cycle";
 import { getWeekDates, todayISO, daysUntil } from "@/lib/dates";
 import { Nav } from "@/components/nav";
 import { PeriodBadge } from "@/components/period-badge";
-import { Card, sportLabel, LinkButton, Field, TextAreaField, Button } from "@/components/ui";
+import { Card, sportLabel, LinkButton } from "@/components/ui";
 import { SnapScrollNav } from "@/components/snap-scroll-nav";
 import { JournalEntry } from "./journal-entry";
 import { DailyCheckin } from "./daily-checkin";
@@ -266,13 +266,7 @@ export default async function AthleteDashboard({
             ))}
             {journal.length === 0 && <p className="text-slate">Aucune note pour ce jour-là.</p>}
           </ul>
-          <form action={addJournalEntryAction} className="flex flex-col gap-3">
-            <input type="hidden" name="entryDate" value={selectedDate} />
-            <TextAreaField label="Note" name="content" rows={3} required placeholder="Sensations du jour, fatigue, contexte particulier…" />
-            <div>
-              <Button type="submit">Ajouter une note à ce jour</Button>
-            </div>
-          </form>
+          <AddJournalEntryForm selectedDate={selectedDate} />
         </section>
       </main>
     </div>

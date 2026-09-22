@@ -47,10 +47,11 @@ import { computeHrZones } from "@/lib/hr-zones";
 import { computePowerZones } from "@/lib/power-zones";
 import { computePaceZones, formatPace } from "@/lib/pace-zones";
 import { ExerciseMaxesPanel } from "./exercise-maxes-panel";
+import { MeasurementsHistory } from "./measurements-history";
 import { CopyWeekForm } from "./copy-week-form";
 import { AthleteTabs } from "./athlete-tabs";
 import { upsertCoachNotesAction, addMeasurementAction } from "@/lib/actions";
-import { METRIC_LABELS, MEASUREMENT_DEVICES, computeDerivedMetrics } from "@/lib/performance-metrics";
+import { PERFORMANCE_METRICS, MEASUREMENT_DEVICES, computeDerivedMetrics, groupMetrics } from "@/lib/performance-metrics";
 import { PerformanceStats, MeasurementPoint } from "@/app/athlete/profile/performance-stats";
 
 // "Bloc" et "cycle" reprennent le vocabulaire de périodisation de l'entraînement
@@ -190,7 +191,11 @@ export default async function AthleteDetailPage({
     measurements.fc_repos && measurements.fc_max ? computeHrZones(measurements.fc_repos.value, measurements.fc_max.value) : null;
   const powerZones = measurements.ftp ? computePowerZones(measurements.ftp.value) : null;
   const paceZones = measurements.pma_vma ? computePaceZones(measurements.pma_vma.value) : null;
-  const METRICS = Object.entries(METRIC_LABELS).map(([value, label]) => ({ value, label }));
+  const METRICS = PERFORMANCE_METRICS.map((m) => ({
+    value: m.value,
+    label: m.unit ? `${m.label} (${m.unit})` : m.label,
+    group: m.group,
+  }));
   const seriesByMetric: Record<string, MeasurementPoint[]> = {};
   for (const h of measurementHistory as any[]) {
     (seriesByMetric[h.metric] ??= []).push({ value: h.value, recorded_at: h.recorded_at });
@@ -478,10 +483,14 @@ export default async function AthleteDetailPage({
               <label className="flex flex-col gap-1.5 text-sm">
                 <span className="font-medium text-ink-soft">Indicateur</span>
                 <select name="metric" required className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss">
-                  {METRICS.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.label}
-                    </option>
+                  {groupMetrics(METRICS).map(({ group, items }) => (
+                    <optgroup key={group} label={group}>
+                      {items.map((m) => (
+                        <option key={m.value} value={m.value}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               </label>
@@ -528,6 +537,14 @@ export default async function AthleteDetailPage({
                   ))}
                 </ul>
               </div>
+            )}
+            {measurementHistory.length > 0 && (
+              <details className="mt-4 text-sm text-slate">
+                <summary className="cursor-pointer">Historique des mesures</summary>
+                <div className="mt-2">
+                  <MeasurementsHistory athleteId={athleteId} history={measurementHistory} metrics={METRICS} />
+                </div>
+              </details>
             )}
           </Card>
         {(hrZones || powerZones || paceZones) && (
