@@ -23,6 +23,13 @@ export default async function RegisterPage({
             Se connecter
           </Link>
         </p>
+        {!invite && (
+          <p className="mt-2 text-sm text-slate">
+            <Link href="/tarifs" className="text-moss-dark underline">
+              Voir les tarifs
+            </Link>
+          </p>
+        )}
       </div>
     </main>
   );

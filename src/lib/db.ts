@@ -504,6 +504,10 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE workouts ADD COLUMN elevation_gain_m INTEGER`,
   `ALTER TABLE workouts ADD COLUMN avg_power_w INTEGER`,
   `ALTER TABLE workout_comments ADD COLUMN video_path TEXT`,
+  // Offre du coach : 'free' (limité en nombre d'athlètes, cf. src/lib/billing.ts)
+  // ou 'pro' (illimité) — bascule manuelle pour l'instant, aucune facturation
+  // automatisée (cf. page /tarifs, contact par email).
+  `ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

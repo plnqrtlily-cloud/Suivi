@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createInviteAction } from "@/lib/actions";
 import { Field, Button } from "@/components/ui";
+import { upgradeMailtoHref } from "@/lib/billing";
 
 export function InviteForm() {
   const router = useRouter();
   const [link, setLink] = useState<string | null>(null);
+  const [limitError, setLimitError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -15,10 +18,16 @@ export function InviteForm() {
     const form = e.currentTarget;
     setPending(true);
     const formData = new FormData(form);
-    const { token } = await createInviteAction(formData);
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    setLink(`${origin}/invite/${token}`);
+    const result = await createInviteAction(formData);
     setPending(false);
+    if ("error" in result) {
+      setLimitError(result.error);
+      setLink(null); // sinon le lien d'une invitation précédente restait affiché à côté de l'erreur
+      return;
+    }
+    setLimitError(null);
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    setLink(`${origin}/invite/${result.token}`);
     form.reset();
     router.refresh(); // sans ça, la liste "Invitation en attente" ci-dessous restait périmée
   }
@@ -33,6 +42,21 @@ export function InviteForm() {
           {pending ? "Génération…" : "Générer un lien d'invitation"}
         </Button>
       </form>
+      {limitError && (
+        <div className="rounded-2xl border border-gold-light/50 bg-gold-light/5 px-3 py-2 text-sm">
+          <p className="mb-1 text-ink">{limitError}</p>
+          <p className="text-xs text-slate">
+            <Link href="/tarifs" className="font-semibold text-moss-dark hover:underline">
+              Voir les tarifs
+            </Link>{" "}
+            ou{" "}
+            <a href={upgradeMailtoHref()} className="font-semibold text-moss-dark hover:underline">
+              nous contacter directement
+            </a>
+            .
+          </p>
+        </div>
+      )}
       {link && (
         <div className="rounded-2xl border border-line bg-paper-dim px-3 py-2 text-sm">
           <p className="mb-1">

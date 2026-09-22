@@ -77,6 +77,10 @@ export async function CoachSidebar({ user, activeHref }: { user: User; activeHre
       )}
 
       <div className="mt-auto flex flex-col gap-0.5 border-t border-line px-2 py-2">
+        <Link href="/tarifs" className={itemClass("/tarifs")}>
+          <span className="h-[17px] w-[17px]" aria-hidden />
+          Tarifs
+        </Link>
         <Link href="/settings" className={itemClass("/settings")}>
           <NavIcon name="settings" className="h-[17px] w-[17px]" />
           Paramètres

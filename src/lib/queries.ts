@@ -25,6 +25,12 @@ export async function getAthletesForCoach(coachId: string): Promise<AthleteLink[
   );
 }
 
+/** 'free' ou 'pro' — cf. src/lib/billing.ts pour ce que chaque offre permet. */
+export async function getCoachPlan(coachId: string): Promise<string> {
+  const row = await dbGet<{ plan: string }>(`SELECT plan FROM users WHERE id = ?`, [coachId]);
+  return row?.plan ?? "free";
+}
+
 export interface CoachLink {
   link_id: string;
   coach_id: string;

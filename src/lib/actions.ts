@@ -23,7 +23,8 @@ import {
 } from "./auth";
 import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES } from "./storage";
 import { parseGpx, simplifyRoute } from "./gpx";
-import { getResourceById, getBlocksForWorkout } from "./queries";
+import { getResourceById, getBlocksForWorkout, getAthletesForCoach, getCoachPlan } from "./queries";
+import { FREE_PLAN_ATHLETE_LIMIT } from "./billing";
 import { createNotification, markNotificationRead, markAllNotificationsRead } from "./notifications";
 import { sendEmail, isEmailConfigured, appBaseUrl } from "./email";
 import { saveSubscription, removeSubscription } from "./push";
@@ -91,9 +92,22 @@ export async function logoutAction() {
 
 // ---------- INVITATIONS (cf. prompt : "Flux d'invitation/liaison") ----------
 
-export async function createInviteAction(formData: FormData) {
+export async function createInviteAction(formData: FormData): Promise<{ token: string } | { error: string }> {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  // Offre gratuite plafonnée en nombre d'athlètes (liens actifs ou en
+  // attente) — cf. src/lib/billing.ts. Un coach passé au plan Pro n'est
+  // jamais compté ici.
+  const plan = await getCoachPlan(user.id);
+  if (plan !== "pro") {
+    const links = await getAthletesForCoach(user.id);
+    if (links.length >= FREE_PLAN_ATHLETE_LIMIT) {
+      return {
+        error: `L'offre gratuite est limitée à ${FREE_PLAN_ATHLETE_LIMIT} athlètes. Passez au plan Pro pour en suivre davantage.`,
+      };
+    }
+  }
 
   const email = String(formData.get("email") || "").trim();
   const token = randomUUID().slice(0, 8);

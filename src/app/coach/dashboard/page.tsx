@@ -4,7 +4,9 @@ import { getCurrentUser } from "@/lib/auth";
 import {
   getAthletesForCoach,
   getCoachReminders,
+  getCoachPlan,
 } from "@/lib/queries";
+import { FREE_PLAN_ATHLETE_LIMIT } from "@/lib/billing";
 import { computeRosterSignals, signalScore, type RosterSignals } from "@/lib/roster-signals";
 import { loadDashboardBatch } from "@/lib/dashboard-batch";
 import { todayISO, toISODate } from "@/lib/dates";
@@ -134,7 +136,11 @@ export default async function CoachDashboardPage() {
 
   const today = todayISO();
 
-  const [links, reminders] = await Promise.all([getAthletesForCoach(user.id), getCoachReminders(user.id)]);
+  const [links, reminders, plan] = await Promise.all([
+    getAthletesForCoach(user.id),
+    getCoachReminders(user.id),
+    getCoachPlan(user.id),
+  ]);
   const activeAthletes = links.filter((l) => l.status === "active" && l.athlete_id);
   // Invitations envoyées mais pas encore acceptées — sinon le coach n'a aucun
   // moyen de savoir qu'elles sont en attente, ni de les annuler.
@@ -198,7 +204,7 @@ export default async function CoachDashboardPage() {
         </div>
         <main className="mx-auto max-w-5xl px-4 sm:px-6 py-8">
           <h1 className="mb-1 font-display text-3xl text-ink">Mes athlètes</h1>
-          <p className="mb-6 text-slate">
+          <p className={plan === "pro" ? "mb-6 text-slate" : "mb-1 text-slate"}>
             {activeAthletes.length} athlète{activeAthletes.length > 1 ? "s" : ""} suivi{activeAthletes.length > 1 ? "s" : ""}
             {" · "}
             {new Date(`${today}T00:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
@@ -211,6 +217,14 @@ export default async function CoachDashboardPage() {
               </>
             )}
           </p>
+          {plan !== "pro" && (
+            <p className="mb-6 text-xs text-slate">
+              Offre gratuite — {links.length}/{FREE_PLAN_ATHLETE_LIMIT} athlètes.{" "}
+              <Link href="/tarifs" className="font-semibold text-moss-dark hover:underline">
+                Passer au plan Pro
+              </Link>
+            </p>
+          )}
 
           {activeAthletes.length === 0 ? (
             /* Premier lancement : le formulaire d'invitation directement, plutôt
