@@ -5,8 +5,9 @@ import {
   getAthletesForCoach,
   getCoachReminders,
   getCoachPlanStatus,
+  getTeamCountForCoach,
 } from "@/lib/queries";
-import { FREE_PLAN_ATHLETE_LIMIT } from "@/lib/billing";
+import { FREE_PLAN_ATHLETE_LIMIT, FREE_PLAN_TEAM_LIMIT } from "@/lib/billing";
 import { computeRosterSignals, signalScore, type RosterSignals } from "@/lib/roster-signals";
 import { loadDashboardBatch } from "@/lib/dashboard-batch";
 import { todayISO, toISODate } from "@/lib/dates";
@@ -137,10 +138,11 @@ export default async function CoachDashboardPage() {
 
   const today = todayISO();
 
-  const [links, reminders, planStatus] = await Promise.all([
+  const [links, reminders, planStatus, teamCount] = await Promise.all([
     getAthletesForCoach(user.id),
     getCoachReminders(user.id),
     getCoachPlanStatus(user.id),
+    getTeamCountForCoach(user.id),
   ]);
   const activeAthletes = links.filter((l) => l.status === "active" && l.athlete_id);
   // Invitations envoyées mais pas encore acceptées — sinon le coach n'a aucun
@@ -229,7 +231,15 @@ export default async function CoachDashboardPage() {
           {!planStatus.isPro && (
             <div className="mb-6 flex flex-wrap items-center gap-3">
               <p className="text-xs text-slate">
-                Offre gratuite — {links.length}/{FREE_PLAN_ATHLETE_LIMIT} athlètes.{" "}
+                {teamCount > 0 ? (
+                  <>
+                    Offre gratuite — {teamCount}/{FREE_PLAN_TEAM_LIMIT} équipe.{" "}
+                  </>
+                ) : (
+                  <>
+                    Offre gratuite — {links.length}/{FREE_PLAN_ATHLETE_LIMIT} athlètes.{" "}
+                  </>
+                )}
                 <Link href="/tarifs" className="font-semibold text-moss-dark hover:underline">
                   Passer au plan Pro
                 </Link>

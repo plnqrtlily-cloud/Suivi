@@ -45,6 +45,7 @@ import {
   getCoachNoteEntries,
   getTeamWithMembers,
   getTeamsForAthlete,
+  getTeamCountForCoach,
 } from "../src/lib/queries";
 import { bilanRangeDays } from "../src/lib/dates";
 import { isValidPosition, layoutBand } from "../src/lib/team-sports";
@@ -1179,6 +1180,10 @@ async function main() {
   assert(
     (await getTeamsForAthlete(athlete.id, otherAthlete.id)).length === 0,
     "Les équipes d'un athlète ne sont visibles que pour le coach qui les a créées"
+  );
+  assert(
+    (await getTeamCountForCoach(coach.id)) === 1 && (await getTeamCountForCoach(otherAthlete.id)) === 0,
+    "Le nombre d'équipes d'un coach est compté correctement (sert au plafond gratuit)"
   );
 
   console.log("\nTest end-to-end terminé.");

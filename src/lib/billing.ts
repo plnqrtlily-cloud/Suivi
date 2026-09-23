@@ -5,6 +5,11 @@
 // constantes ici évite de disperser le prix et la limite dans chaque écran
 // qui les affiche.
 export const FREE_PLAN_ATHLETE_LIMIT = 3;
+// Un coach qui a créé son équipe gratuite (sport collectif) n'est plus
+// soumis à FREE_PLAN_ATHLETE_LIMIT : le vrai levier gratuit/payant pour le
+// sport co est le nombre d'équipes, pas la taille de l'effectif (un effectif
+// de foot dépasse largement 3 joueurs). Cf. createInviteAction/createTeamAction.
+export const FREE_PLAN_TEAM_LIMIT = 1;
 export const PRO_PLAN_PRICE_EUR = 19;
 export const UPGRADE_CONTACT_EMAIL = "plnqrtlily@gmail.com";
 export const TRIAL_DURATION_DAYS = 30;

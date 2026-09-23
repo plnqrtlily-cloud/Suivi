@@ -35,6 +35,11 @@ export interface Team {
   member_count: number;
 }
 
+export async function getTeamCountForCoach(coachId: string): Promise<number> {
+  const row = await dbGet<{ count: number }>(`SELECT COUNT(*) as count FROM teams WHERE coach_id = ?`, [coachId]);
+  return row?.count ?? 0;
+}
+
 export async function getTeamsForCoach(coachId: string): Promise<Team[]> {
   return dbAll(
     `SELECT t.id, t.coach_id, t.name, t.sport, t.created_at,

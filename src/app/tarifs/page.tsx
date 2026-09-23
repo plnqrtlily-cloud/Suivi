@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Card } from "@/components/ui";
-import { FREE_PLAN_ATHLETE_LIMIT, PRO_PLAN_PRICE_EUR, TRIAL_DURATION_DAYS, upgradeMailtoHref } from "@/lib/billing";
+import { FREE_PLAN_ATHLETE_LIMIT, FREE_PLAN_TEAM_LIMIT, PRO_PLAN_PRICE_EUR, TRIAL_DURATION_DAYS, upgradeMailtoHref } from "@/lib/billing";
 
 export default function TarifsPage() {
   return (
@@ -16,10 +16,11 @@ export default function TarifsPage() {
           <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Gratuit</h2>
           <p className="mb-4 font-display text-3xl text-ink">0€</p>
           <ul className="mb-6 flex flex-col gap-2 text-sm text-ink-soft">
-            <li>Jusqu&apos;à {FREE_PLAN_ATHLETE_LIMIT} athlètes</li>
+            <li>Jusqu&apos;à {FREE_PLAN_ATHLETE_LIMIT} athlètes en coaching individuel</li>
+            <li>Ou {FREE_PLAN_TEAM_LIMIT} équipe de sport collectif, effectif illimité</li>
             <li>Programmation, suivi de forme, messagerie</li>
             <li>Bilans, périodisation, statistiques de performance</li>
-            <li>Équipes de sport collectif — terrain par poste (foot, rugby, hand, basket)</li>
+            <li>Terrain par poste (foot, rugby, hand, basket)</li>
           </ul>
           <Link
             href="/register"
@@ -35,7 +36,7 @@ export default function TarifsPage() {
             {PRO_PLAN_PRICE_EUR}€<span className="text-base font-normal text-slate">/mois</span>
           </p>
           <ul className="mb-6 flex flex-col gap-2 text-sm text-ink-soft">
-            <li>Athlètes illimités</li>
+            <li>Athlètes et équipes illimités</li>
             <li>Toutes les fonctionnalités de l&apos;offre gratuite</li>
             <li>Support prioritaire par email</li>
           </ul>

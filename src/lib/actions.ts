@@ -23,8 +23,8 @@ import {
 } from "./auth";
 import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES } from "./storage";
 import { parseGpx, simplifyRoute } from "./gpx";
-import { getResourceById, getBlocksForWorkout, getAthletesForCoach, getCoachPlanStatus, getTeamWithMembers } from "./queries";
-import { FREE_PLAN_ATHLETE_LIMIT, ADMIN_EMAIL } from "./billing";
+import { getResourceById, getBlocksForWorkout, getAthletesForCoach, getCoachPlanStatus, getTeamWithMembers, getTeamCountForCoach } from "./queries";
+import { FREE_PLAN_ATHLETE_LIMIT, FREE_PLAN_TEAM_LIMIT, ADMIN_EMAIL } from "./billing";
 import { createNotification, markNotificationRead, markAllNotificationsRead } from "./notifications";
 import { sendEmail, isEmailConfigured, appBaseUrl } from "./email";
 import { saveSubscription, removeSubscription } from "./push";
@@ -99,16 +99,23 @@ export async function createInviteAction(formData: FormData): Promise<{ token: s
 
   // Offre gratuite plafonnée en nombre d'athlètes (liens actifs ou en
   // attente) — cf. src/lib/billing.ts. Un essai Pro actif compte comme Pro.
+  // Un coach qui a déjà créé son équipe gratuite (sport collectif) n'est
+  // plus soumis à cette limite : son levier gratuit/payant est le nombre
+  // d'équipes (cf. createTeamAction), pas la taille de son effectif — un
+  // roster de foot dépasse largement FREE_PLAN_ATHLETE_LIMIT.
   const status = await getCoachPlanStatus(user.id);
   if (!status.isPro) {
-    const links = await getAthletesForCoach(user.id);
-    if (links.length >= FREE_PLAN_ATHLETE_LIMIT) {
-      const suffix = status.trialAvailable
-        ? "Passez au plan Pro, ou essayez-le gratuitement 30 jours."
-        : "Passez au plan Pro pour en suivre davantage.";
-      return {
-        error: `L'offre gratuite est limitée à ${FREE_PLAN_ATHLETE_LIMIT} athlètes. ${suffix}`,
-      };
+    const teamCount = await getTeamCountForCoach(user.id);
+    if (teamCount === 0) {
+      const links = await getAthletesForCoach(user.id);
+      if (links.length >= FREE_PLAN_ATHLETE_LIMIT) {
+        const suffix = status.trialAvailable
+          ? "Passez au plan Pro, ou essayez-le gratuitement 30 jours."
+          : "Passez au plan Pro pour en suivre davantage.";
+        return {
+          error: `L'offre gratuite est limitée à ${FREE_PLAN_ATHLETE_LIMIT} athlètes. ${suffix}`,
+        };
+      }
     }
   }
 
@@ -1974,6 +1981,22 @@ export async function createTeamAction(formData: FormData): Promise<{ teamId: st
   const sport = String(formData.get("sport") || "");
   if (!name) return { error: "Le nom de l'équipe est obligatoire." };
   if (!isTeamSport(sport)) return { error: "Sport invalide." };
+
+  // Offre gratuite plafonnée en nombre d'équipes — cf. src/lib/billing.ts.
+  // L'effectif de cette équipe, lui, n'est ensuite plus limité (cf.
+  // createInviteAction).
+  const status = await getCoachPlanStatus(user.id);
+  if (!status.isPro) {
+    const teamCount = await getTeamCountForCoach(user.id);
+    if (teamCount >= FREE_PLAN_TEAM_LIMIT) {
+      const suffix = status.trialAvailable
+        ? "Passez au plan Pro, ou essayez-le gratuitement 30 jours."
+        : "Passez au plan Pro pour en créer plusieurs.";
+      return {
+        error: `L'offre gratuite est limitée à ${FREE_PLAN_TEAM_LIMIT} équipe. ${suffix}`,
+      };
+    }
+  }
 
   const id = randomUUID();
   await dbRun(`INSERT INTO teams (id, coach_id, name, sport) VALUES (?, ?, ?, ?)`, [id, user.id, name, sport]);
