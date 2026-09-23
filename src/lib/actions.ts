@@ -3,7 +3,7 @@
 import { randomUUID } from "crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { dbGet, dbRun, dbAll } from "./db";
+import { dbGet, dbRun, dbAll, dbBatch } from "./db";
 import { todayISO, toISODate } from "./dates";
 import { endDateForWeeks, focusLabel } from "./periodization";
 import {
@@ -260,49 +260,66 @@ export async function createWorkoutAction(params: {
   const workoutIds = await Promise.all(
     params.dates.map(async (date) => {
       const workoutId = randomUUID();
-      await dbRun(
-        `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, priority, title, date, time, duration_minutes, description, color, intervals_json, links_json, is_draft)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          workoutId,
-          user.id,
-          params.athleteId,
-          params.sport,
-          params.category,
-          priority,
-          params.title,
-          date,
-          params.time || null,
-          params.durationMinutes || null,
-          params.description || null,
-          color,
-          params.sport !== "strength" ? params.intervalsJson || null : null,
-          params.linksJson || null,
-          params.isDraft ? 1 : 0,
-        ]
-      );
+      // Une seule transaction par date (au lieu d'un aller-retour réseau par
+      // ligne) : sur une base Turso distante, une séance avec plusieurs blocs
+      // et séries multipliait les allers-retours séquentiels, ce qui rendait
+      // le clic perceptiblement lent. Cf. dbBatch dans src/lib/db.ts.
+      const statements: { sql: string; args: any[] }[] = [
+        {
+          sql: `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, priority, title, date, time, duration_minutes, description, color, intervals_json, links_json, is_draft)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          args: [
+            workoutId,
+            user.id,
+            params.athleteId,
+            params.sport,
+            params.category,
+            priority,
+            params.title,
+            date,
+            params.time || null,
+            params.durationMinutes || null,
+            params.description || null,
+            color,
+            params.sport !== "strength" ? params.intervalsJson || null : null,
+            params.linksJson || null,
+            params.isDraft ? 1 : 0,
+          ],
+        },
+      ];
 
-      let idx = 0;
-      for (const b of resolvedBlocks) {
+      resolvedBlocks.forEach((b, idx) => {
         const blockId = randomUUID();
-        await dbRun(
-          `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, notes, resource_id, order_index, training_quality, rep_type, circuit_id, circuit_rounds, circuit_rest_seconds)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [blockId, workoutId, b.block_type, b.exercise_name, b.notes || null, b.resourceId, idx, b.training_quality || null, b.rep_type || "reps", b.circuit_id || null, b.circuit_rounds || null, b.circuit_rest_seconds || null]
-        );
+        statements.push({
+          sql: `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, notes, resource_id, order_index, training_quality, rep_type, circuit_id, circuit_rounds, circuit_rest_seconds)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          args: [
+            blockId,
+            workoutId,
+            b.block_type,
+            b.exercise_name,
+            b.notes || null,
+            b.resourceId,
+            idx,
+            b.training_quality || null,
+            b.rep_type || "reps",
+            b.circuit_id || null,
+            b.circuit_rounds || null,
+            b.circuit_rest_seconds || null,
+          ],
+        });
 
-        let setIdx = 0;
-        for (const s of b.sets || []) {
+        (b.sets || []).forEach((s, setIdx) => {
           if (s.reps || s.load) {
-            await dbRun(
-              `INSERT INTO exercise_sets (id, block_id, set_number, reps, load, rest_seconds, rpe, rir, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [randomUUID(), blockId, setIdx + 1, s.reps || null, s.load || null, s.restSeconds || null, s.rpe || null, s.rir ?? null, setIdx]
-            );
+            statements.push({
+              sql: `INSERT INTO exercise_sets (id, block_id, set_number, reps, load, rest_seconds, rpe, rir, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              args: [randomUUID(), blockId, setIdx + 1, s.reps || null, s.load || null, s.restSeconds || null, s.rpe || null, s.rir ?? null, setIdx],
+            });
           }
-          setIdx++;
-        }
-        idx++;
-      }
+        });
+      });
+
+      await dbBatch(statements);
 
       return workoutId;
     })
@@ -376,51 +393,67 @@ export async function updateWorkoutAction(params: {
   const priority = params.category === "objectif" || params.category === "evenement" ? params.priority || null : null;
   const color = params.color || "#1B4B4F";
 
-  await dbRun(
-    `UPDATE workouts SET sport = ?, category = ?, priority = ?, title = ?, date = ?, time = ?, duration_minutes = ?, description = ?, color = ?, intervals_json = ?, links_json = ?
-     WHERE id = ?`,
-    [
-      params.sport,
-      params.category,
-      priority,
-      params.title,
-      params.date,
-      params.time || null,
-      params.durationMinutes || null,
-      params.description || null,
-      color,
-      params.sport !== "strength" ? params.intervalsJson || null : null,
-      params.linksJson || null,
-      params.workoutId,
-    ]
-  );
+  // Un seul aller-retour réseau pour la mise à jour + la reconstruction des
+  // blocs/séries — cf. createWorkoutAction pour le même souci de latence sur
+  // une base Turso distante.
+  const statements: { sql: string; args: any[] }[] = [
+    {
+      sql: `UPDATE workouts SET sport = ?, category = ?, priority = ?, title = ?, date = ?, time = ?, duration_minutes = ?, description = ?, color = ?, intervals_json = ?, links_json = ?
+            WHERE id = ?`,
+      args: [
+        params.sport,
+        params.category,
+        priority,
+        params.title,
+        params.date,
+        params.time || null,
+        params.durationMinutes || null,
+        params.description || null,
+        color,
+        params.sport !== "strength" ? params.intervalsJson || null : null,
+        params.linksJson || null,
+        params.workoutId,
+      ],
+    },
+    // Reconstruit entièrement la structure (blocs + séries) plutôt que de
+    // tenter un diff — cascade FK sur workout_blocks -> exercise_sets (PRAGMA
+    // foreign_keys activé dans ce module), donc un seul DELETE suffit à tout
+    // nettoyer.
+    { sql: `DELETE FROM workout_blocks WHERE workout_id = ?`, args: [params.workoutId] },
+  ];
 
-  // Reconstruit entièrement la structure (blocs + séries) plutôt que de tenter
-  // un diff — cascade FK sur workout_blocks -> exercise_sets (PRAGMA foreign_keys
-  // activé dans ce module), donc un seul DELETE suffit à tout nettoyer.
-  await dbRun(`DELETE FROM workout_blocks WHERE workout_id = ?`, [params.workoutId]);
-
-  let idx = 0;
-  for (const b of resolvedBlocks) {
+  resolvedBlocks.forEach((b, idx) => {
     const blockId = randomUUID();
-    await dbRun(
-      `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, notes, resource_id, order_index, training_quality, rep_type, circuit_id, circuit_rounds, circuit_rest_seconds)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [blockId, params.workoutId, b.block_type, b.exercise_name, b.notes || null, b.resourceId, idx, b.training_quality || null, b.rep_type || "reps", b.circuit_id || null, b.circuit_rounds || null, b.circuit_rest_seconds || null]
-    );
+    statements.push({
+      sql: `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, notes, resource_id, order_index, training_quality, rep_type, circuit_id, circuit_rounds, circuit_rest_seconds)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        blockId,
+        params.workoutId,
+        b.block_type,
+        b.exercise_name,
+        b.notes || null,
+        b.resourceId,
+        idx,
+        b.training_quality || null,
+        b.rep_type || "reps",
+        b.circuit_id || null,
+        b.circuit_rounds || null,
+        b.circuit_rest_seconds || null,
+      ],
+    });
 
-    let setIdx = 0;
-    for (const s of b.sets || []) {
+    (b.sets || []).forEach((s, setIdx) => {
       if (s.reps || s.load) {
-        await dbRun(
-          `INSERT INTO exercise_sets (id, block_id, set_number, reps, load, rest_seconds, rpe, rir, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [randomUUID(), blockId, setIdx + 1, s.reps || null, s.load || null, s.restSeconds || null, s.rpe || null, s.rir ?? null, setIdx]
-        );
+        statements.push({
+          sql: `INSERT INTO exercise_sets (id, block_id, set_number, reps, load, rest_seconds, rpe, rir, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          args: [randomUUID(), blockId, setIdx + 1, s.reps || null, s.load || null, s.restSeconds || null, s.rpe || null, s.rir ?? null, setIdx],
+        });
       }
-      setIdx++;
-    }
-    idx++;
-  }
+    });
+  });
+
+  await dbBatch(statements);
 
   revalidatePath(`/workouts/${params.workoutId}`);
   revalidatePath(`/coach/athletes/${workout.athlete_id}`);
@@ -654,12 +687,17 @@ export async function createWorkoutBulkAction(params: {
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
   if (!params.athleteIds.length) return { count: 0 };
 
-  let count = 0;
-  for (const athleteId of params.athleteIds) {
-    if (!(await isCoachLinkedToAthlete(user.id, athleteId))) continue;
-    await createWorkoutAction({ ...params, athleteId });
-    count++;
-  }
+  // Un athlète par requête réseau à la base distante était strictement
+  // séquentiel — une équipe de foot (11 joueurs) attendait 11 allers-retours
+  // à la suite. Chaque athlète est indépendant des autres, donc en parallèle.
+  const results = await Promise.all(
+    params.athleteIds.map(async (athleteId) => {
+      if (!(await isCoachLinkedToAthlete(user.id, athleteId))) return false;
+      await createWorkoutAction({ ...params, athleteId });
+      return true;
+    })
+  );
+  const count = results.filter(Boolean).length;
   return { count };
 }
 
@@ -690,50 +728,52 @@ export async function copyWeekAction(params: {
     [params.athleteId, user.id, params.sourceWeekStart, toISODate(sourceEnd)]
   );
 
-  let count = 0;
-  for (const w of sourceWorkouts) {
-    const blocks = w.sport === "strength" ? await getBlocksForWorkout(w.id) : [];
-    const blockInputs: BlockInput[] = blocks.map((b: any) => ({
-      block_type: b.block_type,
-      exercise_name: b.exercise_name,
-      notes: b.notes || undefined,
-      resource_id: b.resource_id || undefined,
-      training_quality: b.training_quality || undefined,
-      rep_type: b.rep_type || undefined,
-      circuit_id: b.circuit_id || undefined,
-      circuit_rounds: b.circuit_rounds || undefined,
-      circuit_rest_seconds: b.circuit_rest_seconds || undefined,
-      sets: (b.exerciseSets || []).map((s: any) => ({
-        reps: s.reps || undefined,
-        load: s.load || undefined,
-        restSeconds: s.rest_seconds || undefined,
-        rpe: s.rpe || undefined,
-        rir: s.rir || undefined,
-      })),
-    }));
+  // Chaque séance source est copiée indépendamment des autres — en parallèle
+  // plutôt qu'une par une, même raison que createWorkoutBulkAction.
+  await Promise.all(
+    sourceWorkouts.map(async (w) => {
+      const blocks = w.sport === "strength" ? await getBlocksForWorkout(w.id) : [];
+      const blockInputs: BlockInput[] = blocks.map((b: any) => ({
+        block_type: b.block_type,
+        exercise_name: b.exercise_name,
+        notes: b.notes || undefined,
+        resource_id: b.resource_id || undefined,
+        training_quality: b.training_quality || undefined,
+        rep_type: b.rep_type || undefined,
+        circuit_id: b.circuit_id || undefined,
+        circuit_rounds: b.circuit_rounds || undefined,
+        circuit_rest_seconds: b.circuit_rest_seconds || undefined,
+        sets: (b.exerciseSets || []).map((s: any) => ({
+          reps: s.reps || undefined,
+          load: s.load || undefined,
+          restSeconds: s.rest_seconds || undefined,
+          rpe: s.rpe || undefined,
+          rir: s.rir || undefined,
+        })),
+      }));
 
-    const newDate = new Date(`${w.date}T00:00:00`);
-    newDate.setDate(newDate.getDate() + dayOffset);
+      const newDate = new Date(`${w.date}T00:00:00`);
+      newDate.setDate(newDate.getDate() + dayOffset);
 
-    await createWorkoutAction({
-      athleteId: params.athleteId,
-      sport: w.sport,
-      category: w.category,
-      priority: w.priority || undefined,
-      title: w.title,
-      dates: [toISODate(newDate)],
-      time: w.time || undefined,
-      durationMinutes: w.duration_minutes || undefined,
-      description: w.description || undefined,
-      color: w.color,
-      blocks: blockInputs.length ? blockInputs : undefined,
-      intervalsJson: w.intervals_json || undefined,
-      linksJson: w.links_json || undefined,
-    });
-    count++;
-  }
+      await createWorkoutAction({
+        athleteId: params.athleteId,
+        sport: w.sport,
+        category: w.category,
+        priority: w.priority || undefined,
+        title: w.title,
+        dates: [toISODate(newDate)],
+        time: w.time || undefined,
+        durationMinutes: w.duration_minutes || undefined,
+        description: w.description || undefined,
+        color: w.color,
+        blocks: blockInputs.length ? blockInputs : undefined,
+        intervalsJson: w.intervals_json || undefined,
+        linksJson: w.links_json || undefined,
+      });
+    })
+  );
 
-  return { count };
+  return { count: sourceWorkouts.length };
 }
 
 // Annulation d'une séance par le coach (cf. prompt : "séance modifiée/annulée" parmi
