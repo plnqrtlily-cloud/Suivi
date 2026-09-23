@@ -12,6 +12,12 @@ export const FREE_PLAN_ATHLETE_LIMIT = 3;
 export const FREE_PLAN_TEAM_LIMIT = 1;
 export const PRO_PLAN_PRICE_EUR = 19;
 export const UPGRADE_CONTACT_EMAIL = "plnqrtlily@gmail.com";
+// Durée pendant laquelle un compte gratuit peut encore programmer de
+// nouvelles séances après son inscription (cf. createWorkoutAction/
+// createTeamSessionAction) — assez long pour prendre en main l'app et
+// programmer plusieurs semaines réelles, court assez pour donner envie de
+// passer Pro. Ne s'applique pas à FREE_PLAN_ATHLETE_LIMIT/FREE_PLAN_TEAM_LIMIT,
+// qui restent valables indéfiniment sur l'offre gratuite.
 export const TRIAL_DURATION_DAYS = 30;
 // Contrôle d'accès à /admin — même valeur que UPGRADE_CONTACT_EMAIL aujourd'hui,
 // mais un rôle différent (identifiant d'accès plutôt qu'adresse affichée aux
@@ -21,36 +27,32 @@ export const ADMIN_EMAIL = "plnqrtlily@gmail.com";
 
 export interface PlanStatus {
   plan: string; // valeur brute de la colonne : 'free' | 'pro'
-  trialStartedAt: string | null;
-  isPro: boolean; // effectif : plan Pro payant OU essai encore actif
-  trialActive: boolean;
-  trialDaysLeft: number | null; // renseigné seulement si trialActive
-  trialAvailable: boolean; // jamais démarré, et pas déjà passé Pro
+  isPro: boolean; // plan payant uniquement — l'essai automatique ne lève plus
+  // FREE_PLAN_ATHLETE_LIMIT/FREE_PLAN_TEAM_LIMIT, seulement canCreateSessions.
+  trialDaysLeft: number | null; // jours restants avant blocage ; null si Pro ou essai déjà terminé
+  canCreateSessions: boolean; // false si free et essai (TRIAL_DURATION_DAYS depuis l'inscription) terminé
 }
 
 /**
- * Pas de tâche planifiée pour désactiver un essai arrivé à terme : l'état
- * effectif se recalcule à chaque lecture à partir de trial_started_at, comme
- * l'expiration des sessions dans getCurrentUser. Un essai expiré retombe de
- * lui-même sur l'offre gratuite, sans rien avoir à réécrire en base.
+ * Essai automatique depuis l'inscription (pas d'action manuelle du coach) :
+ * l'état effectif se recalcule à chaque lecture à partir de la date de
+ * création du compte, comme l'expiration des sessions dans getCurrentUser.
+ * Un essai expiré ne bloque que la création de nouvelles séances
+ * (createWorkoutAction/createTeamSessionAction) — le reste de l'app (suivi,
+ * effectif, statistiques) reste consultable normalement.
  */
-export function computePlanStatus(plan: string, trialStartedAt: string | null): PlanStatus {
+export function computePlanStatus(plan: string, createdAt: string): PlanStatus {
   if (plan === "pro") {
-    return { plan, trialStartedAt, isPro: true, trialActive: false, trialDaysLeft: null, trialAvailable: false };
+    return { plan, isPro: true, trialDaysLeft: null, canCreateSessions: true };
   }
-  if (trialStartedAt) {
-    const daysSince = Math.floor((Date.now() - new Date(trialStartedAt).getTime()) / 86400000);
-    const trialActive = daysSince < TRIAL_DURATION_DAYS;
-    return {
-      plan,
-      trialStartedAt,
-      isPro: trialActive,
-      trialActive,
-      trialDaysLeft: trialActive ? TRIAL_DURATION_DAYS - daysSince : null,
-      trialAvailable: false,
-    };
-  }
-  return { plan, trialStartedAt, isPro: false, trialActive: false, trialDaysLeft: null, trialAvailable: true };
+  const daysSince = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
+  const trialActive = daysSince < TRIAL_DURATION_DAYS;
+  return {
+    plan,
+    isPro: false,
+    trialDaysLeft: trialActive ? TRIAL_DURATION_DAYS - daysSince : null,
+    canCreateSessions: trialActive,
+  };
 }
 
 export function upgradeMailtoHref(context?: string): string {

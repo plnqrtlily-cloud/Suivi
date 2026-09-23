@@ -13,19 +13,26 @@ export function CopyWeekForm({ athleteId }: { athleteId: string }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setPending(true);
+    setError(null);
     const formData = new FormData(e.currentTarget);
-    const res = await copyWeekAction({
-      athleteId,
-      sourceWeekStart: String(formData.get("sourceWeekStart")),
-      targetWeekStart: String(formData.get("targetWeekStart")),
-    });
-    setPending(false);
-    setResult(res.count);
-    router.refresh();
+    try {
+      const res = await copyWeekAction({
+        athleteId,
+        sourceWeekStart: String(formData.get("sourceWeekStart")),
+        targetWeekStart: String(formData.get("targetWeekStart")),
+      });
+      setResult(res.count);
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message || "Une erreur est survenue.");
+    } finally {
+      setPending(false);
+    }
   }
 
   if (!open) {
@@ -52,6 +59,7 @@ export function CopyWeekForm({ athleteId }: { athleteId: string }) {
         </Button>
         {result !== null && <span className="text-sm text-ink">{result} séance(s) copiée(s).</span>}
       </div>
+      {error && <p className="text-sm text-clay">{error}</p>}
     </form>
   );
 }

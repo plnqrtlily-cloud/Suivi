@@ -19,7 +19,6 @@ import { Card } from "@/components/ui";
 import { CoachReminders } from "./coach-reminders";
 import { InviteForm } from "../invite-form";
 import { RevokeButton } from "../revoke-button";
-import { StartTrialButton } from "../start-trial-button";
 import { sportIconPath } from "@/lib/sport-icons";
 
 
@@ -220,14 +219,6 @@ export default async function CoachDashboardPage() {
               </>
             )}
           </p>
-          {planStatus.trialActive && (
-            <p className="mb-6 text-xs text-slate">
-              Essai Pro — encore {planStatus.trialDaysLeft} jour{(planStatus.trialDaysLeft ?? 0) > 1 ? "s" : ""}.{" "}
-              <Link href="/tarifs" className="font-semibold text-moss-dark hover:underline">
-                Voir les tarifs
-              </Link>
-            </p>
-          )}
           {!planStatus.isPro && (
             <div className="mb-6 flex flex-wrap items-center gap-3">
               <p className="text-xs text-slate">
@@ -240,11 +231,20 @@ export default async function CoachDashboardPage() {
                     Offre gratuite — {links.length}/{FREE_PLAN_ATHLETE_LIMIT} athlètes.{" "}
                   </>
                 )}
+                {planStatus.canCreateSessions ? (
+                  <>
+                    Essai — encore {planStatus.trialDaysLeft} jour{(planStatus.trialDaysLeft ?? 0) > 1 ? "s" : ""} pour
+                    programmer librement.{" "}
+                  </>
+                ) : (
+                  <span className="font-medium text-gold-light">
+                    Essai terminé — passez Pro pour programmer de nouvelles séances.{" "}
+                  </span>
+                )}
                 <Link href="/tarifs" className="font-semibold text-moss-dark hover:underline">
                   Passer au plan Pro
                 </Link>
               </p>
-              {planStatus.trialAvailable && <StartTrialButton />}
             </div>
           )}
 

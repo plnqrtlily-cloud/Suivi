@@ -110,11 +110,11 @@ export async function getTeamsForAthlete(athleteId: string, coachId: string): Pr
 
 /** Offre + essai en cours — cf. src/lib/billing.ts pour ce que chaque état permet. */
 export async function getCoachPlanStatus(coachId: string): Promise<PlanStatus> {
-  const row = await dbGet<{ plan: string; trial_started_at: string | null }>(
-    `SELECT plan, trial_started_at FROM users WHERE id = ?`,
+  const row = await dbGet<{ plan: string; created_at: string }>(
+    `SELECT plan, created_at FROM users WHERE id = ?`,
     [coachId]
   );
-  return computePlanStatus(row?.plan ?? "free", row?.trial_started_at ?? null);
+  return computePlanStatus(row?.plan ?? "free", row?.created_at ?? new Date().toISOString());
 }
 
 export interface AdminCoachRow {
@@ -123,7 +123,6 @@ export interface AdminCoachRow {
   first_name: string;
   last_name: string;
   plan: string;
-  trial_started_at: string | null;
   created_at: string;
   athlete_count: number;
 }
@@ -131,7 +130,7 @@ export interface AdminCoachRow {
 /** Tous les coachs, pour la page /admin — cf. src/lib/billing.ts (ADMIN_EMAIL). */
 export async function getAllCoaches(): Promise<AdminCoachRow[]> {
   return dbAll(
-    `SELECT u.id, u.email, u.first_name, u.last_name, u.plan, u.trial_started_at, u.created_at,
+    `SELECT u.id, u.email, u.first_name, u.last_name, u.plan, u.created_at,
        (SELECT COUNT(*) FROM coach_athlete_links l WHERE l.coach_id = u.id AND l.status != 'revoked') as athlete_count
      FROM users u WHERE u.role = 'coach' ORDER BY u.created_at DESC`
   );

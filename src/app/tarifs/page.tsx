@@ -21,6 +21,7 @@ export default function TarifsPage() {
             <li>Programmation, suivi de forme, messagerie</li>
             <li>Bilans, périodisation, statistiques de performance</li>
             <li>Terrain par poste (foot, rugby, hand, basket)</li>
+            <li>{TRIAL_DURATION_DAYS} jours d&apos;essai pour prendre l&apos;app en main</li>
           </ul>
           <Link
             href="/register"
@@ -50,8 +51,10 @@ export default function TarifsPage() {
       </div>
 
       <p className="mt-6 text-sm text-slate">
-        Envie de tester le plan Pro avant de vous décider ? {TRIAL_DURATION_DAYS} jours d&apos;essai gratuit, sans
-        carte bancaire, activables depuis votre tableau de bord.
+        Chaque inscription inclut automatiquement {TRIAL_DURATION_DAYS} jours pour programmer librement et prendre
+        l&apos;app en main, sans carte bancaire. Passé ce délai, l&apos;offre gratuite reste active
+        (effectif, suivi, statistiques) mais il faut passer au plan Pro pour continuer à programmer de nouvelles
+        séances.
       </p>
 
       <p className="mt-8 text-sm text-slate">

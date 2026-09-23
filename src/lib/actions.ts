@@ -109,11 +109,8 @@ export async function createInviteAction(formData: FormData): Promise<{ token: s
     if (teamCount === 0) {
       const links = await getAthletesForCoach(user.id);
       if (links.length >= FREE_PLAN_ATHLETE_LIMIT) {
-        const suffix = status.trialAvailable
-          ? "Passez au plan Pro, ou essayez-le gratuitement 30 jours."
-          : "Passez au plan Pro pour en suivre davantage.";
         return {
-          error: `L'offre gratuite est limitée à ${FREE_PLAN_ATHLETE_LIMIT} athlètes. ${suffix}`,
+          error: `L'offre gratuite est limitée à ${FREE_PLAN_ATHLETE_LIMIT} athlètes. Passez au plan Pro pour en suivre davantage.`,
         };
       }
     }
@@ -130,19 +127,6 @@ export async function createInviteAction(formData: FormData): Promise<{ token: s
 
   revalidatePath("/coach");
   return { token };
-}
-
-export async function startTrialAction(): Promise<{ ok: true } | { error: string }> {
-  const user = await getCurrentUser();
-  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
-
-  const status = await getCoachPlanStatus(user.id);
-  if (status.plan === "pro") return { error: "Vous êtes déjà au plan Pro." };
-  if (status.trialStartedAt) return { error: "L'essai gratuit a déjà été utilisé." };
-
-  await dbRun(`UPDATE users SET trial_started_at = datetime('now') WHERE id = ?`, [user.id]);
-  revalidatePath("/coach/dashboard");
-  return { ok: true };
 }
 
 export async function setCoachPlanAction(coachId: string, plan: "free" | "pro") {
@@ -240,6 +224,17 @@ export async function createWorkoutAction(params: {
     throw new Error("Ce coach n'est pas lié à cet athlète.");
   }
   if (!params.dates.length) throw new Error("Choisissez au moins un jour.");
+
+  // Essai automatique terminé (cf. src/lib/billing.ts) : le reste de l'app
+  // reste utilisable, seule la création de nouvelles séances est bloquée
+  // jusqu'au passage au plan Pro. createWorkoutBulkAction et
+  // createTeamSessionAction passent tous les deux par ici.
+  const status = await getCoachPlanStatus(user.id);
+  if (!status.canCreateSessions) {
+    throw new Error(
+      "Votre essai gratuit est terminé. Passez au plan Pro pour continuer à programmer des séances."
+    );
+  }
 
   // Résolu une seule fois (pas par date créée) : un exercice ne peut pointer
   // que vers une ressource appartenant au coach qui crée la séance.
@@ -1989,11 +1984,8 @@ export async function createTeamAction(formData: FormData): Promise<{ teamId: st
   if (!status.isPro) {
     const teamCount = await getTeamCountForCoach(user.id);
     if (teamCount >= FREE_PLAN_TEAM_LIMIT) {
-      const suffix = status.trialAvailable
-        ? "Passez au plan Pro, ou essayez-le gratuitement 30 jours."
-        : "Passez au plan Pro pour en créer plusieurs.";
       return {
-        error: `L'offre gratuite est limitée à ${FREE_PLAN_TEAM_LIMIT} équipe. ${suffix}`,
+        error: `L'offre gratuite est limitée à ${FREE_PLAN_TEAM_LIMIT} équipe. Passez au plan Pro pour en créer plusieurs.`,
       };
     }
   }
@@ -2121,6 +2113,14 @@ export async function createTeamSessionAction(params: {
   if (!params.dates.length) return { error: "Choisissez au moins une date." };
   const athleteIds = team.members.map((m) => m.athlete_id);
   if (!athleteIds.length) return { error: "Cette équipe n'a pas encore de joueur." };
+
+  // Vérifié ici (et pas seulement dans createWorkoutAction) car ce formulaire
+  // n'attrape pas les exceptions — un {error} propre plutôt qu'un throw non
+  // capturé. Cf. src/lib/billing.ts.
+  const status = await getCoachPlanStatus(user.id);
+  if (!status.canCreateSessions) {
+    return { error: "Votre essai gratuit est terminé. Passez au plan Pro pour continuer à programmer des séances." };
+  }
 
   const result = await createWorkoutBulkAction({
     athleteIds,

@@ -21,9 +21,13 @@ export default async function AdminPage() {
       <h1 className="mb-6 font-display text-3xl text-ink">Coachs</h1>
       <div className="flex flex-col gap-3">
         {coaches.map((c) => {
-          const status = computePlanStatus(c.plan, c.trial_started_at);
+          const status = computePlanStatus(c.plan, c.created_at);
           const label =
-            status.plan === "pro" ? "Pro" : status.trialActive ? `Essai — ${status.trialDaysLeft} j restants` : "Gratuit";
+            status.plan === "pro"
+              ? "Pro"
+              : status.canCreateSessions
+                ? `Essai — ${status.trialDaysLeft} j restants`
+                : "Gratuit (essai terminé)";
           return (
             <Card key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl">
               <div>

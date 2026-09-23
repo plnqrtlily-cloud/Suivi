@@ -49,6 +49,7 @@ import {
 } from "../src/lib/queries";
 import { bilanRangeDays } from "../src/lib/dates";
 import { isValidPosition, layoutBand } from "../src/lib/team-sports";
+import { computePlanStatus, TRIAL_DURATION_DAYS } from "../src/lib/billing";
 
 function assert(cond: any, message: string) {
   if (!cond) {
@@ -1184,6 +1185,25 @@ async function main() {
   assert(
     (await getTeamCountForCoach(coach.id)) === 1 && (await getTeamCountForCoach(otherAthlete.id)) === 0,
     "Le nombre d'équipes d'un coach est compté correctement (sert au plafond gratuit)"
+  );
+
+  // --- Essai automatique (canCreateSessions) ---------------------------------
+  const justSignedUp = new Date().toISOString();
+  const longAgo = new Date(Date.now() - (TRIAL_DURATION_DAYS + 1) * 86400000).toISOString();
+  const stillWithinTrial = computePlanStatus("free", justSignedUp);
+  assert(
+    stillWithinTrial.canCreateSessions && stillWithinTrial.trialDaysLeft === TRIAL_DURATION_DAYS,
+    "Un compte gratuit tout juste créé peut encore programmer des séances"
+  );
+  const trialExpired = computePlanStatus("free", longAgo);
+  assert(
+    !trialExpired.canCreateSessions && trialExpired.trialDaysLeft === null,
+    "Un compte gratuit dont l'essai est passé ne peut plus programmer de nouvelles séances"
+  );
+  const proAccount = computePlanStatus("pro", longAgo);
+  assert(
+    proAccount.canCreateSessions && proAccount.isPro,
+    "Un compte Pro peut toujours programmer, quelle que soit l'ancienneté du compte"
   );
 
   console.log("\nTest end-to-end terminé.");
