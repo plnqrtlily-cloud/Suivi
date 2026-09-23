@@ -1,10 +1,15 @@
 import Link from "next/link";
-import { Card } from "@/components/ui";
+import { getCurrentUser } from "@/lib/auth";
+import { Nav } from "@/components/nav";
+import { CoachSidebar } from "@/components/coach-sidebar";
+import { Card, LinkButton } from "@/components/ui";
 import { FREE_PLAN_ATHLETE_LIMIT, FREE_PLAN_TEAM_LIMIT, PRO_PLAN_PRICE_EUR, TRIAL_DURATION_DAYS, upgradeMailtoHref } from "@/lib/billing";
 
-export default function TarifsPage() {
-  return (
-    <main className="mx-auto max-w-2xl px-4 sm:px-6 py-12">
+export default async function TarifsPage() {
+  const user = await getCurrentUser();
+
+  const content = (
+    <>
       <h1 className="mb-2 font-display text-3xl text-ink">Tarifs</h1>
       <p className="mb-8 text-slate">
         Suivez vos premiers athlètes gratuitement. Passez au plan Pro quand votre effectif grandit — pas de
@@ -23,12 +28,9 @@ export default function TarifsPage() {
             <li>Terrain par poste (foot, rugby, hand, basket)</li>
             <li>{TRIAL_DURATION_DAYS} jours d&apos;essai pour prendre l&apos;app en main</li>
           </ul>
-          <Link
-            href="/register"
-            className="inline-flex items-center justify-center rounded-md border border-line bg-white px-4 py-2 text-sm font-medium text-ink hover:border-moss"
-          >
+          <LinkButton href="/register" variant="secondary">
             Commencer gratuitement
-          </Link>
+          </LinkButton>
         </Card>
 
         <Card className="rounded-3xl border-2 border-moss/40">
@@ -41,12 +43,9 @@ export default function TarifsPage() {
             <li>Toutes les fonctionnalités de l&apos;offre gratuite</li>
             <li>Support prioritaire par email</li>
           </ul>
-          <a
-            href={upgradeMailtoHref()}
-            className="inline-flex items-center justify-center rounded-md bg-moss px-4 py-2 text-sm font-medium text-white hover:bg-moss-dark"
-          >
+          <LinkButton href={upgradeMailtoHref()} variant="primary">
             Passer au plan Pro
-          </a>
+          </LinkButton>
         </Card>
       </div>
 
@@ -64,6 +63,37 @@ export default function TarifsPage() {
         </a>
         .
       </p>
-    </main>
+    </>
+  );
+
+  if (user?.role === "coach") {
+    return (
+      <div className="flex min-h-screen bg-paper">
+        <CoachSidebar user={user} activeHref="/tarifs" />
+        <div className="min-w-0 flex-1">
+          <div className="lg:hidden">
+            <Nav user={user} />
+          </div>
+          <main className="mx-auto max-w-2xl px-4 sm:px-6 py-8">{content}</main>
+        </div>
+      </div>
+    );
+  }
+
+  // Visiteur non connecté (ex. lien du teaser envoyé aux clubs démarchés) —
+  // même en-tête minimal que les pages publiques login/register plutôt qu'une
+  // page nue sans identité ni moyen de revenir au reste de l'app.
+  return (
+    <div className="min-h-screen bg-paper">
+      <header className="mx-auto flex max-w-2xl items-center justify-between px-4 py-6 sm:px-6">
+        <Link href="/" className="font-display text-xl text-ink">
+          Rythme
+        </Link>
+        <Link href="/login" className="text-sm font-medium text-moss-dark hover:underline">
+          Se connecter
+        </Link>
+      </header>
+      <main className="mx-auto max-w-2xl px-4 pb-12 sm:px-6">{content}</main>
+    </div>
   );
 }

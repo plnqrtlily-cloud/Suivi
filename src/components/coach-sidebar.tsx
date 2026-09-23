@@ -81,12 +81,12 @@ export async function CoachSidebar({ user, activeHref }: { user: User; activeHre
       <div className="mt-auto flex flex-col gap-0.5 border-t border-line px-2 py-2">
         {user.email === ADMIN_EMAIL && (
           <Link href="/admin" className={itemClass("/admin")}>
-            <span className="h-[17px] w-[17px]" aria-hidden />
+            <NavIcon name="shield" className="h-[17px] w-[17px]" />
             Admin
           </Link>
         )}
         <Link href="/tarifs" className={itemClass("/tarifs")}>
-          <span className="h-[17px] w-[17px]" aria-hidden />
+          <NavIcon name="tag" className="h-[17px] w-[17px]" />
           Tarifs
         </Link>
         <Link href="/settings" className={itemClass("/settings")}>

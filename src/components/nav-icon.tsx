@@ -1,4 +1,4 @@
-export type NavIconName = "home" | "calendar" | "library" | "profile" | "messages" | "settings" | "logout" | "dashboard" | "add" | "pitch";
+export type NavIconName = "home" | "calendar" | "library" | "profile" | "messages" | "settings" | "logout" | "dashboard" | "add" | "pitch" | "tag" | "shield";
 
 export function NavIcon({ name, className }: { name: NavIconName; className?: string }) {
   const common = {
@@ -89,6 +89,20 @@ export function NavIcon({ name, className }: { name: NavIconName; className?: st
           <path d="M8 3H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3" />
           <path d="M13 14l4-4-4-4" />
           <path d="M17 10H7" />
+        </svg>
+      );
+    case "tag":
+      return (
+        <svg {...common}>
+          <path d="M10.5 3H4a1 1 0 0 0-1 1v6.5a1 1 0 0 0 .3.7l7.5 7.5a1 1 0 0 0 1.4 0l6.5-6.5a1 1 0 0 0 0-1.4L11.2 3.3a1 1 0 0 0-.7-.3z" />
+          <circle cx="7" cy="7" r="1.3" fill="currentColor" stroke="none" />
+        </svg>
+      );
+    case "shield":
+      return (
+        <svg {...common}>
+          <path d="M10 2.5l6 2.2v5c0 4-2.5 6.8-6 7.8-3.5-1-6-3.8-6-7.8v-5z" />
+          <path d="M7.3 10l1.9 1.9 3.5-3.9" />
         </svg>
       );
   }
