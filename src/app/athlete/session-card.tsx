@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { sportLabel } from "@/components/ui";
 import { Workout } from "@/lib/queries";
+import { sportIconPath } from "@/lib/sport-icons";
 
 const ICON_PROPS = {
   width: 18,
@@ -13,56 +14,16 @@ const ICON_PROPS = {
   strokeLinejoin: "round" as const,
 };
 
+// Jeu d'icônes partagé avec le reste de l'app (@/lib/sport-icons) plutôt
+// qu'un second jeu dessiné localement : évitait la duplication mais faisait
+// diverger le pictogramme "autre" (et le style général) de cet écran par
+// rapport aux autres vues.
 function SportIcon({ sport }: { sport: string }) {
-  switch (sport) {
-    case "running":
-      return (
-        <svg {...ICON_PROPS}>
-          <circle cx="13" cy="4" r="1.6" />
-          <path d="M7 18l2-5 3 1 2-5-3-2-2 2-3-1" />
-        </svg>
-      );
-    case "cycling":
-      return (
-        <svg {...ICON_PROPS}>
-          <circle cx="5.5" cy="14.5" r="2.7" />
-          <circle cx="14.5" cy="14.5" r="2.7" />
-          <path d="M5.5 14.5l3-6.5h4l2.5 4.5h2M8.5 8h2" />
-        </svg>
-      );
-    case "hiking":
-      return (
-        <svg {...ICON_PROPS}>
-          <path d="M2 16l5-9 3 5 2-3 6 7H2z" />
-        </svg>
-      );
-    case "swimming":
-      return (
-        <svg {...ICON_PROPS}>
-          <circle cx="15" cy="5" r="1.5" />
-          <path d="M2 15c1.5-1.5 3-1.5 4.5 0s3 1.5 4.5 0 3-1.5 4.5 0" />
-        </svg>
-      );
-    case "climbing":
-      return (
-        <svg {...ICON_PROPS}>
-          <circle cx="8" cy="5" r="1.3" />
-          <path d="M2 17l6-12 4 7 2-3 4 8H2z" />
-        </svg>
-      );
-    case "strength":
-      return (
-        <svg {...ICON_PROPS}>
-          <path d="M4 10v4M2 9v6M16 9v6M18 10v4M6 12h10" />
-        </svg>
-      );
-    default:
-      return (
-        <svg {...ICON_PROPS}>
-          <path d="M10 2v4M10 14v4M2 10h4M14 10h4M4.9 4.9l2.8 2.8M12.3 12.3l2.8 2.8M15.1 4.9l-2.8 2.8M7.7 12.3l-2.8 2.8" />
-        </svg>
-      );
-  }
+  return (
+    <svg {...ICON_PROPS}>
+      <path d={sportIconPath(sport)} />
+    </svg>
+  );
 }
 
 // Ligne discrète pour la séance du jour — "Piste A" des propositions

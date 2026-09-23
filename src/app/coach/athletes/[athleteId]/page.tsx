@@ -443,7 +443,7 @@ export default async function AthleteDetailPage({
             ),
             programmation: (
               <>
-        <h2 className="mb-3 font-display text-xl text-ink">Programmation</h2>
+        <h2 className="mb-3 font-display text-xl text-ink">Calendrier</h2>
         <p className="mb-3 text-sm text-slate">Séances récentes, à venir et activités importées, en un coup d&apos;œil.</p>
         {/* Rappel de la période en cours : on programme dans un cycle, pas dans le vide. */}
         <div className="mb-3">

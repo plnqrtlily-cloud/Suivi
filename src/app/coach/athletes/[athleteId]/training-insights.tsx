@@ -2,7 +2,7 @@ import { sportLabel } from "@/components/ui";
 import type { Workout, ImportedActivity } from "@/lib/queries";
 import { computeWeeklyLoad, computeRpeEvolution, computeSportDistribution, computeSportSummaries, computePeriodSummary } from "@/lib/training-stats";
 import { todayISO } from "@/lib/dates";
-import { SPORT_ICON_PATHS } from "@/lib/sport-icons";
+import { sportIconPath } from "@/lib/sport-icons";
 
 const SPORT_COLORS: Record<string, string> = {
   running: "#1B4B4F",
@@ -135,7 +135,7 @@ function SportSummaryCard({ s }: { s: ReturnType<typeof computeSportSummaries>[n
       <div className="mb-2 flex items-center gap-2">
         <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ backgroundColor: `${sportColor(s.sport)}1A`, color: sportColor(s.sport) }}>
           <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <path d={SPORT_ICON_PATHS[s.sport] || "M10 2v16M2 10h16"} />
+            <path d={sportIconPath(s.sport)} />
           </svg>
         </span>
         <span className="text-sm font-semibold text-ink">{sportLabel(s.sport)}</span>
