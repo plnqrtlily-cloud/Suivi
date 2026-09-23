@@ -7,6 +7,7 @@ import { CoachSidebar } from "@/components/coach-sidebar";
 import { Card } from "@/components/ui";
 import { TeamPitch } from "@/components/team-pitch";
 import { TeamHeaderActions } from "./team-header-actions";
+import { TeamSessionForm } from "./team-session-form";
 import { UpdateMemberPositionForm } from "./update-member-position-form";
 import { RemoveMemberButton } from "./remove-member-button";
 import { AddMemberForm } from "./add-member-form";
@@ -53,6 +54,15 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ tea
               }))}
             />
           </div>
+
+          {team.members.length > 0 && (
+            <Card className="mb-6 rounded-3xl">
+              <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">
+                Programmer une séance pour l&apos;équipe
+              </h2>
+              <TeamSessionForm teamId={team.id} teamName={team.name} />
+            </Card>
+          )}
 
           <Card className="mb-6 rounded-3xl">
             <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Effectif</h2>

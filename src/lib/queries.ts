@@ -81,6 +81,28 @@ export async function getTeamWithMembers(teamId: string, coachId: string): Promi
   return { ...team, members };
 }
 
+export interface AthleteTeamMembership {
+  team_id: string;
+  team_name: string;
+  sport: string;
+  position: string;
+}
+
+// Sens inverse de getTeamWithMembers : les équipes d'UN athlète, plutôt que
+// les membres d'une équipe. Scopée par coach_id comme le reste des requêtes
+// de la fiche athlète — un athlète peut en théorie être suivi par plusieurs
+// coachs, on ne montre ici que les équipes du coach qui consulte.
+export async function getTeamsForAthlete(athleteId: string, coachId: string): Promise<AthleteTeamMembership[]> {
+  return dbAll(
+    `SELECT t.id as team_id, t.name as team_name, t.sport, m.position
+     FROM team_members m
+     JOIN teams t ON t.id = m.team_id
+     WHERE m.athlete_id = ? AND t.coach_id = ?
+     ORDER BY t.created_at ASC`,
+    [athleteId, coachId]
+  );
+}
+
 /** Offre + essai en cours — cf. src/lib/billing.ts pour ce que chaque état permet. */
 export async function getCoachPlanStatus(coachId: string): Promise<PlanStatus> {
   const row = await dbGet<{ plan: string; trial_started_at: string | null }>(

@@ -22,7 +22,9 @@ import {
   getCoachNoteEntries,
   getPersonalRecordsForAthlete,
   getUnreadMessageCount,
+  getTeamsForAthlete,
 } from "@/lib/queries";
+import { positionLabel, type TeamSport } from "@/lib/team-sports";
 import { UpcomingGoals } from "@/components/upcoming-goals";
 import { computeRosterSignals } from "@/lib/roster-signals";
 import { computeGlobalScore, scoreLabel } from "@/lib/checkin-types";
@@ -165,6 +167,7 @@ export default async function AthleteDetailPage({
     coachNoteEntries,
     personalRecords,
     unreadCount,
+    athleteTeams,
   ] = await Promise.all([
     findUserById(athleteId),
     getUserAvatar(athleteId),
@@ -189,6 +192,7 @@ export default async function AthleteDetailPage({
     getCoachNoteEntries(user.id, athleteId),
     getPersonalRecordsForAthlete(athleteId),
     getUnreadMessageCount(user.id, athleteId, user.id),
+    getTeamsForAthlete(athleteId, user.id),
   ]);
   if (!athlete) notFound();
 
@@ -268,6 +272,19 @@ export default async function AthleteDetailPage({
                     <span key={s} className="rounded-full bg-paper-dim px-2 py-0.5 text-[11px] font-medium text-ink-soft">
                       {sportLabel(s)}
                     </span>
+                  ))}
+                </div>
+              )}
+              {athleteTeams.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {athleteTeams.map((t) => (
+                    <Link
+                      key={t.team_id}
+                      href={`/coach/equipes/${t.team_id}`}
+                      className="rounded-full bg-moss/10 px-2 py-0.5 text-[11px] font-medium text-moss-dark hover:bg-moss/20"
+                    >
+                      {t.team_name} · {positionLabel(t.sport as TeamSport, t.position)}
+                    </Link>
                   ))}
                 </div>
               )}

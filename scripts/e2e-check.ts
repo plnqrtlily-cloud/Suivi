@@ -44,6 +44,7 @@ import {
   getCheckinsForRange,
   getCoachNoteEntries,
   getTeamWithMembers,
+  getTeamsForAthlete,
 } from "../src/lib/queries";
 import { bilanRangeDays } from "../src/lib/dates";
 import { isValidPosition, layoutBand } from "../src/lib/team-sports";
@@ -1161,6 +1162,21 @@ async function main() {
     duplicateRejected = true;
   }
   assert(duplicateRejected, "Un même athlète ne peut pas être ajouté deux fois à la même équipe");
+
+  // getTeamsForAthlete : sens inverse de getTeamWithMembers, utilisé pour le
+  // badge "Équipe · Poste" sur la fiche athlète. createTeamSessionAction et
+  // createWorkoutBulkAction ne sont pas testables ici (dépendent de
+  // getCurrentUser()/cookies(), absents hors requête HTTP) — couverts par le
+  // parcours navigateur du plan.
+  const athleteTeams = await getTeamsForAthlete(athlete.id, coach.id);
+  assert(
+    athleteTeams.length === 1 && athleteTeams[0].team_name === "Équipe test" && athleteTeams[0].position === "gardien",
+    "Un athlète retrouve bien les équipes du coach auxquelles il appartient"
+  );
+  assert(
+    (await getTeamsForAthlete(athlete.id, otherAthlete.id)).length === 0,
+    "Les équipes d'un athlète ne sont visibles que pour le coach qui les a créées"
+  );
 
   console.log("\nTest end-to-end terminé.");
 }

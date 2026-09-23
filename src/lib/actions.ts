@@ -23,7 +23,7 @@ import {
 } from "./auth";
 import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES } from "./storage";
 import { parseGpx, simplifyRoute } from "./gpx";
-import { getResourceById, getBlocksForWorkout, getAthletesForCoach, getCoachPlanStatus } from "./queries";
+import { getResourceById, getBlocksForWorkout, getAthletesForCoach, getCoachPlanStatus, getTeamWithMembers } from "./queries";
 import { FREE_PLAN_ATHLETE_LIMIT, ADMIN_EMAIL } from "./billing";
 import { createNotification, markNotificationRead, markAllNotificationsRead } from "./notifications";
 import { sendEmail, isEmailConfigured, appBaseUrl } from "./email";
@@ -2073,4 +2073,43 @@ export async function removeTeamMemberAction(memberId: string): Promise<{ ok: tr
   await dbRun(`DELETE FROM team_members WHERE id = ?`, [memberId]);
   revalidatePath(`/coach/equipes/${row.team_id}`);
   return { ok: true };
+}
+
+// Séance collective : diffuse la même séance à tout l'effectif d'une équipe
+// en une fois, plutôt qu'athlète par athlète. sport: 'other' volontairement —
+// workouts.sport est contraint aux sports individuels existants (CHECK
+// SQLite non modifiable sans reconstruire la table) ; le titre porte la
+// clarté ("Entraînement — <équipe>"), comme pour toute séance de renfo d'un
+// sportif co aujourd'hui. Réutilise createWorkoutBulkAction tel quel.
+export async function createTeamSessionAction(params: {
+  teamId: string;
+  title: string;
+  dates: string[];
+  time?: string;
+  durationMinutes?: number;
+  description?: string;
+}): Promise<{ count: number } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const team = await getTeamWithMembers(params.teamId, user.id);
+  if (!team) throw new Error("Non autorisé.");
+  if (!params.title.trim()) return { error: "Le titre est obligatoire." };
+  if (!params.dates.length) return { error: "Choisissez au moins une date." };
+  const athleteIds = team.members.map((m) => m.athlete_id);
+  if (!athleteIds.length) return { error: "Cette équipe n'a pas encore de joueur." };
+
+  const result = await createWorkoutBulkAction({
+    athleteIds,
+    sport: "other",
+    category: "entrainement",
+    title: params.title.trim(),
+    dates: params.dates,
+    time: params.time || undefined,
+    durationMinutes: params.durationMinutes,
+    description: params.description || undefined,
+  });
+
+  revalidatePath(`/coach/equipes/${params.teamId}`);
+  return { count: result.count };
 }
