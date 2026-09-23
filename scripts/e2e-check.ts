@@ -1135,12 +1135,15 @@ async function main() {
   assert(isValidPosition("football", "milieu"), "Un poste du référentiel foot est valide pour le foot");
   assert(!isValidPosition("football", "pivot"), "Un poste d'un autre sport n'est pas valide pour le foot");
 
-  const oneSpot = layoutBand([40, 60], 1);
-  assert(oneSpot.length === 1 && oneSpot[0].xPct === 50 && oneSpot[0].yPct === 50, "Un seul joueur est centré dans sa bande");
-  const threeSpots = layoutBand([40, 60], 3);
+  const soloSpot = layoutBand([40, 60], ["athlete-a"])[0];
   assert(
-    threeSpots.length === 3 && threeSpots.every((p) => p.yPct >= 12 && p.yPct <= 88) && threeSpots[0].yPct < threeSpots[1].yPct && threeSpots[1].yPct < threeSpots[2].yPct,
-    "Plusieurs joueurs du même poste sont répartis sans se superposer"
+    soloSpot.xPct >= 40 && soloSpot.xPct <= 60 && soloSpot.yPct >= 12 && soloSpot.yPct <= 88,
+    "Un joueur est placé dans les limites de sa bande"
+  );
+  const spotWithSibling = layoutBand([40, 60], ["athlete-a", "athlete-b"])[0];
+  assert(
+    spotWithSibling.xPct === soloSpot.xPct && spotWithSibling.yPct === soloSpot.yPct,
+    "La position d'un joueur ne bouge pas quand un coéquipier rejoint ou quitte son poste"
   );
 
   const teamId = randomUUID();

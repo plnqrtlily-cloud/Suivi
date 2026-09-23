@@ -74,19 +74,33 @@ export function positionLabel(sport: TeamSport, position: string): string {
   return TEAM_SPORTS[sport].positions.find((p) => p.value === position)?.label ?? position;
 }
 
-/** Répartit `count` joueurs occupant le même poste dans sa bande [xMin,xMax] :
- * espacés verticalement de façon régulière entre 12% et 88% (marge des lignes
- * de touche), avec un léger zig-zag horizontal (± un quart de la largeur de
- * bande) à partir de 3 joueurs pour éviter un alignement parfaitement vertical. */
-export function layoutBand(band: [number, number], count: number): { xPct: number; yPct: number }[] {
-  if (count <= 0) return [];
+/** Hash déterministe [0,1) d'une chaîne — sert à donner à chaque joueur une
+ * position fixe qui ne dépend que de son propre id, jamais de qui d'autre
+ * partage son poste (sinon changer le poste d'un joueur redistribue aussi
+ * ses coéquipiers restants, ce qui donne l'impression que tout le monde
+ * bouge à chaque modification). */
+function hashUnit(seed: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 100000) / 100000;
+}
+
+/** Place chaque joueur d'`athleteIds` dans sa bande [xMin,xMax], entre 12% et
+ * 88% de hauteur (marge des lignes de touche). La position de chaque joueur
+ * ne dépend que de son propre id et de la bande — jamais de la liste des
+ * autres joueurs qui la partagent — pour qu'ajouter/retirer un coéquipier du
+ * même poste ne déplace jamais les joueurs déjà positionnés. */
+export function layoutBand(band: [number, number], athleteIds: string[]): { xPct: number; yPct: number }[] {
   const [xMin, xMax] = band;
   const xMid = (xMin + xMax) / 2;
-  const xJitter = count > 2 ? (xMax - xMin) / 4 : 0;
+  const xSpan = (xMax - xMin) / 2;
   const yMin = 12;
   const yMax = 88;
-  return Array.from({ length: count }, (_, i) => ({
-    xPct: xMid + (i % 2 === 0 ? -xJitter : xJitter),
-    yPct: count === 1 ? 50 : yMin + ((yMax - yMin) * i) / (count - 1),
+  return athleteIds.map((id) => ({
+    xPct: xMid + (hashUnit(`${id}:x`) - 0.5) * xSpan,
+    yPct: yMin + hashUnit(`${id}:y`) * (yMax - yMin),
   }));
 }

@@ -96,7 +96,7 @@ export function TeamPitch({ sport, members }: { sport: TeamSport; members: TeamP
   }
   const placed = TEAM_SPORTS[sport].positions.flatMap((pos) => {
     const group = byPosition.get(pos.value) ?? [];
-    return layoutBand(pos.band, group.length).map((coords, i) => ({ ...coords, member: group[i] }));
+    return layoutBand(pos.band, group.map((m) => m.athleteId)).map((coords, i) => ({ ...coords, member: group[i] }));
   });
 
   return (
