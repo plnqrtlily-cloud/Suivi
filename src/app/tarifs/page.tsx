@@ -19,6 +19,7 @@ export default function TarifsPage() {
             <li>Jusqu&apos;à {FREE_PLAN_ATHLETE_LIMIT} athlètes</li>
             <li>Programmation, suivi de forme, messagerie</li>
             <li>Bilans, périodisation, statistiques de performance</li>
+            <li>Équipes de sport collectif — terrain par poste (foot, rugby, hand, basket)</li>
           </ul>
           <Link
             href="/register"
@@ -35,7 +36,7 @@ export default function TarifsPage() {
           </p>
           <ul className="mb-6 flex flex-col gap-2 text-sm text-ink-soft">
             <li>Athlètes illimités</li>
-            <li>Tout ce qui est dans l&apos;offre gratuite</li>
+            <li>Toutes les fonctionnalités de l&apos;offre gratuite</li>
             <li>Support prioritaire par email</li>
           </ul>
           <a
