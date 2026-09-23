@@ -428,6 +428,34 @@ CREATE TABLE IF NOT EXISTS coach_note_entries (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_coach_note_entries ON coach_note_entries(coach_id, athlete_id, entry_date);
+-- Équipes de sport collectif (football, rugby, handball, basketball — cf.
+-- src/lib/team-sports.ts pour la liste figée et les postes par sport). Un coach
+-- peut avoir plusieurs équipes nommées (ex. "U15" et "Senior"), chacune avec son
+-- propre sport et son propre effectif. Distinct de coach_athlete_links, qui reste
+-- le lien d'invitation/suivi individuel sous-jacent : un athlète doit déjà avoir
+-- un lien actif avec le coach avant de pouvoir être ajouté à une équipe.
+CREATE TABLE IF NOT EXISTS teams (
+  id TEXT PRIMARY KEY,
+  coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  sport TEXT NOT NULL CHECK (sport IN ('football','rugby','handball','basketball')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_teams_coach ON teams(coach_id);
+-- Effectif d'une équipe. position n'est volontairement PAS contraint par CHECK :
+-- le référentiel de postes valides dépend du sport de l'équipe (une colonne
+-- d'une AUTRE table), et une contrainte CHECK SQLite ne peut pas lire une autre
+-- ligne/table. La validité du poste par rapport au sport de l'équipe est donc
+-- vérifiée côté action serveur (cf. src/lib/team-sports.ts, isValidPosition).
+CREATE TABLE IF NOT EXISTS team_members (
+  id TEXT PRIMARY KEY,
+  team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  athlete_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  position TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(team_id, athlete_id)
+);
+CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id);
 `;
 
 let initialized: Promise<void> | null = null;

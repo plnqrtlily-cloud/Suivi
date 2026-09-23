@@ -26,6 +26,61 @@ export async function getAthletesForCoach(coachId: string): Promise<AthleteLink[
   );
 }
 
+export interface Team {
+  id: string;
+  coach_id: string;
+  name: string;
+  sport: string;
+  created_at: string;
+  member_count: number;
+}
+
+export async function getTeamsForCoach(coachId: string): Promise<Team[]> {
+  return dbAll(
+    `SELECT t.id, t.coach_id, t.name, t.sport, t.created_at,
+            (SELECT COUNT(*) FROM team_members m WHERE m.team_id = t.id) as member_count
+     FROM teams t
+     WHERE t.coach_id = ?
+     ORDER BY t.created_at DESC`,
+    [coachId]
+  );
+}
+
+export interface TeamMemberRow {
+  member_id: string;
+  athlete_id: string;
+  first_name: string;
+  last_name: string;
+  avatar_path: string | null;
+  position: string;
+}
+
+export interface TeamWithMembers {
+  id: string;
+  coach_id: string;
+  name: string;
+  sport: string;
+  created_at: string;
+  members: TeamMemberRow[];
+}
+
+export async function getTeamWithMembers(teamId: string, coachId: string): Promise<TeamWithMembers | undefined> {
+  const team = await dbGet<{ id: string; coach_id: string; name: string; sport: string; created_at: string }>(
+    `SELECT id, coach_id, name, sport, created_at FROM teams WHERE id = ? AND coach_id = ?`,
+    [teamId, coachId]
+  );
+  if (!team) return undefined;
+  const members = await dbAll<TeamMemberRow>(
+    `SELECT m.id as member_id, m.athlete_id, u.first_name, u.last_name, u.avatar_path, m.position
+     FROM team_members m
+     JOIN users u ON u.id = m.athlete_id
+     WHERE m.team_id = ?
+     ORDER BY m.created_at ASC`,
+    [teamId]
+  );
+  return { ...team, members };
+}
+
 /** Offre + essai en cours — cf. src/lib/billing.ts pour ce que chaque état permet. */
 export async function getCoachPlanStatus(coachId: string): Promise<PlanStatus> {
   const row = await dbGet<{ plan: string; trial_started_at: string | null }>(

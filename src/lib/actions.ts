@@ -28,6 +28,7 @@ import { FREE_PLAN_ATHLETE_LIMIT, ADMIN_EMAIL } from "./billing";
 import { createNotification, markNotificationRead, markAllNotificationsRead } from "./notifications";
 import { sendEmail, isEmailConfigured, appBaseUrl } from "./email";
 import { saveSubscription, removeSubscription } from "./push";
+import { isTeamSport, isValidPosition } from "./team-sports";
 
 // ---------- AUTH ----------
 
@@ -1961,4 +1962,115 @@ export async function deleteCoachNoteEntryAction(formData: FormData) {
 
   await dbRun(`DELETE FROM coach_note_entries WHERE id = ?`, [entryId]);
   revalidatePath(`/coach/athletes/${entry.athlete_id}`);
+}
+
+// ---------- ÉQUIPES (sport collectif) ----------
+
+export async function createTeamAction(formData: FormData): Promise<{ teamId: string } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const name = String(formData.get("name") || "").trim();
+  const sport = String(formData.get("sport") || "");
+  if (!name) return { error: "Le nom de l'équipe est obligatoire." };
+  if (!isTeamSport(sport)) return { error: "Sport invalide." };
+
+  const id = randomUUID();
+  await dbRun(`INSERT INTO teams (id, coach_id, name, sport) VALUES (?, ?, ?, ?)`, [id, user.id, name, sport]);
+  revalidatePath("/coach/equipes");
+  return { teamId: id };
+}
+
+export async function renameTeamAction(teamId: string, name: string): Promise<{ ok: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  const team = await dbGet<{ coach_id: string }>(`SELECT coach_id FROM teams WHERE id = ?`, [teamId]);
+  if (!team || team.coach_id !== user.id) throw new Error("Non autorisé.");
+  if (!name.trim()) return { error: "Le nom de l'équipe est obligatoire." };
+
+  await dbRun(`UPDATE teams SET name = ? WHERE id = ?`, [name.trim(), teamId]);
+  revalidatePath(`/coach/equipes/${teamId}`);
+  revalidatePath("/coach/equipes");
+  return { ok: true };
+}
+
+export async function deleteTeamAction(teamId: string): Promise<{ ok: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  const team = await dbGet<{ coach_id: string }>(`SELECT coach_id FROM teams WHERE id = ?`, [teamId]);
+  if (!team || team.coach_id !== user.id) throw new Error("Non autorisé.");
+
+  await dbRun(`DELETE FROM teams WHERE id = ?`, [teamId]); // team_members suit via ON DELETE CASCADE
+  revalidatePath("/coach/equipes");
+  return { ok: true };
+}
+
+export async function addTeamMemberAction(formData: FormData): Promise<{ ok: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const teamId = String(formData.get("teamId") || "");
+  const athleteId = String(formData.get("athleteId") || "");
+  const position = String(formData.get("position") || "");
+
+  const team = await dbGet<{ coach_id: string; sport: string }>(`SELECT coach_id, sport FROM teams WHERE id = ?`, [
+    teamId,
+  ]);
+  if (!team || team.coach_id !== user.id) throw new Error("Non autorisé.");
+  if (!isTeamSport(team.sport) || !isValidPosition(team.sport, position)) {
+    return { error: "Poste invalide pour ce sport." };
+  }
+  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) {
+    return { error: "Cet athlète n'est pas (ou plus) lié à votre compte." };
+  }
+
+  try {
+    await dbRun(`INSERT INTO team_members (id, team_id, athlete_id, position) VALUES (?, ?, ?, ?)`, [
+      randomUUID(),
+      teamId,
+      athleteId,
+      position,
+    ]);
+  } catch {
+    return { error: "Cet athlète fait déjà partie de cette équipe." };
+  }
+
+  revalidatePath(`/coach/equipes/${teamId}`);
+  return { ok: true };
+}
+
+export async function updateTeamMemberPositionAction(
+  memberId: string,
+  position: string
+): Promise<{ ok: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const row = await dbGet<{ team_id: string; coach_id: string; sport: string }>(
+    `SELECT m.team_id, t.coach_id, t.sport FROM team_members m JOIN teams t ON t.id = m.team_id WHERE m.id = ?`,
+    [memberId]
+  );
+  if (!row || row.coach_id !== user.id) throw new Error("Non autorisé.");
+  if (!isTeamSport(row.sport) || !isValidPosition(row.sport, position)) {
+    return { error: "Poste invalide pour ce sport." };
+  }
+
+  await dbRun(`UPDATE team_members SET position = ? WHERE id = ?`, [position, memberId]);
+  revalidatePath(`/coach/equipes/${row.team_id}`);
+  return { ok: true };
+}
+
+export async function removeTeamMemberAction(memberId: string): Promise<{ ok: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const row = await dbGet<{ team_id: string; coach_id: string }>(
+    `SELECT m.team_id, t.coach_id FROM team_members m JOIN teams t ON t.id = m.team_id WHERE m.id = ?`,
+    [memberId]
+  );
+  if (!row || row.coach_id !== user.id) throw new Error("Non autorisé.");
+
+  await dbRun(`DELETE FROM team_members WHERE id = ?`, [memberId]);
+  revalidatePath(`/coach/equipes/${row.team_id}`);
+  return { ok: true };
 }

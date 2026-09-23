@@ -43,8 +43,10 @@ import {
   getTrainingPeriodsForAthletes,
   getCheckinsForRange,
   getCoachNoteEntries,
+  getTeamWithMembers,
 } from "../src/lib/queries";
 import { bilanRangeDays } from "../src/lib/dates";
+import { isValidPosition, layoutBand } from "../src/lib/team-sports";
 
 function assert(cond: any, message: string) {
   if (!cond) {
@@ -1127,6 +1129,38 @@ async function main() {
     reported?.reported_by === "coach" && reported?.status === "done",
     "Une séance renseignée par le coach garde la trace de son auteur"
   );
+
+  // --- Équipes de sport collectif --------------------------------------------
+  assert(isValidPosition("football", "milieu"), "Un poste du référentiel foot est valide pour le foot");
+  assert(!isValidPosition("football", "pivot"), "Un poste d'un autre sport n'est pas valide pour le foot");
+
+  const oneSpot = layoutBand([40, 60], 1);
+  assert(oneSpot.length === 1 && oneSpot[0].xPct === 50 && oneSpot[0].yPct === 50, "Un seul joueur est centré dans sa bande");
+  const threeSpots = layoutBand([40, 60], 3);
+  assert(
+    threeSpots.length === 3 && threeSpots.every((p) => p.yPct >= 12 && p.yPct <= 88) && threeSpots[0].yPct < threeSpots[1].yPct && threeSpots[1].yPct < threeSpots[2].yPct,
+    "Plusieurs joueurs du même poste sont répartis sans se superposer"
+  );
+
+  const teamId = randomUUID();
+  await dbRun(`INSERT INTO teams (id, coach_id, name, sport) VALUES (?, ?, 'Équipe test', 'handball')`, [teamId, coach.id]);
+  const memberA = randomUUID();
+  const memberB = randomUUID();
+  await dbRun(`INSERT INTO team_members (id, team_id, athlete_id, position) VALUES (?, ?, ?, 'gardien')`, [memberA, teamId, athlete.id]);
+  await dbRun(`INSERT INTO team_members (id, team_id, athlete_id, position) VALUES (?, ?, ?, 'pivot')`, [memberB, teamId, otherAthlete.id]);
+  const team = await getTeamWithMembers(teamId, coach.id);
+  assert(team?.members.length === 2, "Une équipe restitue bien tous ses membres");
+  assert(
+    team?.members.find((m) => m.athlete_id === athlete.id)?.position === "gardien",
+    "Le poste de chaque membre est correctement restitué"
+  );
+  let duplicateRejected = false;
+  try {
+    await dbRun(`INSERT INTO team_members (id, team_id, athlete_id, position) VALUES (?, ?, ?, 'pivot')`, [randomUUID(), teamId, athlete.id]);
+  } catch {
+    duplicateRejected = true;
+  }
+  assert(duplicateRejected, "Un même athlète ne peut pas être ajouté deux fois à la même équipe");
 
   console.log("\nTest end-to-end terminé.");
 }
