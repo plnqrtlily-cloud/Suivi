@@ -53,7 +53,12 @@ function AthleteCard({
   if (signals.daysUntilNextWorkout === null) alerts.push("plus rien de programmé");
   else if (signals.daysUntilNextWorkout > 7) alerts.push(`prochaine séance dans ${signals.daysUntilNextWorkout} j`);
 
-  const sharedNote = checkinNote || journalNote;
+  // checkinNote et journalNote viennent de deux tables différentes
+  // (daily_checkins.notes / journal_entries) : les fondre en un texte
+  // identique laissait croire au coach à une seule source alors que l'auteur
+  // et le contexte (ressenti du jour vs entrée de journal libre) diffèrent.
+  const sharedNote = checkinNote ?? journalNote;
+  const sharedNoteSource = checkinNote ? "checkin" : "journal";
 
   return (
     <div
@@ -110,10 +115,14 @@ function AthleteCard({
         </div>
       </dl>
 
-      {/* Note partagée par l'athlète, en bulle de message */}
+      {/* Note partagée par l'athlète, en bulle de message — icône distincte
+          selon la source pour ne pas laisser croire à un seul type de note. */}
       {sharedNote && (
-        <p className="mb-3 rounded-2xl rounded-tl-sm bg-paper-dim px-3 py-2 text-sm text-ink-soft">
-          <span className="mr-1">💬</span>
+        <p
+          className="mb-3 rounded-2xl rounded-tl-sm bg-paper-dim px-3 py-2 text-sm text-ink-soft"
+          title={sharedNoteSource === "checkin" ? "Ressenti du jour (check-in)" : "Entrée de journal"}
+        >
+          <span className="mr-1">{sharedNoteSource === "checkin" ? "💬" : "📓"}</span>
           {sharedNote}
         </p>
       )}

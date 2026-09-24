@@ -9,6 +9,7 @@ export function TeamHeaderActions({ teamId, currentName }: { teamId: string; cur
   const router = useRouter();
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(currentName);
+  const [pending, setPending] = useState(false);
 
   if (renaming) {
     return (
@@ -16,13 +17,16 @@ export function TeamHeaderActions({ teamId, currentName }: { teamId: string; cur
         className="flex items-center gap-2"
         onSubmit={async (e) => {
           e.preventDefault();
+          setPending(true);
           const result = await renameTeamAction(teamId, name);
           if ("error" in result) {
             alert(result.error);
+            setPending(false);
             return;
           }
           setRenaming(false);
           router.refresh();
+          setPending(false);
         }}
       >
         <input
@@ -31,10 +35,10 @@ export function TeamHeaderActions({ teamId, currentName }: { teamId: string; cur
           className="rounded-md border border-line bg-white px-3 py-1.5 text-sm outline-none focus:border-moss focus:ring-1 focus:ring-moss"
           autoFocus
         />
-        <Button type="submit" variant="secondary">
+        <Button type="submit" variant="secondary" loading={pending}>
           Enregistrer
         </Button>
-        <Button type="button" variant="ghost" onClick={() => setRenaming(false)}>
+        <Button type="button" variant="ghost" onClick={() => setRenaming(false)} disabled={pending}>
           Annuler
         </Button>
       </form>
@@ -48,8 +52,10 @@ export function TeamHeaderActions({ teamId, currentName }: { teamId: string; cur
       </Button>
       <Button
         variant="ghost"
+        loading={pending}
         onClick={async () => {
           if (!confirm(`Supprimer l'équipe « ${currentName} » ? Cette action est irréversible.`)) return;
+          setPending(true);
           await deleteTeamAction(teamId);
           router.push("/coach/equipes");
         }}

@@ -23,6 +23,8 @@ import {
   getPersonalRecordsForAthlete,
   getUnreadMessageCount,
   getTeamsForAthlete,
+  getCustomEffortTestsForCoach,
+  getEffortTestResultsForAthlete,
 } from "@/lib/queries";
 import { positionLabel, type TeamSport } from "@/lib/team-sports";
 import { UpcomingGoals } from "@/components/upcoming-goals";
@@ -54,6 +56,7 @@ import { computePowerZones } from "@/lib/power-zones";
 import { computePaceZones, formatPace } from "@/lib/pace-zones";
 import { ExerciseMaxesPanel } from "./exercise-maxes-panel";
 import { MeasurementsHistory } from "./measurements-history";
+import { EffortTestsPanel } from "./effort-tests-panel";
 import { CopyWeekForm } from "./copy-week-form";
 import { AthleteTabs } from "./athlete-tabs";
 import { upsertCoachNotesAction, addMeasurementAction } from "@/lib/actions";
@@ -168,6 +171,8 @@ export default async function AthleteDetailPage({
     personalRecords,
     unreadCount,
     athleteTeams,
+    customEffortTests,
+    effortTestResults,
   ] = await Promise.all([
     findUserById(athleteId),
     getUserAvatar(athleteId),
@@ -193,6 +198,8 @@ export default async function AthleteDetailPage({
     getPersonalRecordsForAthlete(athleteId),
     getUnreadMessageCount(user.id, athleteId, user.id),
     getTeamsForAthlete(athleteId, user.id),
+    getCustomEffortTestsForCoach(user.id),
+    getEffortTestResultsForAthlete(athleteId),
   ]);
   if (!athlete) notFound();
 
@@ -443,7 +450,9 @@ export default async function AthleteDetailPage({
                     )}
 
                     <Card className="rounded-3xl">
-                      <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Journal de bord récent</h2>
+                      <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">
+                        Journal de l&apos;athlète <span className="font-normal normal-case text-slate">— écrit par lui/elle</span>
+                      </h2>
                       {journal.length === 0 && <p className="text-sm text-slate">Aucune entrée pour l&apos;instant.</p>}
                       <ul className="space-y-2 text-sm">
                         {journal.map((j) => (
@@ -453,6 +462,12 @@ export default async function AthleteDetailPage({
                           </li>
                         ))}
                       </ul>
+                      {journalAll.length > journal.length && (
+                        <p className="mt-2 text-xs text-slate">
+                          {journalAll.length - journal.length} entrée{journalAll.length - journal.length > 1 ? "s" : ""} plus
+                          ancienne{journalAll.length - journal.length > 1 ? "s" : ""}.
+                        </p>
+                      )}
                     </Card>
                   </div>
                 </div>
@@ -699,6 +714,16 @@ export default async function AthleteDetailPage({
               </details>
             )}
           </Card>
+
+        <h2 className="mb-3 font-display text-xl text-ink">Tests à l&apos;effort</h2>
+        <p className="mb-3 text-sm text-slate">
+          Renseignez un test connu (VMA, VO2max, FTP…) ou créez le vôtre — le résultat calculé alimente automatiquement
+          les statistiques et zones ci-dessous, sans ressaisie.
+        </p>
+        <Card className="mb-8 rounded-3xl">
+          <EffortTestsPanel athleteId={athleteId} results={effortTestResults} customTests={customEffortTests} />
+        </Card>
+
         {(hrZones || powerZones || paceZones) && (
           <>
             <h2 className="mb-3 font-display text-xl text-ink">Zones d&apos;entraînement</h2>
@@ -811,18 +836,26 @@ export default async function AthleteDetailPage({
             ),
             notes: (
               <>
-        {/* Notes privées : jamais visibles par l'athlète, ni par un autre coach —
-            cf. upsertCoachNotesAction (vérifie coach_id = utilisateur courant). */}
-        <Card className="mb-8 rounded-3xl border-2 border-dashed border-gold-light/50 bg-gold-light/5">
-          <div className="mb-2 flex items-center gap-2">
-            <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate">Mes notes privées</h2>
-            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-gold-light">
+        {/* Journal de suivi coach : un même espace privé, en deux temps — un
+            portrait qui se réécrit (points forts/faibles) et des entrées datées
+            qui s'accumulent. Auparavant deux cartes de styles différents
+            (bordure pointillée vs pleine) qui donnaient l'impression de deux
+            fonctionnalités séparées plutôt que d'un seul journal ; réunies ici
+            sous un même titre et une même mise en forme, jamais visibles par
+            l'athlète ni par un autre coach (cf. upsertCoachNotesAction /
+            coach_note_entries, vérifient coach_id = utilisateur courant). */}
+        <Card className="mb-8 rounded-3xl">
+          <div className="mb-1 flex items-center gap-2">
+            <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate">Journal de suivi</h2>
+            <span className="rounded-full bg-paper-dim px-2 py-0.5 text-[10px] font-semibold text-slate">
               Visibles par vous seul·e
             </span>
           </div>
-          <p className="mb-3 text-xs text-slate">
-            Jamais partagées avec l&apos;athlète, ni avec un autre coach qui le suivrait aussi.
+          <p className="mb-4 text-xs text-slate">
+            Jamais partagé avec l&apos;athlète, ni avec un autre coach qui le suivrait aussi.
           </p>
+
+          <h3 className="mb-2 text-xs font-semibold text-ink-soft">Portrait</h3>
           <form
             action={async (formData) => {
               "use server";
@@ -862,18 +895,8 @@ export default async function AthleteDetailPage({
               )}
             </div>
           </form>
-        </Card>
 
-        {/* Journal : des notes courtes ajoutées au fil des jours, chacune datée,
-            qui forment l'historique du suivi. Le portrait ci-dessus se réécrit,
-            celui-ci s'accumule. */}
-        <Card className="mb-8 rounded-3xl">
-          <div className="mb-2 flex items-center gap-2">
-            <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate">Journal de suivi</h2>
-            <span className="rounded-full bg-paper-dim px-2 py-0.5 text-[10px] font-semibold text-slate">
-              Visibles par vous seul·e
-            </span>
-          </div>
+          <h3 className="mb-2 mt-6 border-t border-line pt-4 text-xs font-semibold text-ink-soft">Entrées datées</h3>
           <CoachJournal athleteId={athleteId} entries={coachNoteEntries} today={today} />
         </Card>
 

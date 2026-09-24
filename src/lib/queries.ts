@@ -330,8 +330,52 @@ export async function getLatestExerciseMaxes(athleteId: string): Promise<Record<
   return latest;
 }
 
-export async function getInjuriesForAthlete(athleteId: string) {
+export interface Injury {
+  id: string;
+  athlete_id: string;
+  zone: string;
+  description: string | null;
+  date_start: string;
+  date_end: string | null;
+  created_at: string;
+}
+
+export async function getInjuriesForAthlete(athleteId: string): Promise<Injury[]> {
   return dbAll(`SELECT * FROM injuries WHERE athlete_id = ? ORDER BY date_start DESC`, [athleteId]);
+}
+
+export interface CustomEffortTestRow {
+  id: string;
+  coach_id: string;
+  name: string;
+  sport: string;
+  fields_json: string;
+  created_at: string;
+}
+
+export async function getCustomEffortTestsForCoach(coachId: string): Promise<CustomEffortTestRow[]> {
+  return dbAll(`SELECT * FROM custom_effort_tests WHERE coach_id = ? ORDER BY created_at DESC`, [coachId]);
+}
+
+export interface EffortTestResultRow {
+  id: string;
+  athlete_id: string;
+  test_slug: string | null;
+  custom_test_id: string | null;
+  test_date: string;
+  data_json: string;
+  result_metric: string;
+  result_value: number;
+  device: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export async function getEffortTestResultsForAthlete(athleteId: string): Promise<EffortTestResultRow[]> {
+  return dbAll(
+    `SELECT * FROM effort_test_results WHERE athlete_id = ? ORDER BY test_date DESC, created_at DESC`,
+    [athleteId]
+  );
 }
 
 export async function getJournalForAthlete(athleteId: string, entryDate?: string) {

@@ -38,6 +38,7 @@ export function ExerciseMaxesPanel({
   const [pending, setPending] = useState(false);
   const [valueType, setValueType] = useState<"charge" | "temps" | "repetitions">("charge");
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -53,8 +54,10 @@ export function ExerciseMaxesPanel({
   }
 
   async function handleDelete(id: string) {
+    setDeletingId(id);
     await deleteExerciseMaxAction(id, athleteId);
     router.refresh();
+    setDeletingId(null);
   }
 
   // Regroupe par exercice pour proposer une tendance là où plusieurs mesures
@@ -96,8 +99,14 @@ export function ExerciseMaxesPanel({
                       {isExpanded ? "Masquer" : "Évolution"}
                     </button>
                   )}
-                  <button type="button" onClick={() => handleDelete(entries[0].id)} aria-label="Supprimer ce max" className="hover:text-clay">
-                    ✕
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(entries[0].id)}
+                    disabled={deletingId === entries[0].id}
+                    aria-label="Supprimer ce max"
+                    className="hover:text-clay disabled:opacity-40"
+                  >
+                    {deletingId === entries[0].id ? "…" : "✕"}
                   </button>
                 </span>
               </div>
@@ -123,8 +132,14 @@ export function ExerciseMaxesPanel({
                       </span>
                       <span className="flex items-center gap-2">
                         {e.tested_at}
-                        <button type="button" onClick={() => handleDelete(e.id)} aria-label="Supprimer" className="hover:text-clay">
-                          ✕
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(e.id)}
+                          disabled={deletingId === e.id}
+                          aria-label="Supprimer"
+                          className="hover:text-clay disabled:opacity-40"
+                        >
+                          {deletingId === e.id ? "…" : "✕"}
                         </button>
                       </span>
                     </li>

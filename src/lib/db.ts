@@ -456,6 +456,47 @@ CREATE TABLE IF NOT EXISTS team_members (
   UNIQUE(team_id, athlete_id)
 );
 CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id);
+
+-- Tests à l'effort connus (VMA, VO2max, FTP...) : codés en dur avec leur
+-- formule dans src/lib/effort-tests.ts, comme TEAM_SPORTS pour les postes —
+-- cette table ne stocke que les tests personnalisés qu'un coach définit pour
+-- son propre matériel (aucune formule automatique n'est possible pour un test
+-- que le système ne connaît pas : le coach saisit lui-même l'indicateur et la
+-- valeur qui en résultent au moment de renseigner un résultat).
+CREATE TABLE IF NOT EXISTS custom_effort_tests (
+  id TEXT PRIMARY KEY,
+  coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  sport TEXT NOT NULL,
+  fields_json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_custom_effort_tests_coach ON custom_effort_tests(coach_id);
+
+-- Historique des tests passés par un athlète : données brutes saisies
+-- (data_json) et indicateur résultant (result_metric/result_value), qu'il
+-- s'agisse d'un test connu (test_slug renseigné) ou personnalisé
+-- (custom_test_id renseigné) — un seul des deux à la fois. Le résultat est
+-- répliqué dans athlete_measurements au moment de l'enregistrement (cf.
+-- addEffortTestResultAction) pour que les zones d'allure/puissance/FC et les
+-- statistiques de performance déjà affichées ailleurs se mettent à jour sans
+-- ressaisie ; cette table garde en plus la trace du test d'origine et des
+-- données brutes qui ont produit ce résultat, que athlete_measurements seule
+-- ne conserve pas.
+CREATE TABLE IF NOT EXISTS effort_test_results (
+  id TEXT PRIMARY KEY,
+  athlete_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  test_slug TEXT,
+  custom_test_id TEXT REFERENCES custom_effort_tests(id) ON DELETE SET NULL,
+  test_date TEXT NOT NULL,
+  data_json TEXT NOT NULL,
+  result_metric TEXT NOT NULL,
+  result_value REAL NOT NULL,
+  device TEXT,
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_effort_test_results_athlete ON effort_test_results(athlete_id);
 `;
 
 let initialized: Promise<void> | null = null;

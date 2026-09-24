@@ -27,6 +27,7 @@ import { CyclePanel } from "./cycle-panel";
 import { PerformanceStats, MeasurementPoint } from "./performance-stats";
 import { ExerciseMaxesPanel } from "@/app/coach/athletes/[athleteId]/exercise-maxes-panel";
 import { MeasurementsHistory } from "@/app/coach/athletes/[athleteId]/measurements-history";
+import { InjuriesList } from "./injuries-list";
 
 function formatPace(minPerKm: number): string {
   const min = Math.floor(minPerKm);
@@ -289,18 +290,7 @@ export default async function AthleteProfilePage() {
 
         <Card className="mb-8 rounded-3xl">
           <h2 className="mb-4 text-[11px] font-bold uppercase tracking-wider text-slate">Antécédents de blessures</h2>
-          <ul className="mb-4 space-y-2 text-sm">
-            {injuries.map((i) => (
-              <li key={i.id} className="rounded-xl bg-paper-dim p-2">
-                <span className="font-medium text-ink">{i.zone}</span> — {i.description}{" "}
-                <span className="text-slate">
-                  ({i.date_start}
-                  {i.date_end ? ` → ${i.date_end}` : ""})
-                </span>
-              </li>
-            ))}
-            {injuries.length === 0 && <p className="text-slate">Aucun antécédent renseigné.</p>}
-          </ul>
+          <InjuriesList injuries={injuries} />
           <form action={addInjuryAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Zone" name="zone" required placeholder="ex. Genou droit" />
             <Field label="Description" name="description" placeholder="ex. Tendinite" />

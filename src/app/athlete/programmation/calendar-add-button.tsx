@@ -52,12 +52,17 @@ export function CalendarAddButton({ defaultDate }: { defaultDate: string }) {
         formData.set("sport", sport);
         // Une activité par jour de la plage : chacune reste modifiable
         // indépendamment (une étape de trek n'a pas la même durée qu'une autre).
-        for (const date of dates) {
-          const perDay = new FormData();
-          formData.forEach((value, key) => perDay.set(key, value));
-          perDay.set("activityDate", date);
-          await addImportedActivityAction(perDay);
-        }
+        // Envoyées en parallèle plutôt qu'une par une : ce sont des insertions
+        // indépendantes, attendre chaque aller-retour serveur avant le suivant
+        // multipliait inutilement la latence sur une plage de plusieurs jours.
+        await Promise.all(
+          dates.map((date) => {
+            const perDay = new FormData();
+            formData.forEach((value, key) => perDay.set(key, value));
+            perDay.set("activityDate", date);
+            return addImportedActivityAction(perDay);
+          })
+        );
       } else {
         await addAvailabilityBlockAction({
           dates,

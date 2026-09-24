@@ -29,6 +29,7 @@ import { createNotification, markNotificationRead, markAllNotificationsRead } fr
 import { sendEmail, isEmailConfigured, appBaseUrl } from "./email";
 import { saveSubscription, removeSubscription } from "./push";
 import { isTeamSport, isValidPosition } from "./team-sports";
+import { EFFORT_TEST_CATALOG } from "./effort-tests";
 
 // ---------- AUTH ----------
 
@@ -930,6 +931,168 @@ export async function addInjuryAction(formData: FormData) {
   );
 
   revalidatePath("/athlete/profile");
+}
+
+export async function updateInjuryAction(id: string, formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+
+  const zone = String(formData.get("zone") || "").trim();
+  const description = String(formData.get("description") || "").trim();
+  const dateStart = String(formData.get("dateStart") || "");
+  const dateEnd = String(formData.get("dateEnd") || "");
+  if (!zone || !dateStart) throw new Error("Zone et date de début requises.");
+
+  await dbRun(
+    `UPDATE injuries SET zone = ?, description = ?, date_start = ?, date_end = ? WHERE id = ? AND athlete_id = ?`,
+    [zone, description || null, dateStart, dateEnd || null, id, user.id]
+  );
+
+  revalidatePath("/athlete/profile");
+  revalidatePath(`/coach/athletes/${user.id}`);
+}
+
+export async function deleteInjuryAction(id: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+
+  await dbRun(`DELETE FROM injuries WHERE id = ? AND athlete_id = ?`, [id, user.id]);
+
+  revalidatePath("/athlete/profile");
+  revalidatePath(`/coach/athletes/${user.id}`);
+}
+
+// ---------- TESTS À L'EFFORT ----------
+// Renseignés par le coach à l'issue d'un test — cf. src/lib/effort-tests.ts
+// pour le catalogue des tests connus et leurs formules.
+
+export async function createCustomEffortTestAction(formData: FormData): Promise<{ id: string } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const name = String(formData.get("name") || "").trim();
+  const sport = String(formData.get("sport") || "").trim();
+  const fieldLabels = formData.getAll("fieldLabel").map((v) => String(v).trim()).filter(Boolean);
+  const fieldUnits = formData.getAll("fieldUnit").map((v) => String(v).trim());
+  if (!name || !sport) return { error: "Nom et sport sont obligatoires." };
+  if (fieldLabels.length === 0) return { error: "Ajoutez au moins un champ à renseigner." };
+
+  const fields = fieldLabels.map((label, i) => ({
+    key: `f${i}`,
+    label,
+    unit: fieldUnits[i] || undefined,
+  }));
+
+  const id = randomUUID();
+  await dbRun(`INSERT INTO custom_effort_tests (id, coach_id, name, sport, fields_json) VALUES (?, ?, ?, ?, ?)`, [
+    id,
+    user.id,
+    name,
+    sport,
+    JSON.stringify(fields),
+  ]);
+
+  revalidatePath(`/coach/athletes`);
+  return { id };
+}
+
+export async function addEffortTestResultAction(formData: FormData): Promise<{ ok: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const athleteId = String(formData.get("athleteId") || "");
+  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+
+  const testDate = String(formData.get("testDate") || "").trim();
+  const device = String(formData.get("device") || "").trim();
+  const note = String(formData.get("note") || "").trim();
+  if (!testDate) return { error: "La date du test est obligatoire." };
+
+  const testSlug = String(formData.get("testSlug") || "").trim();
+  const customTestId = String(formData.get("customTestId") || "").trim();
+
+  let resultMetric: string;
+  let resultValue: number;
+  const rawData: Record<string, number> = {};
+
+  if (testSlug) {
+    const test = EFFORT_TEST_CATALOG[testSlug];
+    if (!test) return { error: "Test inconnu." };
+    for (const field of test.fields) {
+      const raw = formData.get(`field_${field.key}`);
+      const value = raw ? Number(raw) : NaN;
+      if (!Number.isNaN(value)) rawData[field.key] = value;
+    }
+    const results = test.compute(rawData);
+    if (results.length === 0) return { error: "Données insuffisantes pour calculer un résultat." };
+    // Le premier résultat calculé est celui répliqué comme mesure principale ;
+    // les suivants (ex. W/kg en plus du FTP) sont eux aussi enregistrés.
+    const statements: { sql: string; args: unknown[] }[] = [];
+    for (const r of results) {
+      const resultId = randomUUID();
+      statements.push({
+        sql: `INSERT INTO effort_test_results (id, athlete_id, test_slug, test_date, data_json, result_metric, result_value, device, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [resultId, athleteId, testSlug, testDate, JSON.stringify(rawData), r.metric, r.value, device || null, note || null],
+      });
+      statements.push({
+        sql: `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note, device) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        args: [randomUUID(), athleteId, r.metric, r.value, testDate, `Test : ${test.label}`, device || null],
+      });
+    }
+    await dbBatch(statements);
+    revalidatePath("/athlete/profile");
+    revalidatePath(`/coach/athletes/${athleteId}`);
+    return { ok: true };
+  }
+
+  if (customTestId) {
+    const custom = await dbGet<{ id: string; coach_id: string; name: string }>(
+      `SELECT id, coach_id, name FROM custom_effort_tests WHERE id = ?`,
+      [customTestId]
+    );
+    if (!custom || custom.coach_id !== user.id) return { error: "Test personnalisé introuvable." };
+
+    resultMetric = String(formData.get("resultMetric") || "").trim();
+    const resultRaw = formData.get("resultValue");
+    resultValue = resultRaw ? Number(resultRaw) : NaN;
+    if (!resultMetric || Number.isNaN(resultValue)) {
+      return { error: "Choisissez l'indicateur obtenu et sa valeur." };
+    }
+    for (const [key, value] of formData.entries()) {
+      if (key.startsWith("field_")) {
+        const num = Number(value);
+        if (!Number.isNaN(num)) rawData[key.replace("field_", "")] = num;
+      }
+    }
+
+    const resultId = randomUUID();
+    await dbBatch([
+      {
+        sql: `INSERT INTO effort_test_results (id, athlete_id, custom_test_id, test_date, data_json, result_metric, result_value, device, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [resultId, athleteId, customTestId, testDate, JSON.stringify(rawData), resultMetric, resultValue, device || null, note || null],
+      },
+      {
+        sql: `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note, device) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        args: [randomUUID(), athleteId, resultMetric, resultValue, testDate, `Test : ${custom.name}`, device || null],
+      },
+    ]);
+    revalidatePath("/athlete/profile");
+    revalidatePath(`/coach/athletes/${athleteId}`);
+    return { ok: true };
+  }
+
+  return { error: "Choisissez un test." };
+}
+
+export async function deleteEffortTestResultAction(id: string, athleteId: string): Promise<{ ok: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+
+  await dbRun(`DELETE FROM effort_test_results WHERE id = ? AND athlete_id = ?`, [id, athleteId]);
+
+  revalidatePath(`/coach/athletes/${athleteId}`);
+  return { ok: true };
 }
 
 // ---------- CHARGES DE RÉFÉRENCE (1RM) ----------

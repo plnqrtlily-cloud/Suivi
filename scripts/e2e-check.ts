@@ -50,6 +50,8 @@ import {
 import { bilanRangeDays } from "../src/lib/dates";
 import { isValidPosition, layoutBand } from "../src/lib/team-sports";
 import { computePlanStatus, TRIAL_DURATION_DAYS } from "../src/lib/billing";
+import { EFFORT_TEST_CATALOG } from "../src/lib/effort-tests";
+import { getInjuriesForAthlete, getEffortTestResultsForAthlete } from "../src/lib/queries";
 
 function assert(cond: any, message: string) {
   if (!cond) {
@@ -1204,6 +1206,66 @@ async function main() {
   assert(
     proAccount.canCreateSessions && proAccount.isPro,
     "Un compte Pro peut toujours programmer, quelle que soit l'ancienneté du compte"
+  );
+
+  // --- Tests à l'effort --------------------------------------------------
+  const demiCooper = EFFORT_TEST_CATALOG.demi_cooper.compute({ distance_m: 1500 });
+  assert(
+    demiCooper.length === 1 && demiCooper[0].metric === "pma_vma" && demiCooper[0].value === 15,
+    "Le Demi-Cooper calcule la PMA/VMA à partir de la distance parcourue"
+  );
+  const cooper12 = EFFORT_TEST_CATALOG.cooper_12min.compute({ distance_m: 2700 });
+  assert(
+    cooper12.length === 1 && cooper12[0].metric === "vo2max" && Math.abs(cooper12[0].value - 49.1) < 0.1,
+    "Le test de Cooper calcule le VO2max estimé à partir de la distance parcourue"
+  );
+  const ftpNoWeight = EFFORT_TEST_CATALOG.ftp_20min.compute({ avg_power_w: 250, weight_kg: 0 });
+  assert(
+    ftpNoWeight.length === 1 && ftpNoWeight[0].metric === "ftp" && ftpNoWeight[0].value === 238,
+    "Le test FTP calcule le FTP seul si le poids n'est pas renseigné"
+  );
+  const ftpWithWeight = EFFORT_TEST_CATALOG.ftp_20min.compute({ avg_power_w: 250, weight_kg: 70 });
+  assert(
+    ftpWithWeight.length === 2 && ftpWithWeight[1].metric === "power_weight_wkg" && ftpWithWeight[1].value === 3.4,
+    "Le test FTP calcule aussi le ratio W/kg quand le poids est renseigné"
+  );
+  assert(
+    EFFORT_TEST_CATALOG.cooper_12min.compute({ distance_m: 0 }).length === 0,
+    "Un test à l'effort sans donnée saisie ne produit aucun résultat"
+  );
+
+  const testResultId = randomUUID();
+  await dbRun(
+    `INSERT INTO effort_test_results (id, athlete_id, test_slug, test_date, data_json, result_metric, result_value) VALUES (?, ?, 'demi_cooper', '2024-06-01', '{"distance_m":1500}', 'pma_vma', 15)`,
+    [testResultId, athlete.id]
+  );
+  const effortResults = await getEffortTestResultsForAthlete(athlete.id);
+  assert(
+    effortResults.length === 1 && effortResults[0].result_value === 15,
+    "Un résultat de test à l'effort est bien relu pour son athlète"
+  );
+
+  // --- Antécédents de blessure : édition/suppression ----------------------
+  const injuryId = randomUUID();
+  await dbRun(
+    `INSERT INTO injuries (id, athlete_id, zone, description, date_start) VALUES (?, ?, 'Genou', 'Tendinite', '2024-01-01')`,
+    [injuryId, athlete.id]
+  );
+  await dbRun(`UPDATE injuries SET zone = ?, date_end = ? WHERE id = ? AND athlete_id = ?`, [
+    "Genou droit",
+    "2024-02-01",
+    injuryId,
+    athlete.id,
+  ]);
+  const injuriesAfterUpdate = await getInjuriesForAthlete(athlete.id);
+  assert(
+    injuriesAfterUpdate.find((i) => i.id === injuryId)?.zone === "Genou droit",
+    "Un antécédent de blessure modifié reflète la mise à jour"
+  );
+  await dbRun(`DELETE FROM injuries WHERE id = ? AND athlete_id = ?`, [injuryId, athlete.id]);
+  assert(
+    !(await getInjuriesForAthlete(athlete.id)).some((i) => i.id === injuryId),
+    "Un antécédent de blessure supprimé n'apparaît plus dans l'historique"
   );
 
   console.log("\nTest end-to-end terminé.");
