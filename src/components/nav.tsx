@@ -55,7 +55,7 @@ export async function Nav({ user }: { user: User }) {
 
   return (
     <>
-      <header className="relative border-b border-line bg-white">
+      <header className="relative border-b border-line bg-white" style={{ viewTransitionName: "app-nav" }}>
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 lg:px-6">
         <Link href={homeHref} className="shrink-0 font-display text-lg text-ink">
           Rythme

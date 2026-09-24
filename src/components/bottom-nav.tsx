@@ -28,7 +28,7 @@ export function BottomNav({ items }: { items: BottomNavItem[] }) {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white lg:hidden"
       // Marge de sécurité sur les iPhone à encoche, où le bas de l'écran est
       // partiellement masqué par la barre système.
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      style={{ paddingBottom: "env(safe-area-inset-bottom)", viewTransitionName: "app-bottom-nav" }}
     >
       <ul className="flex items-stretch">
         {items.map((item) => {
