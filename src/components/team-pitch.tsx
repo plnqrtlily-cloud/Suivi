@@ -87,7 +87,18 @@ export interface TeamPitchMember {
   position: string;
 }
 
-export function TeamPitch({ sport, members }: { sport: TeamSport; members: TeamPitchMember[] }) {
+export function TeamPitch({
+  sport,
+  members,
+  interactive = true,
+}: {
+  sport: TeamSport;
+  members: TeamPitchMember[];
+  /** false sur la page d'accueil publique : les joueurs affichés y sont
+   * fictifs (démo), un lien vers /coach/athletes/[id] n'aurait pas de sens
+   * pour un visiteur non connecté. */
+  interactive?: boolean;
+}) {
   const Markings = MARKINGS[sport];
   const byPosition = new Map<string, TeamPitchMember[]>();
   for (const m of members) {
@@ -104,19 +115,27 @@ export function TeamPitch({ sport, members }: { sport: TeamSport; members: TeamP
       <svg viewBox="0 0 300 200" className="absolute inset-0 h-full w-full">
         <Markings />
       </svg>
-      {placed.map(({ xPct, yPct, member }) => (
-        <Link
-          key={member.athleteId}
-          href={`/coach/athletes/${member.athleteId}`}
-          className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5"
-          style={{ left: `${xPct}%`, top: `${yPct}%` }}
-        >
-          <Avatar userId={member.athleteId} firstName={member.firstName} hasAvatar={!!member.avatarPath} size="sm" />
-          <span className="rounded bg-white/85 px-1 text-[10px] font-medium leading-tight text-ink shadow-sm">
-            {member.firstName}
-          </span>
-        </Link>
-      ))}
+      {placed.map(({ xPct, yPct, member }) => {
+        const inner = (
+          <>
+            <Avatar userId={member.athleteId} firstName={member.firstName} hasAvatar={!!member.avatarPath} size="sm" />
+            <span className="rounded bg-white/85 px-1 text-[10px] font-medium leading-tight text-ink shadow-sm">
+              {member.firstName}
+            </span>
+          </>
+        );
+        const className = "absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5";
+        const style = { left: `${xPct}%`, top: `${yPct}%` };
+        return interactive ? (
+          <Link key={member.athleteId} href={`/coach/athletes/${member.athleteId}`} className={className} style={style}>
+            {inner}
+          </Link>
+        ) : (
+          <div key={member.athleteId} className={className} style={style}>
+            {inner}
+          </div>
+        );
+      })}
     </div>
   );
 }
