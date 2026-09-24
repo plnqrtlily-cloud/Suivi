@@ -36,12 +36,7 @@ export async function CoachSidebar({ user, activeHref }: { user: User; activeHre
   }
 
   return (
-    <aside
-      className="hidden w-[190px] shrink-0 flex-col border-r border-line bg-white lg:flex"
-      // Nom stable : reste hors du fondu de transition entre pages (cf.
-      // globals.css) plutôt que de clignoter à chaque clic dans la barre.
-      style={{ viewTransitionName: "app-sidebar" }}
-    >
+    <aside className="hidden w-[190px] shrink-0 flex-col border-r border-line bg-white lg:flex">
       <Link href="/coach/dashboard" className="px-4 pb-2 pt-4 font-display text-lg text-ink">
         Rythme
       </Link>

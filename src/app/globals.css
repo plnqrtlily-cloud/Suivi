@@ -54,45 +54,8 @@ body {
   }
 }
 
-/* Transitions entre pages (View Transitions API, natif depuis Next 16 — cf.
-   node_modules/next/dist/docs/01-app/02-guides/view-transitions.md, "works
-   with no configuration"). Un fondu court sur le contenu ; la barre latérale
-   et les barres de navigation mobile restent fixes plutôt que de clignoter à
-   chaque clic — cf. viewTransitionName sur coach-sidebar.tsx/nav.tsx/
-   bottom-nav.tsx. */
-::view-transition-old(root),
-::view-transition-new(root),
-::view-transition-old(athlete-tab-content),
-::view-transition-new(athlete-tab-content) {
-  animation-duration: 130ms;
-  animation-timing-function: ease-out;
-}
-
-::view-transition-group(app-sidebar),
-::view-transition-group(app-nav),
-::view-transition-group(app-bottom-nav) {
-  animation: none;
-}
-::view-transition-old(app-sidebar),
-::view-transition-old(app-nav),
-::view-transition-old(app-bottom-nav) {
-  display: none;
-}
-::view-transition-new(app-sidebar),
-::view-transition-new(app-nav),
-::view-transition-new(app-bottom-nav) {
-  animation: none;
-}
-
-/* Le calque de transition capte les clics par défaut : sans ça, cliquer
-   juste après une navigation ne fait rien pendant ~130ms. */
-::view-transition {
-  pointer-events: none;
-}
-
 /* Ouverture des formulaires repliables (nouvelle activité/indisponibilité,
-   création d'un test personnalisé) : ils apparaissaient jusqu'ici d'un coup,
-   en rupture avec le reste des micro-transitions de l'app. */
+   création d'un test personnalisé) : ils apparaissaient jusqu'ici d'un coup. */
 @keyframes expand-in {
   from {
     opacity: 0;
@@ -108,12 +71,6 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  ::view-transition-old(*),
-  ::view-transition-new(*),
-  ::view-transition-group(*) {
-    animation-duration: 0s !important;
-    animation-delay: 0s !important;
-  }
   .animate-expand-in {
     animation: none !important;
   }
