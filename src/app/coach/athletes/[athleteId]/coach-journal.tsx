@@ -21,11 +21,13 @@ function AutoTextarea({
   defaultValue,
   placeholder,
   minRows = 2,
+  autoFocus,
 }: {
   name: string;
   defaultValue?: string;
   placeholder?: string;
   minRows?: number;
+  autoFocus?: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -47,6 +49,7 @@ function AutoTextarea({
       rows={minRows}
       defaultValue={defaultValue}
       placeholder={placeholder}
+      autoFocus={autoFocus}
       onInput={(e) => resize(e.currentTarget)}
       className="w-full resize-none overflow-hidden rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-moss"
     />
@@ -109,7 +112,7 @@ function EntryCard({ entry, onDeleted }: { entry: CoachNoteEntry; onDeleted: (id
       {editing ? (
         <>
           <form onSubmit={handleSave} className="flex flex-col gap-2">
-            <AutoTextarea name="body" defaultValue={entry.body} />
+            <AutoTextarea name="body" defaultValue={entry.body} autoFocus />
             <div className="flex flex-wrap items-center gap-2">
               <input
                 type="date"

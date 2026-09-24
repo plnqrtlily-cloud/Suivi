@@ -66,7 +66,13 @@ export default async function CoachMessageriePage() {
 
           {activeAthletes.length === 0 ? (
             <Card className="rounded-3xl">
-              <p className="text-slate">Aucun athlète actif pour l&apos;instant.</p>
+              <p className="text-slate">
+                Aucun athlète actif pour l&apos;instant —{" "}
+                <Link href="/coach/dashboard" className="font-medium text-moss-dark hover:underline">
+                  invitez-en un d&apos;abord
+                </Link>
+                .
+              </p>
             </Card>
           ) : (
             <div className="flex flex-col gap-2">

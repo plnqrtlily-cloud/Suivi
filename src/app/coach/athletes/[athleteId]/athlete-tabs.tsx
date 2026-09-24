@@ -48,11 +48,15 @@ export function AthleteTabs({
 
   return (
     <>
-      <div className="mb-6 flex gap-1 overflow-x-auto border-b border-line">
+      <div role="tablist" className="mb-6 flex gap-1 overflow-x-auto border-b border-line">
         {ATHLETE_TABS.map((t) => (
           <button
             key={t.value}
             type="button"
+            role="tab"
+            id={`tab-${t.value}`}
+            aria-selected={active === t.value}
+            aria-controls={`panel-${t.value}`}
             onClick={() => select(t.value)}
             className={`-mb-px whitespace-nowrap border-b-2 px-3.5 py-2 text-sm transition-colors ${
               active === t.value
@@ -66,7 +70,7 @@ export function AthleteTabs({
       </div>
 
       {ATHLETE_TABS.map((t) => (
-        <div key={t.value} hidden={active !== t.value}>
+        <div key={t.value} role="tabpanel" id={`panel-${t.value}`} aria-labelledby={`tab-${t.value}`} hidden={active !== t.value}>
           {children[t.value]}
         </div>
       ))}

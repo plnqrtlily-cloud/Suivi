@@ -252,7 +252,13 @@ export default async function AthleteDashboard({
               <p className="mt-0.5 text-slate">{selectedImports.map((a) => sportLabel(a.sport)).join(", ")} — voir le détail</p>
             </Link>
           ) : (
-            <p className="text-sm text-slate">Aucune séance prévue ni activité enregistrée ce jour-là.</p>
+            <p className="text-sm text-slate">
+              Aucune séance prévue ni activité enregistrée ce jour-là —{" "}
+              <Link href="/athlete/programmation" className="font-medium text-moss-dark hover:underline">
+                déclarer une activité
+              </Link>
+              .
+            </p>
           )}
 
           {/* Journal de bord regroupé ici avec le reste des informations du jour

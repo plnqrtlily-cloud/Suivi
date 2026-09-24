@@ -407,7 +407,7 @@ export default async function AthleteDetailPage({
                     {upcomingGoals.length > 0 && (
                       <div>
                         <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Prochain objectif</h2>
-                        <UpcomingGoals goals={upcomingGoals.slice(0, 1)} />
+                        <UpcomingGoals goals={upcomingGoals.slice(0, 1)} athleteId={athleteId} />
                       </div>
                     )}
 
@@ -625,7 +625,7 @@ export default async function AthleteDetailPage({
         {/* Les objectifs vivent ici et nulle part ailleurs : c'est en programmant
             qu'on a besoin de voir vers quoi on programme. */}
         <div className="mt-8">
-          <UpcomingGoals goals={upcomingGoals} />
+          <UpcomingGoals goals={upcomingGoals} athleteId={athleteId} />
         </div>
 
               </>

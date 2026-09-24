@@ -279,18 +279,25 @@ export function EffortTestsPanel({
               Au moment d&apos;enregistrer un résultat, vous choisirez vous-même l&apos;indicateur de performance obtenu.
             </p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <input
-                name="name"
-                placeholder="Nom du test (ex. Test palier tapis)"
-                required
-                className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
-              />
-              <input
-                name="sport"
-                placeholder="Sport concerné (ex. running)"
-                required
-                className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
-              />
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="font-medium text-ink-soft">Nom du test</span>
+                <input
+                  name="name"
+                  autoFocus
+                  placeholder="ex. Test palier tapis"
+                  required
+                  className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="font-medium text-ink-soft">Sport concerné</span>
+                <input
+                  name="sport"
+                  placeholder="ex. running"
+                  required
+                  className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
+                />
+              </label>
             </div>
             <div className="flex flex-col gap-2">
               <span className="text-xs font-medium text-ink-soft">Données à relever</span>
@@ -298,12 +305,14 @@ export function EffortTestsPanel({
                 <div key={i} className="grid grid-cols-2 gap-2">
                   <input
                     name="fieldLabel"
+                    aria-label={`Nom du champ ${i + 1}`}
                     placeholder={`Champ ${i + 1} (ex. Vitesse palier 4)`}
                     required={i === 0}
                     className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
                   />
                   <input
                     name="fieldUnit"
+                    aria-label={`Unité du champ ${i + 1}`}
                     placeholder="Unité (facultatif)"
                     className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
                   />

@@ -32,6 +32,7 @@ export function TeamHeaderActions({ teamId, currentName }: { teamId: string; cur
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
+          aria-label="Nom de l'équipe"
           className="rounded-md border border-line bg-white px-3 py-1.5 text-sm outline-none focus:border-moss focus:ring-1 focus:ring-moss"
           autoFocus
         />

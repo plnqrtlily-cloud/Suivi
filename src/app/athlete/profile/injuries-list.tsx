@@ -51,6 +51,7 @@ export function InjuriesList({ injuries }: { injuries: Injury[] }) {
                     name="zone"
                     defaultValue={i.zone}
                     required
+                    autoFocus
                     className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
                   />
                 </label>

@@ -72,6 +72,7 @@ export function MeasurementsHistory({
                       name="metric"
                       defaultValue={h.metric}
                       required
+                      autoFocus
                       className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
                     >
                       {groupMetrics(metrics).map(({ group, items }) => (

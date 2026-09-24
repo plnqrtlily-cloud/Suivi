@@ -76,7 +76,12 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ tea
                       {m.first_name} {m.last_name}
                     </span>
                     <div className="flex items-center gap-2">
-                      <UpdateMemberPositionForm memberId={m.member_id} sport={sport} currentPosition={m.position} />
+                      <UpdateMemberPositionForm
+                        memberId={m.member_id}
+                        sport={sport}
+                        currentPosition={m.position}
+                        athleteName={`${m.first_name} ${m.last_name}`}
+                      />
                       <RemoveMemberButton memberId={m.member_id} />
                     </div>
                   </div>

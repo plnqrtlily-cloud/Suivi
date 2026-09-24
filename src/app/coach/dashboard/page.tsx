@@ -267,6 +267,13 @@ export default async function CoachDashboardPage() {
                 programmer des séances et suivre sa forme au jour le jour.
               </p>
               <InviteForm key={planStatus.isPro ? "pro" : "free"} />
+              <p className="mt-3 text-xs text-slate">
+                Un sport collectif à suivre ?{" "}
+                <Link href="/coach/equipes" className="font-medium text-moss-dark hover:underline">
+                  Créez une équipe
+                </Link>{" "}
+                pour visualiser tout l&apos;effectif sur un terrain.
+              </p>
               {pendingInvites.length > 0 && (
                 <div className="mt-4 flex flex-col gap-2 border-t border-line pt-4">
                   {pendingInvites.map((link) => (

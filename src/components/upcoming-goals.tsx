@@ -38,9 +38,22 @@ function urgencyColor(days: number): string {
   return "text-moss-dark";
 }
 
-export function UpcomingGoals({ goals }: { goals: any[] }) {
+export function UpcomingGoals({ goals, athleteId }: { goals: any[]; athleteId?: string }) {
   if (goals.length === 0) {
-    return <p className="text-sm text-slate">Aucun objectif ou événement à venir programmé.</p>;
+    return (
+      <p className="text-sm text-slate">
+        Aucun objectif ou événement à venir programmé.
+        {athleteId && (
+          <>
+            {" "}
+            <Link href={`/coach/athletes/${athleteId}/new-workout`} className="font-medium text-moss-dark hover:underline">
+              Programmer une séance de catégorie « Objectif »
+            </Link>
+            .
+          </>
+        )}
+      </p>
+    );
   }
 
   return (
