@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { updateMeasurementAction, deleteMeasurementAction } from "@/lib/actions";
 import { MEASUREMENT_DEVICES, deviceLabel, groupMetrics } from "@/lib/performance-metrics";
@@ -28,8 +28,13 @@ export function MeasurementsHistory({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  // Copie locale retirée optimistiquement à la suppression, même pattern que
+  // CoachReminders : attendre le router.refresh() pour faire disparaître la
+  // ligne donnait l'impression que le clic n'avait rien fait.
+  const [items, setItems] = useState(history);
+  useEffect(() => setItems(history), [history]);
 
-  const visible = showAll ? history : history.slice(0, 10);
+  const visible = showAll ? items : items.slice(0, 10);
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>, id: string) {
     e.preventDefault();
@@ -43,13 +48,12 @@ export function MeasurementsHistory({
 
   async function handleDelete(id: string) {
     if (!confirm("Supprimer cette mesure ?")) return;
-    setPending(true);
+    setItems((prev) => prev.filter((h) => h.id !== id));
     await deleteMeasurementAction(id, athleteId);
-    setPending(false);
     router.refresh();
   }
 
-  if (history.length === 0) {
+  if (items.length === 0) {
     return <p className="text-sm text-slate">Aucune mesure pour l&apos;instant.</p>;
   }
 
@@ -174,13 +178,13 @@ export function MeasurementsHistory({
           );
         })}
       </ul>
-      {history.length > visible.length && (
+      {items.length > visible.length && (
         <button
           type="button"
           onClick={() => setShowAll(true)}
           className="mt-3 text-xs font-semibold text-moss-dark hover:underline"
         >
-          Voir les {history.length - visible.length} mesures plus anciennes
+          Voir les {items.length - visible.length} mesures plus anciennes
         </button>
       )}
     </div>

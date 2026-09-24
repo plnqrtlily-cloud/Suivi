@@ -19,6 +19,7 @@ export async function Nav({ user }: { user: User }) {
     ...(user.role === "coach"
       ? [
           { href: "/coach/dashboard", icon: "dashboard" as const, label: "Tableau de bord" },
+          { href: "/coach/equipes", icon: "pitch" as const, label: "Équipes" },
           { href: "/coach/nouvelle-seance", icon: "add" as const, label: "Créer" },
           { href: "/coach/planification", icon: "calendar" as const, label: "Planification" },
           { href: "/coach/messagerie", icon: "messages" as const, label: "Messagerie" },
@@ -45,13 +46,17 @@ export async function Nav({ user }: { user: User }) {
     </span>
   );
 
-  // La barre du bas se limite à cinq onglets : au-delà, les libellés
-  // deviennent illisibles sur un écran étroit. Paramètres y figure toujours —
-  // c'est la seule navigation sur mobile, et on y trouve le compte, les
-  // connexions de montre et les coachs liés : le tronquer les rendrait
-  // inaccessibles.
+  // Toutes les destinations passent dans la barre du bas plutôt qu'un
+  // sous-ensemble arbitraire : Équipes n'y figurait pas du tout jusqu'ici, ce
+  // qui la rendait injoignable sur mobile pour un coach (elle n'existe que
+  // dans la sidebar desktop). BottomNav répartit ses items en `flex-1` et
+  // tronque les libellés trop longs, donc élargir la liste (5 pour l'athlète,
+  // 7 pour le coach) reste lisible sans logique de troncature séparée à
+  // maintenir. Paramètres reste toujours en dernier : c'est la seule
+  // navigation sur mobile vers le compte, les connexions de montre et les
+  // coachs liés.
   const settingsItem = navItems.find((i) => i.href === "/settings")!;
-  const bottomNavItems = [...navItems.filter((i) => i.href !== "/settings").slice(0, 4), settingsItem];
+  const bottomNavItems = [...navItems.filter((i) => i.href !== "/settings"), settingsItem];
 
   return (
     <>

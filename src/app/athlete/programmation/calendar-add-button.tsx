@@ -94,7 +94,7 @@ export function CalendarAddButton({ defaultDate }: { defaultDate: string }) {
   }
 
   return (
-    <div className="rounded-3xl border border-line bg-white p-4">
+    <div className="animate-expand-in rounded-3xl border border-line bg-white p-4">
       <div className="mb-4 flex rounded-2xl bg-paper-dim p-1">
         <button
           type="button"

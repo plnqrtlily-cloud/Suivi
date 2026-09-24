@@ -62,7 +62,7 @@ function frLong(iso: string): string {
   });
 }
 
-function EntryCard({ entry }: { entry: CoachNoteEntry }) {
+function EntryCard({ entry, onDeleted }: { entry: CoachNoteEntry; onDeleted: (id: string) => void }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [pending, setPending] = useState(false);
@@ -81,13 +81,14 @@ function EntryCard({ entry }: { entry: CoachNoteEntry }) {
     router.refresh();
   }
 
+  // Retrait optimiste (cf. CoachReminders) : la note disparaît dès la
+  // confirmation plutôt qu'après l'aller-retour serveur complet.
   async function handleDelete() {
     if (!confirm("Supprimer cette note ?")) return;
-    setPending(true);
+    onDeleted(entry.id);
     const formData = new FormData();
     formData.set("entryId", entry.id);
     await deleteCoachNoteEntryAction(formData);
-    setPending(false);
     router.refresh();
   }
 
@@ -153,9 +154,13 @@ export function CoachJournal({
   today: string;
 }) {
   const router = useRouter();
+  // Copie locale pour le retrait optimiste (cf. EntryCard.handleDelete) :
+  // resynchronisée à chaque rafraîchissement serveur des données réelles.
+  const [items, setItems] = useState(entries);
+  useEffect(() => setItems(entries), [entries]);
   // Les notes s'empilent vite ; on en montre vingt et le reste sur demande.
   const [showAll, setShowAll] = useState(false);
-  const visible = showAll ? entries : entries.slice(0, 20);
+  const visible = showAll ? items : items.slice(0, 20);
   const [pending, setPending] = useState(false);
   // Remonter le champ (au lieu d'un simple form.reset()) le vide ET ramène sa
   // hauteur à sa valeur de repos — un reset natif efface le texte mais laisse
@@ -200,22 +205,22 @@ export function CoachJournal({
         </div>
       </form>
 
-      {entries.length === 0 ? (
+      {items.length === 0 ? (
         <p className="text-sm text-slate">Aucune note pour l&apos;instant.</p>
       ) : (
         <>
           <ul className="flex flex-col gap-2">
             {visible.map((e) => (
-              <EntryCard key={e.id} entry={e} />
+              <EntryCard key={e.id} entry={e} onDeleted={(id) => setItems((prev) => prev.filter((x) => x.id !== id))} />
             ))}
           </ul>
-          {entries.length > visible.length && (
+          {items.length > visible.length && (
             <button
               type="button"
               onClick={() => setShowAll(true)}
               className="mt-3 text-xs font-semibold text-moss-dark hover:underline"
             >
-              Voir les {entries.length - visible.length} notes plus anciennes
+              Voir les {items.length - visible.length} notes plus anciennes
             </button>
           )}
         </>

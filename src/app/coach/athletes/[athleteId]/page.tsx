@@ -471,6 +471,142 @@ export default async function AthleteDetailPage({
                     </Card>
                   </div>
                 </div>
+
+                {/* Bilan d'entraînement fusionné ici (ex-onglet "Bilan") : l'aperçu
+                    donne l'instantané du jour, le bilan le recul sur une période —
+                    deux facettes d'un même résumé plutôt que deux onglets voisins
+                    à sept clics du même endroit. */}
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="font-display text-xl text-ink">Bilan d&apos;entraînement</h2>
+                  <div className="flex rounded-2xl bg-paper-dim p-1">
+                    {BILAN_PERIODS.map((p) => (
+                      <Link
+                        key={p.value}
+                        href={bilanHref(p.value, bilanAnchor)}
+                        scroll={false}
+                        className={`rounded-xl px-3.5 py-1.5 text-center text-sm font-semibold transition-colors ${
+                          bilanPeriod.value === p.value ? "bg-white text-ink shadow-sm" : "text-slate"
+                        }`}
+                      >
+                        {p.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+                {/* Navigation de période : le bilan ne se limitait qu'à une fenêtre
+                    glissante finissant aujourd'hui, impossible donc de revoir une
+                    semaine précise. On peut maintenant reculer, avancer, ou choisir
+                    directement une date dans la période voulue. */}
+                <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2">
+                  <Link
+                    href={bilanHref(bilanPeriod.value, bilanPrev)}
+                    scroll={false}
+                    aria-label="Période précédente"
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-lg leading-none text-slate transition-colors hover:bg-paper-dim hover:text-ink"
+                  >
+                    ‹
+                  </Link>
+                  <span className="min-w-0 flex-1 text-center text-sm font-semibold capitalize text-ink">{bilanWindow.label}</span>
+                  {canGoNext ? (
+                    <Link
+                      href={bilanHref(bilanPeriod.value, bilanNext)}
+                      scroll={false}
+                      aria-label="Période suivante"
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-lg leading-none text-slate transition-colors hover:bg-paper-dim hover:text-ink"
+                    >
+                      ›
+                    </Link>
+                  ) : (
+                    <span
+                      aria-hidden
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-lg leading-none text-line"
+                    >
+                      ›
+                    </span>
+                  )}
+                  <form action={`/coach/athletes/${athleteId}`} className="flex items-center gap-2">
+                    <input type="hidden" name="bilan" value={bilanPeriod.value} />
+                    <input
+                      type="date"
+                      name="bilanDate"
+                      defaultValue={bilanAnchor}
+                      max={today}
+                      aria-label="Aller à une date"
+                      className="rounded-xl border border-line bg-paper-dim px-2 py-1 text-xs text-ink"
+                    />
+                    <button type="submit" className="rounded-xl bg-moss px-3 py-1.5 text-xs font-semibold text-white">
+                      Aller
+                    </button>
+                  </form>
+                  {(!isCurrentWindow || customRange) && (
+                    <Link
+                      href={bilanHref(bilanPeriod.value, today)}
+                      scroll={false}
+                      className="rounded-xl border border-line px-3 py-1.5 text-xs font-semibold text-slate transition-colors hover:text-ink"
+                    >
+                      Aujourd&apos;hui
+                    </Link>
+                  )}
+                </div>
+
+                {/* Plage libre, pour les questions qui ne tombent pas sur une semaine
+                    ou un mois entier — repliée par défaut : la navigation par période
+                    ci-dessus couvre l'essentiel des usages, cette option reste secondaire
+                    sauf quand elle est déjà appliquée. */}
+                <details className="mb-8 rounded-2xl border border-line bg-white px-3 py-2" open={!!customRange}>
+                  <summary className="cursor-pointer text-[11px] font-bold uppercase tracking-wider text-slate">
+                    Plage personnalisée
+                  </summary>
+                  <form
+                    action={`/coach/athletes/${athleteId}`}
+                    className="mt-3 flex flex-wrap items-end gap-2"
+                  >
+                    <input type="hidden" name="bilan" value={bilanPeriod.value} />
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate">Du</label>
+                      <input
+                        type="date"
+                        name="bilanFrom"
+                        defaultValue={customRange?.from ?? statsFromISO}
+                        max={today}
+                        className="rounded-xl border border-line bg-paper-dim px-2 py-1 text-xs text-ink"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate">Au</label>
+                      <input
+                        type="date"
+                        name="bilanTo"
+                        defaultValue={customRange?.to ?? statsToISO}
+                        max={today}
+                        className="rounded-xl border border-line bg-paper-dim px-2 py-1 text-xs text-ink"
+                      />
+                    </div>
+                    <button type="submit" className="rounded-xl bg-moss px-3 py-1.5 text-xs font-semibold text-white">
+                      Afficher cette plage
+                    </button>
+                    {customRange && <span className="text-xs text-slate">Plage personnalisée active</span>}
+                  </form>
+                </details>
+
+                {/* Statistiques et forme : deux sections de poids égal, plutôt qu'une
+                    grille sans titre suivie d'une seule Card titrée. */}
+                <div className="mb-8">
+                  <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Statistiques d&apos;entraînement</h3>
+                  <TrainingInsights
+                    workouts={allWorkouts.filter((w) => w.date >= statsFromISO && w.date <= statsToISO)}
+                    imports={recentImports}
+                    periodDays={bilanWindow.days}
+                    periodEnd={statsToISO < today ? statsToISO : today}
+                  />
+                </div>
+
+                {/* La forme subjective se lit à côté de la charge, pas ailleurs : c'est
+                    leur mise en regard qui dit si la charge passe bien. */}
+                <Card className="mb-8 rounded-3xl">
+                  <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Évolution de la forme</h3>
+                  <FormHistory checkins={bilanCheckins} />
+                </Card>
               </div>
             ),
             programmation: (
@@ -495,148 +631,25 @@ export default async function AthleteDetailPage({
               </>
             ),
             periodisation: <PeriodizationPanel athleteId={athleteId} periods={trainingPeriods} today={today} />,
-            bilan: (
-              <>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-display text-xl text-ink">Bilan d&apos;entraînement</h2>
-          <div className="flex rounded-2xl bg-paper-dim p-1">
-            {BILAN_PERIODS.map((p) => (
-              <Link
-                key={p.value}
-                href={bilanHref(p.value, bilanAnchor)}
-                scroll={false}
-                className={`rounded-xl px-3.5 py-1.5 text-center text-sm font-semibold transition-colors ${
-                  bilanPeriod.value === p.value ? "bg-white text-ink shadow-sm" : "text-slate"
-                }`}
-              >
-                {p.label}
-              </Link>
-            ))}
-          </div>
-        </div>
-        {/* Navigation de période : le bilan ne se limitait qu'à une fenêtre
-            glissante finissant aujourd'hui, impossible donc de revoir une
-            semaine précise. On peut maintenant reculer, avancer, ou choisir
-            directement une date dans la période voulue. */}
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-white px-3 py-2">
-          <Link
-            href={bilanHref(bilanPeriod.value, bilanPrev)}
-            scroll={false}
-            aria-label="Période précédente"
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-lg leading-none text-slate transition-colors hover:bg-paper-dim hover:text-ink"
-          >
-            ‹
-          </Link>
-          <span className="min-w-0 flex-1 text-center text-sm font-semibold capitalize text-ink">{bilanWindow.label}</span>
-          {canGoNext ? (
-            <Link
-              href={bilanHref(bilanPeriod.value, bilanNext)}
-              scroll={false}
-              aria-label="Période suivante"
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-lg leading-none text-slate transition-colors hover:bg-paper-dim hover:text-ink"
-            >
-              ›
-            </Link>
-          ) : (
-            <span
-              aria-hidden
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-lg leading-none text-line"
-            >
-              ›
-            </span>
-          )}
-          <form action={`/coach/athletes/${athleteId}`} className="flex items-center gap-2">
-            <input type="hidden" name="bilan" value={bilanPeriod.value} />
-            <input
-              type="date"
-              name="bilanDate"
-              defaultValue={bilanAnchor}
-              max={today}
-              aria-label="Aller à une date"
-              className="rounded-xl border border-line bg-paper-dim px-2 py-1 text-xs text-ink"
-            />
-            <button type="submit" className="rounded-xl bg-moss px-3 py-1.5 text-xs font-semibold text-white">
-              Aller
-            </button>
-          </form>
-          {(!isCurrentWindow || customRange) && (
-            <Link
-              href={bilanHref(bilanPeriod.value, today)}
-              scroll={false}
-              className="rounded-xl border border-line px-3 py-1.5 text-xs font-semibold text-slate transition-colors hover:text-ink"
-            >
-              Aujourd&apos;hui
-            </Link>
-          )}
-        </div>
-
-        {/* Plage libre, pour les questions qui ne tombent pas sur une semaine
-            ou un mois entier — repliée par défaut : la navigation par période
-            ci-dessus couvre l'essentiel des usages, cette option reste secondaire
-            sauf quand elle est déjà appliquée. */}
-        <details className="mb-8 rounded-2xl border border-line bg-white px-3 py-2" open={!!customRange}>
-          <summary className="cursor-pointer text-[11px] font-bold uppercase tracking-wider text-slate">
-            Plage personnalisée
-          </summary>
-          <form
-            action={`/coach/athletes/${athleteId}`}
-            className="mt-3 flex flex-wrap items-end gap-2"
-          >
-            <input type="hidden" name="bilan" value={bilanPeriod.value} />
-            <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate">Du</label>
-              <input
-                type="date"
-                name="bilanFrom"
-                defaultValue={customRange?.from ?? statsFromISO}
-                max={today}
-                className="rounded-xl border border-line bg-paper-dim px-2 py-1 text-xs text-ink"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate">Au</label>
-              <input
-                type="date"
-                name="bilanTo"
-                defaultValue={customRange?.to ?? statsToISO}
-                max={today}
-                className="rounded-xl border border-line bg-paper-dim px-2 py-1 text-xs text-ink"
-              />
-            </div>
-            <button type="submit" className="rounded-xl bg-moss px-3 py-1.5 text-xs font-semibold text-white">
-              Afficher cette plage
-            </button>
-            {customRange && <span className="text-xs text-slate">Plage personnalisée active</span>}
-          </form>
-        </details>
-
-        {/* Statistiques et forme : deux sections de poids égal, plutôt qu'une
-            grille sans titre suivie d'une seule Card titrée. */}
-        <div className="mb-8">
-          <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Statistiques d&apos;entraînement</h3>
-          <TrainingInsights
-            workouts={allWorkouts.filter((w) => w.date >= statsFromISO && w.date <= statsToISO)}
-            imports={recentImports}
-            periodDays={bilanWindow.days}
-            periodEnd={statsToISO < today ? statsToISO : today}
-          />
-        </div>
-
-        {/* La forme subjective se lit à côté de la charge, pas ailleurs : c'est
-            leur mise en regard qui dit si la charge passe bien. */}
-        <Card className="mb-8 rounded-3xl">
-          <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Évolution de la forme</h3>
-          <FormHistory checkins={bilanCheckins} />
-        </Card>
-
-
-              </>
-            ),
             mesures: (
               <div className="flex flex-col gap-6">
 
+          {/* Sommaire de saut rapide : l'onglet empile quatre blocs distincts
+              (mesures, tests, zones, charges) — un lien direct évite de faire
+              défiler pour retrouver celui qu'on cherche. */}
+          <nav aria-label="Sections de l'onglet Mesures" className="-mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            <a href="#mesures-stats" className="font-medium text-moss-dark hover:underline">Statistiques &amp; mesures</a>
+            <a href="#mesures-tests" className="font-medium text-moss-dark hover:underline">Tests à l&apos;effort</a>
+            {(hrZones || powerZones || paceZones) && (
+              <a href="#mesures-zones" className="font-medium text-moss-dark hover:underline">Zones d&apos;entraînement</a>
+            )}
+            <a href="#mesures-charges" className="font-medium text-moss-dark hover:underline">Charges de référence</a>
+          </nav>
+
+          <h2 id="mesures-stats" className="font-display text-xl text-ink scroll-mt-4">Statistiques &amp; mesures</h2>
+
           <Card className="rounded-3xl">
-            <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Statistiques de performance</h2>
+            <h3 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Statistiques de performance</h3>
             <p className="mb-3 text-xs text-slate">Cliquez sur un indicateur pour voir son évolution.</p>
             <PerformanceStats metrics={METRICS} latest={measurements} seriesByMetric={seriesByMetric} />
             <form
@@ -715,7 +728,7 @@ export default async function AthleteDetailPage({
             )}
           </Card>
 
-        <h2 className="mb-3 font-display text-xl text-ink">Tests à l&apos;effort</h2>
+        <h2 id="mesures-tests" className="mb-3 font-display text-xl text-ink scroll-mt-4">Tests à l&apos;effort</h2>
         <p className="mb-3 text-sm text-slate">
           Renseignez un test connu (VMA, VO2max, FTP…) ou créez le vôtre — le résultat calculé alimente automatiquement
           les statistiques et zones ci-dessous, sans ressaisie.
@@ -726,7 +739,7 @@ export default async function AthleteDetailPage({
 
         {(hrZones || powerZones || paceZones) && (
           <>
-            <h2 className="mb-3 font-display text-xl text-ink">Zones d&apos;entraînement</h2>
+            <h2 id="mesures-zones" className="mb-3 font-display text-xl text-ink scroll-mt-4">Zones d&apos;entraînement</h2>
             <p className="mb-3 text-sm text-slate">Calculées à partir des dernières mesures renseignées — un repère par discipline plutôt que la seule fréquence cardiaque.</p>
             <div className="mb-8 grid gap-4 md:grid-cols-3">
               {hrZones && (
@@ -784,7 +797,7 @@ export default async function AthleteDetailPage({
           </>
         )}
 
-        <h2 className="mb-3 font-display text-xl text-ink">Charges de référence</h2>
+        <h2 id="mesures-charges" className="mb-3 font-display text-xl text-ink scroll-mt-4">Charges de référence</h2>
         <p className="mb-3 text-sm text-slate">
           Renseignez un max testé pour prescrire une charge en % dans le générateur de séance musculation.
         </p>

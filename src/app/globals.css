@@ -61,7 +61,9 @@ body {
    chaque clic — cf. viewTransitionName sur coach-sidebar.tsx/nav.tsx/
    bottom-nav.tsx. */
 ::view-transition-old(root),
-::view-transition-new(root) {
+::view-transition-new(root),
+::view-transition-old(athlete-tab-content),
+::view-transition-new(athlete-tab-content) {
   animation-duration: 130ms;
   animation-timing-function: ease-out;
 }
@@ -88,11 +90,31 @@ body {
   pointer-events: none;
 }
 
+/* Ouverture des formulaires repliables (nouvelle activité/indisponibilité,
+   création d'un test personnalisé) : ils apparaissaient jusqu'ici d'un coup,
+   en rupture avec le reste des micro-transitions de l'app. */
+@keyframes expand-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-expand-in {
+  animation: expand-in 150ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-old(*),
   ::view-transition-new(*),
   ::view-transition-group(*) {
     animation-duration: 0s !important;
     animation-delay: 0s !important;
+  }
+  .animate-expand-in {
+    animation: none !important;
   }
 }

@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { flushSync } from "react-dom";
 
 export const ATHLETE_TABS = [
   { value: "apercu", label: "Aperçu" },
   { value: "programmation", label: "Calendrier" },
   { value: "periodisation", label: "Périodisation" },
-  { value: "bilan", label: "Bilan" },
   { value: "mesures", label: "Mesures" },
   { value: "sante", label: "Santé" },
   { value: "notes", label: "Notes" },
@@ -39,11 +39,23 @@ export function AthleteTabs({
   }, [storageKey]);
 
   function select(tab: AthleteTab) {
-    setActive(tab);
-    try {
-      window.localStorage.setItem(storageKey, tab);
-    } catch {
-      // Sans persistance, le choix reste valable pour la session en cours.
+    function apply() {
+      setActive(tab);
+      try {
+        window.localStorage.setItem(storageKey, tab);
+      } catch {
+        // Sans persistance, le choix reste valable pour la session en cours.
+      }
+    }
+    // Même fondu court que les transitions de page (cf. globals.css) : le
+    // changement d'onglet ne navigue nulle part, donc rien ne le déclenchait
+    // jusqu'ici — flushSync force le changement de DOM à se produire de façon
+    // synchrone dans le callback, condition requise par l'API pour capturer
+    // l'état "avant" puis "après".
+    if (typeof document !== "undefined" && "startViewTransition" in document) {
+      document.startViewTransition(() => flushSync(apply));
+    } else {
+      apply();
     }
   }
 
@@ -66,11 +78,17 @@ export function AthleteTabs({
         ))}
       </div>
 
-      {ATHLETE_TABS.map((t) => (
-        <div key={t.value} hidden={active !== t.value}>
-          {children[t.value]}
-        </div>
-      ))}
+      {/* Nom dédié : le fondu du changement d'onglet ne doit crossfader que ce
+          bloc, pas la sidebar/nav (déjà exclues par ailleurs) ni le reste de
+          la page — cf. règle ::view-transition-*(athlete-tab-content) dans
+          globals.css. */}
+      <div style={{ viewTransitionName: "athlete-tab-content" }}>
+        {ATHLETE_TABS.map((t) => (
+          <div key={t.value} hidden={active !== t.value}>
+            {children[t.value]}
+          </div>
+        ))}
+      </div>
     </>
   );
 }

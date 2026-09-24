@@ -99,10 +99,21 @@ export function LinkButton({
   );
 }
 
-export function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={`rounded-lg border border-line bg-white p-5 ${className}`}>{children}</div>
-  );
+// `rounded-3xl` est de fait le rayon standard de l'app (presque tous les
+// appels le répètent dans `className`) — exposé en prop dédiée plutôt que
+// laissé au hasard de l'ordre de génération CSS de deux classes `rounded-*`
+// concurrentes dans une même chaîne `className`.
+export function Card({
+  children,
+  className = "",
+  rounded = "3xl",
+}: {
+  children: React.ReactNode;
+  className?: string;
+  rounded?: "lg" | "2xl" | "3xl";
+}) {
+  const roundedClass = { lg: "rounded-lg", "2xl": "rounded-2xl", "3xl": "rounded-3xl" }[rounded];
+  return <div className={`${roundedClass} border border-line bg-white p-5 ${className}`}>{children}</div>;
 }
 
 const STATUS_LABELS: Record<string, string> = {

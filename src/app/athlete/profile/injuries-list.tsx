@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { updateInjuryAction, deleteInjuryAction } from "@/lib/actions";
 import type { Injury } from "@/lib/queries";
@@ -11,6 +11,11 @@ export function InjuriesList({ injuries }: { injuries: Injury[] }) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // Copie locale retirée optimistiquement à la suppression : attendre le
+  // router.refresh() pour faire disparaître la ligne donnait l'impression
+  // que le clic n'avait rien fait pendant l'aller-retour serveur.
+  const [items, setItems] = useState(injuries);
+  useEffect(() => setItems(injuries), [injuries]);
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>, id: string) {
     e.preventDefault();
@@ -24,19 +29,18 @@ export function InjuriesList({ injuries }: { injuries: Injury[] }) {
 
   async function handleDelete(id: string) {
     if (!confirm("Supprimer cet antécédent ?")) return;
-    setPending(true);
+    setItems((prev) => prev.filter((i) => i.id !== id));
     await deleteInjuryAction(id);
-    setPending(false);
     router.refresh();
   }
 
-  if (injuries.length === 0) {
+  if (items.length === 0) {
     return <p className="text-slate">Aucun antécédent renseigné.</p>;
   }
 
   return (
     <ul className="mb-4 space-y-2 text-sm">
-      {injuries.map((i) => {
+      {items.map((i) => {
         if (editingId === i.id) {
           return (
             <li key={i.id} className="rounded-xl border border-line bg-white p-3">

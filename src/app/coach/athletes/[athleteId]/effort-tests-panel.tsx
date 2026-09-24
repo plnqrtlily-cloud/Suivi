@@ -120,7 +120,7 @@ export function EffortTestsPanel({
         {builtin && <p className="text-xs text-slate">{builtin.description}</p>}
 
         {(builtin || custom) && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="animate-expand-in grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium text-ink-soft">Date du test</span>
               <input
@@ -273,7 +273,7 @@ export function EffortTestsPanel({
             + Créer un test personnalisé
           </button>
         ) : (
-          <form onSubmit={handleCreateCustom} className="flex flex-col gap-3 rounded-2xl bg-paper-dim p-3">
+          <form onSubmit={handleCreateCustom} className="animate-expand-in flex flex-col gap-3 rounded-2xl bg-paper-dim p-3">
             <p className="text-xs text-slate">
               Pour un test que le référentiel ne connaît pas — définissez les données à relever selon votre matériel.
               Au moment d&apos;enregistrer un résultat, vous choisirez vous-même l&apos;indicateur de performance obtenu.
