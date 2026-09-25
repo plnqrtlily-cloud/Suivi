@@ -1,12 +1,22 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
+import { getCoachPlanStatus } from "@/lib/queries";
+import { isStripeConfigured } from "@/lib/stripe";
+import { createCheckoutSessionAction, createBillingPortalSessionAction } from "@/lib/actions";
 import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
-import { Card, LinkButton } from "@/components/ui";
+import { Card, LinkButton, Button } from "@/components/ui";
 import { FREE_PLAN_ATHLETE_LIMIT, FREE_PLAN_TEAM_LIMIT, PRO_PLAN_PRICE_EUR, TRIAL_DURATION_DAYS, upgradeMailtoHref } from "@/lib/billing";
 
 export default async function TarifsPage() {
   const user = await getCurrentUser();
+  // Le paiement en self-service n'a de sens que connecté (Stripe a besoin de
+  // savoir quel compte faire passer Pro) et déjà pas Pro (sinon on créerait un
+  // second abonnement pour le même coach) — sinon on retombe sur le contact
+  // par email, comme avant l'intégration Stripe.
+  const planStatus = user?.role === "coach" ? await getCoachPlanStatus(user.id) : null;
+  const canCheckout = user?.role === "coach" && isStripeConfigured() && planStatus?.plan !== "pro";
+  const alreadyPro = planStatus?.plan === "pro";
 
   const content = (
     <>
@@ -43,9 +53,28 @@ export default async function TarifsPage() {
             <li>Toutes les fonctionnalités de l&apos;offre gratuite</li>
             <li>Support prioritaire par email</li>
           </ul>
-          <LinkButton href={upgradeMailtoHref()} variant="primary">
-            Passer au plan Pro
-          </LinkButton>
+          {alreadyPro ? (
+            <>
+              <p className="mb-3 text-sm font-medium text-moss-dark">Vous êtes déjà au plan Pro.</p>
+              {isStripeConfigured() && (
+                <form action={createBillingPortalSessionAction}>
+                  <Button type="submit" variant="secondary">
+                    Gérer mon abonnement
+                  </Button>
+                </form>
+              )}
+            </>
+          ) : canCheckout ? (
+            <form action={createCheckoutSessionAction}>
+              <Button type="submit" variant="primary">
+                Passer au plan Pro
+              </Button>
+            </form>
+          ) : (
+            <LinkButton href={upgradeMailtoHref()} variant="primary">
+              Passer au plan Pro
+            </LinkButton>
+          )}
         </Card>
       </div>
 

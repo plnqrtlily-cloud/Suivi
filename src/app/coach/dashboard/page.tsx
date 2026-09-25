@@ -8,6 +8,8 @@ import {
   getTeamCountForCoach,
 } from "@/lib/queries";
 import { FREE_PLAN_ATHLETE_LIMIT, FREE_PLAN_TEAM_LIMIT } from "@/lib/billing";
+import { isStripeConfigured } from "@/lib/stripe";
+import { createBillingPortalSessionAction } from "@/lib/actions";
 import { computeRosterSignals, signalScore, type RosterSignals } from "@/lib/roster-signals";
 import { loadDashboardBatch } from "@/lib/dashboard-batch";
 import { todayISO, toISODate } from "@/lib/dates";
@@ -139,11 +141,16 @@ function AthleteCard({
   );
 }
 
-export default async function CoachDashboardPage() {
+export default async function CoachDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ upgraded?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "coach") redirect("/athlete");
 
+  const { upgraded } = await searchParams;
   const today = todayISO();
 
   const [links, reminders, planStatus, teamCount] = await Promise.all([
@@ -228,6 +235,24 @@ export default async function CoachDashboardPage() {
               </>
             )}
           </p>
+          {upgraded === "1" && (
+            <p
+              className={`mb-4 rounded-2xl px-4 py-3 text-sm font-medium ${
+                planStatus.plan === "pro" ? "bg-moss/10 text-moss-dark" : "bg-paper-dim text-ink-soft"
+              }`}
+            >
+              {planStatus.plan === "pro"
+                ? "Bienvenue au plan Pro ! Athlètes et équipes illimités dès maintenant."
+                : "Paiement reçu, confirmation en cours — rechargez la page dans quelques secondes si le plan Pro n'apparaît pas encore."}
+            </p>
+          )}
+          {planStatus.plan === "pro" && isStripeConfigured() && (
+            <form action={createBillingPortalSessionAction} className="mb-6">
+              <button type="submit" className="text-xs font-medium text-slate hover:text-ink hover:underline">
+                Gérer mon abonnement
+              </button>
+            </form>
+          )}
           {!planStatus.isPro && (
             <div className="mb-6 flex flex-wrap items-center gap-3">
               <p className="text-xs text-slate">

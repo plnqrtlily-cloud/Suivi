@@ -27,6 +27,7 @@ import { getResourceById, getBlocksForWorkout, getAthletesForCoach, getCoachPlan
 import { FREE_PLAN_ATHLETE_LIMIT, FREE_PLAN_TEAM_LIMIT, ADMIN_EMAIL } from "./billing";
 import { createNotification, markNotificationRead, markAllNotificationsRead } from "./notifications";
 import { sendEmail, isEmailConfigured, appBaseUrl } from "./email";
+import { isStripeConfigured, createCheckoutSession, createBillingPortalSession } from "./stripe";
 import { saveSubscription, removeSubscription } from "./push";
 import { isTeamSport, isValidPosition } from "./team-sports";
 import { EFFORT_TEST_CATALOG } from "./effort-tests";
@@ -136,6 +137,45 @@ export async function setCoachPlanAction(coachId: string, plan: "free" | "pro") 
 
   await dbRun(`UPDATE users SET plan = ? WHERE id = ?`, [plan, coachId]);
   revalidatePath("/admin");
+}
+
+// Paiement en self-service (Stripe) : redirige vers une session de paiement
+// hébergée par Stripe plutôt que d'attendre un email + une bascule manuelle
+// via setCoachPlanAction — c'est le webhook (src/app/api/stripe/webhook)
+// qui fait la bascule une fois le paiement confirmé, pas cette action.
+export async function createCheckoutSessionAction() {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  if (!isStripeConfigured()) throw new Error("Le paiement en ligne n'est pas encore configuré.");
+
+  const result = await createCheckoutSession({
+    coachId: user.id,
+    email: user.email,
+    successUrl: `${appBaseUrl()}/coach/dashboard?upgraded=1`,
+    cancelUrl: `${appBaseUrl()}/tarifs`,
+  });
+  if ("error" in result) throw new Error(result.error);
+  redirect(result.url);
+}
+
+// Portail client Stripe : un coach déjà Pro peut mettre à jour sa carte ou
+// résilier lui-même, sans repasser par un email adressé à l'éditeur.
+export async function createBillingPortalSessionAction() {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const row = await dbGet<{ stripe_customer_id: string | null }>(
+    `SELECT stripe_customer_id FROM users WHERE id = ?`,
+    [user.id]
+  );
+  if (!row?.stripe_customer_id) throw new Error("Aucun abonnement Stripe associé à ce compte.");
+
+  const result = await createBillingPortalSession({
+    customerId: row.stripe_customer_id,
+    returnUrl: `${appBaseUrl()}/coach/dashboard`,
+  });
+  if ("error" in result) throw new Error(result.error);
+  redirect(result.url);
 }
 
 export async function revokeAthleteAccessAction(linkId: string) {

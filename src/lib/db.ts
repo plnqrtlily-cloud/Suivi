@@ -582,6 +582,12 @@ const MIGRATIONS: string[] = [
   // dans billing.ts), même logique que l'expiration des sessions déjà en place
   // dans getCurrentUser (pas de tâche cron nécessaire).
   `ALTER TABLE users ADD COLUMN trial_started_at TEXT`,
+  // Identifiant client Stripe, renseigné à la première session de paiement
+  // aboutie (cf. src/lib/stripe.ts, webhook checkout.session.completed) —
+  // permet de retrouver le coach quand Stripe notifie plus tard l'annulation
+  // ou l'échec de paiement d'un abonnement (customer.subscription.*), ces
+  // événements ne portant que l'identifiant client, pas l'identifiant coach.
+  `ALTER TABLE users ADD COLUMN stripe_customer_id TEXT`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER
