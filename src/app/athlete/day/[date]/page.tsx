@@ -54,7 +54,9 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
       id: `w-${w.id}`,
       time: w.time,
       title: w.title,
-      subtitle: `${sportLabel(w.sport)}${w.duration_minutes ? ` · ${w.duration_minutes} min` : ""} · séance prévue`,
+      subtitle: `${sportLabel(w.sport)}${w.duration_minutes ? ` · ${w.duration_minutes} min` : ""} · séance prévue${
+        w.coach_first_name ? ` · programmée par ${w.coach_first_name}` : ""
+      }`,
       color: w.color,
       href: `/workouts/${w.id}`,
       status: w.status,
