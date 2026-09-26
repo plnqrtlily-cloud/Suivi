@@ -39,6 +39,11 @@ export function EffortTestsPanel({
   const builtin = selected.startsWith("builtin:") ? EFFORT_TEST_CATALOG[selected.slice(8)] : null;
   const custom = selected.startsWith("custom:") ? customTests.find((t) => t.id === selected.slice(7)) : null;
   const customFields = custom ? parseCustomFields(custom.fields_json) : [];
+  // "Autre" : un test ponctuel que le référentiel ne connaît pas et que le
+  // coach ne veut pas déclarer à l'avance (cf. "+ Créer un test personnalisé"
+  // plus bas, pour un test qu'il refera régulièrement) — juste un nom, un
+  // indicateur et une valeur, saisis une fois.
+  const isOther = selected === "other";
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -114,12 +119,13 @@ export function EffortTestsPanel({
                 ))}
               </optgroup>
             )}
+            <option value="other">Autre (test non répertorié)</option>
           </select>
         </label>
 
         {builtin && <p className="text-xs text-slate">{builtin.description}</p>}
 
-        {(builtin || custom) && (
+        {(builtin || custom || isOther) && (
           <div className="animate-expand-in grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium text-ink-soft">Date du test</span>
@@ -141,6 +147,19 @@ export function EffortTestsPanel({
                 ))}
               </select>
             </label>
+
+            {isOther && (
+              <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
+                <span className="font-medium text-ink-soft">Type de test</span>
+                <input
+                  name="customLabel"
+                  autoFocus
+                  required
+                  placeholder="ex. Test palier tapis, saut vertical…"
+                  className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
+                />
+              </label>
+            )}
 
             {builtin?.fields.map((f) => (
               <label key={f.key} className="flex flex-col gap-1.5 text-sm">
@@ -172,7 +191,7 @@ export function EffortTestsPanel({
               </label>
             ))}
 
-            {custom && (
+            {(custom || isOther) && (
               <>
                 <label className="flex flex-col gap-1.5 text-sm">
                   <span className="font-medium text-ink-soft">Indicateur obtenu</span>
@@ -230,7 +249,9 @@ export function EffortTestsPanel({
             {visibleResults.map((r) => {
               const testLabel = r.test_slug
                 ? EFFORT_TEST_CATALOG[r.test_slug]?.label ?? r.test_slug
-                : customTests.find((t) => t.id === r.custom_test_id)?.name ?? "Test personnalisé";
+                : r.custom_test_id
+                  ? customTests.find((t) => t.id === r.custom_test_id)?.name ?? "Test personnalisé"
+                  : r.custom_label ?? "Test personnalisé";
               const metricLabel = METRIC_LABELS[r.result_metric] ?? r.result_metric;
               return (
                 <li key={r.id} className="flex items-start justify-between gap-2 rounded-xl bg-paper-dim p-2">

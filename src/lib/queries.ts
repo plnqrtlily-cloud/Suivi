@@ -373,6 +373,7 @@ export interface EffortTestResultRow {
   athlete_id: string;
   test_slug: string | null;
   custom_test_id: string | null;
+  custom_label: string | null;
   test_date: string;
   data_json: string;
   result_metric: string;

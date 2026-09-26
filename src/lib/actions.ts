@@ -1121,6 +1121,31 @@ export async function addEffortTestResultAction(formData: FormData): Promise<{ o
     return { ok: true };
   }
 
+  const customLabel = String(formData.get("customLabel") || "").trim();
+  if (customLabel) {
+    resultMetric = String(formData.get("resultMetric") || "").trim();
+    const resultRaw = formData.get("resultValue");
+    resultValue = resultRaw ? Number(resultRaw) : NaN;
+    if (!resultMetric || Number.isNaN(resultValue)) {
+      return { error: "Choisissez l'indicateur obtenu et sa valeur." };
+    }
+
+    const resultId = randomUUID();
+    await dbBatch([
+      {
+        sql: `INSERT INTO effort_test_results (id, athlete_id, custom_label, test_date, data_json, result_metric, result_value, device, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [resultId, athleteId, customLabel, testDate, JSON.stringify(rawData), resultMetric, resultValue, device || null, note || null],
+      },
+      {
+        sql: `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note, device) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        args: [randomUUID(), athleteId, resultMetric, resultValue, testDate, `Test : ${customLabel}`, device || null],
+      },
+    ]);
+    revalidatePath("/athlete/profile");
+    revalidatePath(`/coach/athletes/${athleteId}`);
+    return { ok: true };
+  }
+
   return { error: "Choisissez un test." };
 }
 

@@ -588,6 +588,12 @@ const MIGRATIONS: string[] = [
   // ou l'échec de paiement d'un abonnement (customer.subscription.*), ces
   // événements ne portant que l'identifiant client, pas l'identifiant coach.
   `ALTER TABLE users ADD COLUMN stripe_customer_id TEXT`,
+  // Test à l'effort ponctuel, hors référentiel (cf. EFFORT_TEST_CATALOG) et hors
+  // tests personnalisés réutilisables (custom_effort_tests) : le coach tape
+  // juste le nom du test qu'il vient de faire passer, sans le déclarer à
+  // l'avance. Renseigné seulement quand test_slug et custom_test_id sont tous
+  // les deux NULL (cf. addEffortTestResultAction).
+  `ALTER TABLE effort_test_results ADD COLUMN custom_label TEXT`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER
