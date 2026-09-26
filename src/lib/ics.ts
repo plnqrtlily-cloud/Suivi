@@ -1,5 +1,6 @@
 import type { Workout } from "./queries";
 import { sportLabelPlain } from "./sport-labels";
+import { resolveTimeForSort } from "./time-of-day";
 
 // Génération d'un flux iCalendar (RFC 5545) auquel Google Agenda, Apple
 // Calendrier ou Outlook peuvent s'abonner. Le flux est en lecture seule : les
@@ -78,11 +79,14 @@ export function buildWorkoutsICS(workouts: Workout[], athleteName: string): stri
     const summary = `${prefix}${w.title} (${sportLabelPlain(w.sport)})`;
 
     // Une séance sans heure est un événement "journée entière" : forcer une
-    // heure arbitraire la ferait apparaître à 00:00 dans l'agenda.
-    const timing = w.time
+    // heure arbitraire la ferait apparaître à 00:00 dans l'agenda. Un créneau
+    // (matin/midi/après-midi/soir, sans heure précise) obtient une heure
+    // représentative — le format iCal n'a pas de granularité "créneau".
+    const preciseTime = w.time ? resolveTimeForSort(w.time) : null;
+    const timing = preciseTime
       ? [
-          `DTSTART:${toICSDateTime(w.date, w.time)}`,
-          `DTEND:${addMinutes(w.date, w.time, w.duration_minutes || 60)}`,
+          `DTSTART:${toICSDateTime(w.date, preciseTime)}`,
+          `DTEND:${addMinutes(w.date, preciseTime, w.duration_minutes || 60)}`,
         ]
       : [
           `DTSTART;VALUE=DATE:${toICSDate(w.date)}`,

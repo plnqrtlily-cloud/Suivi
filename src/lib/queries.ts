@@ -3,6 +3,17 @@ import type { Checkin } from "./checkin-types";
 import type { AvailabilitySlot } from "./time-of-day";
 import { computePlanStatus, type PlanStatus } from "./billing";
 
+// workouts.time est soit une heure "HH:MM" soit un créneau (morning/midday/
+// afternoon/evening, cf. lib/time-of-day.ts) quand le coach ne connaît pas
+// l'heure exacte — cette expression lui donne une heure représentative pour
+// que le tri chronologique en SQL les intercale correctement avec les heures
+// précises, plutôt que de les faire toutes retomber en fin de tri (comparaison
+// alphabétique d'un mot anglais contre "HH:MM").
+export const TIME_SORT_SQL = `CASE w.time
+  WHEN 'morning' THEN '08:00' WHEN 'midday' THEN '12:30'
+  WHEN 'afternoon' THEN '15:00' WHEN 'evening' THEN '19:00'
+  ELSE w.time END`;
+
 export interface AthleteLink {
   link_id: string;
   athlete_id: string | null;
@@ -202,7 +213,7 @@ export async function getWorkoutsForAthlete(
       `SELECT w.*, u.first_name as coach_first_name, u.last_name as coach_last_name
        FROM workouts w JOIN users u ON u.id = w.coach_id
        WHERE w.athlete_id = ? AND w.date BETWEEN ? AND ?${draftClause}
-       ORDER BY w.date ASC, w.time ASC`,
+       ORDER BY w.date ASC, ${TIME_SORT_SQL} ASC`,
       [athleteId, fromDate, toDate]
     );
   }
@@ -210,7 +221,7 @@ export async function getWorkoutsForAthlete(
     `SELECT w.*, u.first_name as coach_first_name, u.last_name as coach_last_name
      FROM workouts w JOIN users u ON u.id = w.coach_id
      WHERE w.athlete_id = ?${draftClause}
-     ORDER BY w.date ASC, w.time ASC`,
+     ORDER BY w.date ASC, ${TIME_SORT_SQL} ASC`,
     [athleteId]
   );
 }

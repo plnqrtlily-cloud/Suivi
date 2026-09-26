@@ -2,6 +2,7 @@ import Link from "next/link";
 import { sportLabel } from "@/components/ui";
 import { Workout } from "@/lib/queries";
 import { sportIconPath } from "@/lib/sport-icons";
+import { formatWorkoutTime } from "@/lib/time-of-day";
 
 const ICON_PROPS = {
   width: 18,
@@ -46,7 +47,7 @@ export function SessionCard({ workout }: { workout: Workout }) {
       <span className="min-w-0 flex-1">
         <p className="truncate text-[14.5px] font-semibold text-ink">{workout.title}</p>
         <p className="mt-0.5 truncate text-xs text-slate">
-          {workout.time ? `${workout.time} · ` : ""}
+          {workout.time ? `${formatWorkoutTime(workout.time)} · ` : ""}
           {sportLabel(workout.sport)}
           {workout.duration_minutes ? ` · ${workout.duration_minutes} min` : ""}
           {charge !== null ? ` · ${charge} u.a.` : ""}

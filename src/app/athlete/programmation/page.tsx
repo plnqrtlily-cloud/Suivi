@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getWorkoutsForAthlete, getImportedActivitiesForRange, getAvailabilityBlocksForRange } from "@/lib/queries";
 import { getWeekDates, getMonthGrid, monthLabel, todayISO, toISODate, type MonthCell } from "@/lib/dates";
-import { AVAILABILITY_SLOT_LABELS } from "@/lib/time-of-day";
+import { AVAILABILITY_SLOT_LABELS, resolveTimeForSort, formatWorkoutTime } from "@/lib/time-of-day";
 import { Nav } from "@/components/nav";
 import { sportLabel, StatusBadge } from "@/components/ui";
 import { sportIconPath } from "@/lib/sport-icons";
@@ -172,7 +172,7 @@ async function WeekView({ athleteId, offset, today }: { athleteId: string; offse
 
       <div className="flex flex-col gap-2">
         {weekDates.map((date, idx) => {
-          const dayWorkouts = workouts.filter((w) => w.date === date).sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"));
+          const dayWorkouts = workouts.filter((w) => w.date === date).sort((a, b) => resolveTimeForSort(a.time).localeCompare(resolveTimeForSort(b.time)));
           const dayImports = imports.filter((a) => a.activity_date === date);
           const dayBlocks = blocks.filter((b) => b.date === date);
           const totalMinutes = dayWorkouts.reduce((sum, w) => sum + (w.duration_minutes || 0), 0);
@@ -225,7 +225,7 @@ async function WeekView({ athleteId, offset, today }: { athleteId: string; offse
                       <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: w.color }} />
                       <span className="text-ink">{w.title}</span>
                       <span className="text-xs text-slate">
-                        {w.time ? `${w.time} · ` : ""}
+                        {w.time ? `${formatWorkoutTime(w.time)} · ` : ""}
                         {sportLabel(w.sport)}
                       </span>
                       {w.status !== "planned" && <StatusBadge status={w.status} />}

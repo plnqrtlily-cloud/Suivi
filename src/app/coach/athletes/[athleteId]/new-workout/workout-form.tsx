@@ -8,6 +8,14 @@ import { DateRangePicker, dateRangeToList } from "@/components/date-range-picker
 import { StrengthBuilder, BlockRow, LibraryResource, sortBlocksByGroupOrder } from "./strength-builder";
 import { IntervalBuilder, IntervalItem } from "./interval-builder";
 import { sportConfig } from "@/lib/sport-config";
+import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, isTimeOfDaySlug, type TimeOfDay } from "@/lib/time-of-day";
+
+type TimeMode = "none" | "precise" | TimeOfDay;
+
+function initialTimeMode(time: string | null | undefined): TimeMode {
+  if (!time) return "none";
+  return isTimeOfDaySlug(time) ? time : "precise";
+}
 
 interface TemplateBlockInput {
   block_type: string;
@@ -90,6 +98,12 @@ export function WorkoutForm({
   const formRef = useRef<HTMLFormElement>(null);
   const [sport, setSport] = useState(initial?.sport ?? "running");
   const [category, setCategory] = useState(initial?.category ?? "entrainement");
+  // Le coach ne connaît pas toujours l'heure exacte d'une séance à venir —
+  // seulement "le matin" ou "en soirée". Le créneau choisi part directement
+  // dans workouts.time à la place d'une heure "HH:MM" (cf. lib/time-of-day.ts),
+  // sans changement de schéma ni d'action serveur nécessaire.
+  const [timeMode, setTimeMode] = useState<TimeMode>(initialTimeMode(initial?.time));
+  const [preciseTime, setPreciseTime] = useState(initial?.time && !isTimeOfDaySlug(initial.time) ? initial.time : "");
   const [color, setColor] = useState(initial?.color ?? COLORS[0]);
   const [blocks, setBlocks] = useState<BlockRow[]>(initial?.blocks ?? []);
   const [intervals, setIntervals] = useState<IntervalItem[]>(initial?.intervals ?? []);
@@ -403,7 +417,33 @@ export function WorkoutForm({
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field label="Heure (facultatif)" type="time" name="time" defaultValue={initial?.time ?? ""} />
+        <div className="flex flex-col gap-1.5 text-sm">
+          <span className="text-ink-soft font-medium">Heure (facultatif)</span>
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={timeMode}
+              onChange={(e) => setTimeMode(e.target.value as TimeMode)}
+              className="rounded-md border border-line bg-white px-3 py-2 text-ink outline-none focus:border-moss focus:ring-1 focus:ring-moss"
+            >
+              <option value="none">Non précisée</option>
+              <option value="precise">Heure précise</option>
+              {TIME_OF_DAY_ORDER.map((slot) => (
+                <option key={slot} value={slot}>
+                  {TIME_OF_DAY_LABELS[slot]}
+                </option>
+              ))}
+            </select>
+            {timeMode === "precise" && (
+              <input
+                type="time"
+                value={preciseTime}
+                onChange={(e) => setPreciseTime(e.target.value)}
+                className="rounded-md border border-line bg-white px-3 py-2 text-ink outline-none focus:border-moss focus:ring-1 focus:ring-moss"
+              />
+            )}
+          </div>
+          <input type="hidden" name="time" value={timeMode === "none" ? "" : timeMode === "precise" ? preciseTime : timeMode} />
+        </div>
         <Field
           key={`duration-${templateKey}`}
           label="Durée prévue (minutes)"

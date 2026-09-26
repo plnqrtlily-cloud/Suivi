@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { createTeamSessionAction } from "@/lib/actions";
 import { Field, TextAreaField, Button } from "@/components/ui";
 import { DateRangePicker, dateRangeToList } from "@/components/date-range-picker";
+import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, type TimeOfDay } from "@/lib/time-of-day";
+
+type TimeMode = "none" | "precise" | TimeOfDay;
 
 const WEEKDAYS = [
   { value: 1, label: "Lun" },
@@ -21,6 +24,8 @@ export function TeamSessionForm({ teamId, teamName }: { teamId: string; teamName
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   const [weekdayFilter, setWeekdayFilter] = useState<number[]>([]);
+  const [timeMode, setTimeMode] = useState<TimeMode>("none");
+  const [preciseTime, setPreciseTime] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -50,7 +55,7 @@ export function TeamSessionForm({ teamId, teamName }: { teamId: string; teamName
       teamId,
       title: String(formData.get("title") || ""),
       dates,
-      time: String(formData.get("time") || "") || undefined,
+      time: timeMode === "none" ? undefined : timeMode === "precise" ? preciseTime || undefined : timeMode,
       durationMinutes: formData.get("duration") ? Number(formData.get("duration")) : undefined,
       description: String(formData.get("description") || "") || undefined,
     });
@@ -64,6 +69,8 @@ export function TeamSessionForm({ teamId, teamName }: { teamId: string; teamName
     setRangeStart(null);
     setRangeEnd(null);
     setWeekdayFilter([]);
+    setTimeMode("none");
+    setPreciseTime("");
     form.reset();
     router.refresh();
   }
@@ -112,7 +119,32 @@ export function TeamSessionForm({ teamId, teamName }: { teamId: string; teamName
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Heure (facultatif)" type="time" name="time" />
+        <div className="flex flex-col gap-1.5 text-sm">
+          <span className="text-ink-soft font-medium">Heure (facultatif)</span>
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={timeMode}
+              onChange={(e) => setTimeMode(e.target.value as TimeMode)}
+              className="rounded-md border border-line bg-white px-3 py-2 text-ink outline-none focus:border-moss focus:ring-1 focus:ring-moss"
+            >
+              <option value="none">Non précisée</option>
+              <option value="precise">Heure précise</option>
+              {TIME_OF_DAY_ORDER.map((slot) => (
+                <option key={slot} value={slot}>
+                  {TIME_OF_DAY_LABELS[slot]}
+                </option>
+              ))}
+            </select>
+            {timeMode === "precise" && (
+              <input
+                type="time"
+                value={preciseTime}
+                onChange={(e) => setPreciseTime(e.target.value)}
+                className="rounded-md border border-line bg-white px-3 py-2 text-ink outline-none focus:border-moss focus:ring-1 focus:ring-moss"
+              />
+            )}
+          </div>
+        </div>
         <Field label="Durée prévue (minutes)" type="number" name="duration" min={0} />
       </div>
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getWorkoutById, getBlocksForWorkout, getCommentsForWorkout, getAthletesForCoach, getLatestExerciseMaxes } from "@/lib/queries";
 import { computeVolume, formatSeconds } from "@/lib/strength-volume";
+import { formatWorkoutTime, isTimeOfDaySlug } from "@/lib/time-of-day";
 import { Nav } from "@/components/nav";
 import { Card, StatusBadge, sportLabel } from "@/components/ui";
 import { StatusForm } from "./status-form";
@@ -92,7 +93,11 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
           <div>
             <p className="text-sm text-slate">
               {sportLabel(workout.sport)} · {workout.date}
-              {workout.time ? ` à ${workout.time}` : ""}
+              {workout.time && isTimeOfDaySlug(workout.time)
+                ? ` · ${formatWorkoutTime(workout.time)}`
+                : workout.time
+                  ? ` à ${workout.time}`
+                  : ""}
               {workout.duration_minutes ? ` · ${workout.duration_minutes} min prévues` : ""}
             </p>
             <h1 className="font-display text-3xl text-ink">{workout.title}</h1>

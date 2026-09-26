@@ -1,5 +1,5 @@
 import { dbAll } from "./db";
-import type { Workout } from "./queries";
+import { TIME_SORT_SQL, type Workout } from "./queries";
 import type { Checkin } from "./checkin-types";
 
 // Le tableau de bord affichait une ligne par athlète en faisant 8 requêtes
@@ -158,7 +158,7 @@ export async function loadWorkoutsForAthletes(
   const rows = await dbAll<Workout>(
     `SELECT w.* FROM workouts w
      WHERE w.athlete_id IN (${placeholders(athleteIds.length)}) AND w.date BETWEEN ? AND ?
-     ORDER BY w.date ASC, w.time ASC`,
+     ORDER BY w.date ASC, ${TIME_SORT_SQL} ASC`,
     [...athleteIds, fromDate, toDate]
   );
   const map = new Map<string, Workout[]>();

@@ -14,6 +14,7 @@ import {
 import { AddJournalEntryForm } from "./add-journal-entry-form";
 import { estimateCyclePhase } from "@/lib/cycle";
 import { getWeekDates, todayISO, daysUntil } from "@/lib/dates";
+import { resolveTimeForSort } from "@/lib/time-of-day";
 import { Nav } from "@/components/nav";
 import { PeriodBadge } from "@/components/period-badge";
 import { Card, sportLabel, LinkButton } from "@/components/ui";
@@ -108,7 +109,7 @@ export default async function AthleteDashboard({
       getTrainingPeriodsForRange(user.id, selectedDate, selectedDate),
     ]);
   const selectedCheckin = isToday ? todaysCheckin : otherDayCheckin;
-  const primaryWorkout = [...selectedWorkouts].sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"))[0];
+  const primaryWorkout = [...selectedWorkouts].sort((a, b) => resolveTimeForSort(a.time).localeCompare(resolveTimeForSort(b.time)))[0];
   const otherCount = selectedWorkouts.length + selectedImports.length - (primaryWorkout ? 1 : 0);
 
   const cycleEstimate = gender === "female" ? await estimateCyclePhase(user.id) : null;

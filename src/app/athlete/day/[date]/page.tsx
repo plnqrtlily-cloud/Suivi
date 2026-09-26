@@ -6,7 +6,7 @@ import { Nav } from "@/components/nav";
 import { Card, StatusBadge, sportLabel } from "@/components/ui";
 import { ReadinessSummary } from "../../readiness-summary";
 import { DailyCheckin } from "../../daily-checkin";
-import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, TIME_OF_DAY_HINTS, groupByTimeOfDay } from "@/lib/time-of-day";
+import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, TIME_OF_DAY_HINTS, groupByTimeOfDay, formatPreciseTime } from "@/lib/time-of-day";
 import { todayISO } from "@/lib/dates";
 import { classifyHr } from "@/lib/hr-zones";
 import { DeleteAvailabilityButton } from "@/components/delete-availability-button";
@@ -128,7 +128,7 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
           </span>
         </div>
         <p className="mt-1 text-slate">
-          {e.time ? `${e.time} · ` : ""}
+          {formatPreciseTime(e.time) ? `${formatPreciseTime(e.time)} · ` : ""}
           {e.subtitle}
         </p>
         {e.activity?.route_points && (

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getWorkoutsForAthlete, getImportedActivitiesForRange, getAvailabilityBlocksForRange } from "@/lib/queries";
 import { getWeekDates, getMonthGrid, monthLabel } from "@/lib/dates";
-import { AVAILABILITY_SLOT_LABELS } from "@/lib/time-of-day";
+import { AVAILABILITY_SLOT_LABELS, resolveTimeForSort, formatWorkoutTime } from "@/lib/time-of-day";
 import { StatusBadge, sportLabel } from "@/components/ui";
 import { sportIconPath } from "@/lib/sport-icons";
 
@@ -84,7 +84,7 @@ async function CoachWeekView({ athleteId, offset, today, base }: { athleteId: st
 
       <div className="flex flex-col gap-2">
         {weekDates.map((date, idx) => {
-          const dayWorkouts = workouts.filter((w) => w.date === date).sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"));
+          const dayWorkouts = workouts.filter((w) => w.date === date).sort((a, b) => resolveTimeForSort(a.time).localeCompare(resolveTimeForSort(b.time)));
           const dayImports = imports.filter((a) => a.activity_date === date);
           const dayBlocks = blocks.filter((b) => b.date === date);
           const isToday = date === today;
@@ -123,7 +123,7 @@ async function CoachWeekView({ athleteId, offset, today, base }: { athleteId: st
                         <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: w.color }} />
                         <span className="truncate text-ink">{w.title}</span>
                         <span className="flex-shrink-0 text-xs text-slate">
-                          {w.time ? `${w.time} · ` : ""}
+                          {w.time ? `${formatWorkoutTime(w.time)} · ` : ""}
                           {sportLabel(w.sport)}
                         </span>
                       </span>

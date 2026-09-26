@@ -11,7 +11,7 @@ import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
 import { Card, StatusBadge, sportLabel } from "@/components/ui";
 import { RouteMap } from "@/components/route-map";
-import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, TIME_OF_DAY_HINTS, groupByTimeOfDay } from "@/lib/time-of-day";
+import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, TIME_OF_DAY_HINTS, groupByTimeOfDay, formatPreciseTime } from "@/lib/time-of-day";
 import { AVAILABILITY_SLOT_LABELS } from "@/lib/time-of-day";
 import { classifyHr } from "@/lib/hr-zones";
 import { todayISO } from "@/lib/dates";
@@ -122,7 +122,7 @@ export default async function CoachAthleteDayPage({ params }: { params: Promise<
           {e.status && <StatusBadge status={e.status} />}
         </div>
         <p className="mt-1 text-slate">
-          {e.time ? `${e.time} · ` : ""}
+          {formatPreciseTime(e.time) ? `${formatPreciseTime(e.time)} · ` : ""}
           {e.subtitle}
         </p>
         {e.routePoints && (
