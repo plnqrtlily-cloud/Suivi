@@ -2012,6 +2012,12 @@ function readPeriodFields(formData: FormData) {
   if (weeksRaw) {
     const weeks = Number(weeksRaw);
     if (Number.isFinite(weeks) && weeks > 0) endDate = endDateForWeeks(startDate, Math.round(weeks));
+  } else if (!endDate && startDate) {
+    // Le champ "durée" n'affiche que "4" en exemple grisé (placeholder), jamais
+    // soumis si le coach ne le remplit pas — sans ce filet, une période avec
+    // seulement une date de début plantait toute l'action (dates invalides)
+    // au lieu de proposer une durée par défaut raisonnable.
+    endDate = endDateForWeeks(startDate, 4);
   }
   return {
     level: PERIOD_LEVELS_SET.has(level) ? level : "cycle",

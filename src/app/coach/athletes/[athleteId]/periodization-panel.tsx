@@ -172,6 +172,9 @@ function PeriodFields({ period }: { period?: TrainingPeriod }) {
           <input type="number" name="weeks" min={1} max={104} placeholder="4" className={inputClass} />
         </div>
       </div>
+      {!period && (
+        <p className="-mt-1 text-xs text-slate">Ni fin ni durée renseignées : la période dure 4 semaines par défaut.</p>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div>
