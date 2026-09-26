@@ -4,7 +4,7 @@
 // vingtaine d'indicateurs toutes disciplines confondues, un menu déroulant à
 // plat devient difficile à parcourir — les <optgroup> du formulaire d'ajout
 // s'appuient dessus.
-export const METRIC_GROUPS = ["Général", "Cardio", "Vélo", "Course à pied", "Test en laboratoire"] as const;
+export const METRIC_GROUPS = ["Général", "Cardio", "Vélo", "Course à pied", "Natation", "Test en laboratoire"] as const;
 export type MetricGroup = (typeof METRIC_GROUPS)[number];
 
 export interface MetricDef {
@@ -52,6 +52,10 @@ export const PERFORMANCE_METRICS: MetricDef[] = [
   { value: "run_force_d_deg", label: "Force — Droite", unit: "°", group: "Course à pied" },
   { value: "run_angle_g_deg", label: "Angle — Gauche", unit: "°", group: "Course à pied" },
   { value: "run_angle_d_deg", label: "Angle — Droite", unit: "°", group: "Course à pied" },
+
+  // CSS (Critical Swim Speed) : allure de référence en natation, l'équivalent
+  // du FTP vélo ou du seuil course à pied — issue d'un test 400 m + 200 m.
+  { value: "allure_natation_min_100m", label: "Allure critique (CSS)", unit: "min/100m", group: "Natation" },
 
   { value: "vo2max", label: "VO2max estimée", unit: "ml/kg/min", group: "Test en laboratoire" },
   { value: "met", label: "MET", unit: "MET", group: "Test en laboratoire" },
