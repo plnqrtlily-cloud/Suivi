@@ -380,6 +380,9 @@ export interface EffortTestResultRow {
   result_value: number;
   device: string | null;
   note: string | null;
+  attachment_path: string | null;
+  attachment_mime_type: string | null;
+  attachment_name: string | null;
   created_at: string;
 }
 

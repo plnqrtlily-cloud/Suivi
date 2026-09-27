@@ -1048,6 +1048,27 @@ export async function addEffortTestResultAction(formData: FormData): Promise<{ o
   const note = String(formData.get("note") || "").trim();
   if (!testDate) return { error: "La date du test est obligatoire." };
 
+  // Pièce jointe (photo/vidéo/document) facultative, commune aux trois façons
+  // d'enregistrer un résultat ci-dessous — un coach reçoit souvent le résultat
+  // sous forme de capture d'écran ou de feuille imprimée, plus rapide à joindre
+  // qu'à retranscrire champ par champ.
+  const attachmentFile = formData.get("attachment") as File | null;
+  let attachmentPath: string | null = null;
+  let attachmentMimeType: string | null = null;
+  let attachmentName: string | null = null;
+  if (attachmentFile && attachmentFile.size > 0) {
+    if (attachmentFile.size > MAX_FILE_SIZE_BYTES) {
+      return { error: `Pièce jointe trop volumineuse (limite : ${MAX_FILE_SIZE_BYTES / (1024 * 1024)} Mo).` };
+    }
+    if (!ALLOWED_MIME_TYPES.includes(attachmentFile.type)) {
+      return { error: `Format non supporté (${attachmentFile.type || "inconnu"}). Formats acceptés : images, vidéos et PDF.` };
+    }
+    const saved = await saveUploadedFile(attachmentFile);
+    attachmentPath = saved.storedName;
+    attachmentMimeType = attachmentFile.type;
+    attachmentName = attachmentFile.name;
+  }
+
   const testSlug = String(formData.get("testSlug") || "").trim();
   const customTestId = String(formData.get("customTestId") || "").trim();
 
@@ -1063,16 +1084,22 @@ export async function addEffortTestResultAction(formData: FormData): Promise<{ o
       const value = raw ? Number(raw) : NaN;
       if (!Number.isNaN(value)) rawData[field.key] = value;
     }
-    const results = test.compute(rawData);
+    const computed = test.compute(rawData);
+    // Les champs qui portent leur propre indicateur (ex. FC max, équilibre de
+    // pédalage) sont enregistrés tels quels, en plus des indicateurs calculés
+    // par compute() — un test riche (ex. FTP 20 min complet) alimente ainsi
+    // plusieurs mesures d'un coup sans ressaisie séparée.
+    const direct = test.fields
+      .filter((f) => f.metric && rawData[f.key] !== undefined)
+      .map((f) => ({ metric: f.metric as string, value: rawData[f.key] }));
+    const results = [...computed, ...direct];
     if (results.length === 0) return { error: "Données insuffisantes pour calculer un résultat." };
-    // Le premier résultat calculé est celui répliqué comme mesure principale ;
-    // les suivants (ex. W/kg en plus du FTP) sont eux aussi enregistrés.
     const statements: { sql: string; args: unknown[] }[] = [];
     for (const r of results) {
       const resultId = randomUUID();
       statements.push({
-        sql: `INSERT INTO effort_test_results (id, athlete_id, test_slug, test_date, data_json, result_metric, result_value, device, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [resultId, athleteId, testSlug, testDate, JSON.stringify(rawData), r.metric, r.value, device || null, note || null],
+        sql: `INSERT INTO effort_test_results (id, athlete_id, test_slug, test_date, data_json, result_metric, result_value, device, note, attachment_path, attachment_mime_type, attachment_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [resultId, athleteId, testSlug, testDate, JSON.stringify(rawData), r.metric, r.value, device || null, note || null, attachmentPath, attachmentMimeType, attachmentName],
       });
       statements.push({
         sql: `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note, device) VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -1108,8 +1135,8 @@ export async function addEffortTestResultAction(formData: FormData): Promise<{ o
     const resultId = randomUUID();
     await dbBatch([
       {
-        sql: `INSERT INTO effort_test_results (id, athlete_id, custom_test_id, test_date, data_json, result_metric, result_value, device, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [resultId, athleteId, customTestId, testDate, JSON.stringify(rawData), resultMetric, resultValue, device || null, note || null],
+        sql: `INSERT INTO effort_test_results (id, athlete_id, custom_test_id, test_date, data_json, result_metric, result_value, device, note, attachment_path, attachment_mime_type, attachment_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [resultId, athleteId, customTestId, testDate, JSON.stringify(rawData), resultMetric, resultValue, device || null, note || null, attachmentPath, attachmentMimeType, attachmentName],
       },
       {
         sql: `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note, device) VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -1133,8 +1160,8 @@ export async function addEffortTestResultAction(formData: FormData): Promise<{ o
     const resultId = randomUUID();
     await dbBatch([
       {
-        sql: `INSERT INTO effort_test_results (id, athlete_id, custom_label, test_date, data_json, result_metric, result_value, device, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [resultId, athleteId, customLabel, testDate, JSON.stringify(rawData), resultMetric, resultValue, device || null, note || null],
+        sql: `INSERT INTO effort_test_results (id, athlete_id, custom_label, test_date, data_json, result_metric, result_value, device, note, attachment_path, attachment_mime_type, attachment_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [resultId, athleteId, customLabel, testDate, JSON.stringify(rawData), resultMetric, resultValue, device || null, note || null, attachmentPath, attachmentMimeType, attachmentName],
       },
       {
         sql: `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note, device) VALUES (?, ?, ?, ?, ?, ?, ?)`,

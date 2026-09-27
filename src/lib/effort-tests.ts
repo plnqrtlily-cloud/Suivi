@@ -13,6 +13,12 @@ export interface EffortTestFieldDef {
   label: string;
   unit?: string;
   optional?: boolean;
+  /** Quand renseigné, la valeur brute de ce champ est aussi enregistrée telle
+   * quelle comme mesure de performance (athlete_measurements), en plus de
+   * participer au calcul de compute() — pour les données déjà finales fournies
+   * par le matériel du coach (ex. FC max, équilibre de pédalage) plutôt que des
+   * données brutes à transformer par une formule. */
+  metric?: string;
 }
 
 export interface EffortTestResultDef {
@@ -75,7 +81,16 @@ export const EFFORT_TEST_CATALOG: Record<string, EffortTestDef> = {
     description: "Puissance moyenne maintenue sur 20 minutes à l'effort maximal soutenable.",
     fields: [
       { key: "avg_power_w", label: "Puissance moyenne sur 20 min", unit: "W" },
-      { key: "weight_kg", label: "Poids du jour", unit: "kg", optional: true },
+      { key: "weight_kg", label: "Poids du jour", unit: "kg", optional: true, metric: "weight_kg" },
+      { key: "mmp_w", label: "Puissance Max Minute (MMP)", unit: "W", optional: true, metric: "mmp_w" },
+      { key: "force_g_pct", label: "Équilibre de pédalage — Gauche", unit: "%", optional: true, metric: "pedal_force_g_pct" },
+      { key: "force_d_pct", label: "Équilibre de pédalage — Droite", unit: "%", optional: true, metric: "pedal_force_d_pct" },
+      { key: "angle_g_deg", label: "Angle de force max — Gauche", unit: "°", optional: true, metric: "pedal_angle_fmax_g_deg" },
+      { key: "angle_d_deg", label: "Angle de force max — Droite", unit: "°", optional: true, metric: "pedal_angle_fmax_d_deg" },
+      { key: "fc_max", label: "FC Max (MHR)", unit: "bpm", optional: true, metric: "fc_max" },
+      { key: "fcs", label: "FCS (FC de seuil)", unit: "bpm", optional: true, metric: "fc_seuil" },
+      { key: "vo2max_direct", label: "VO2max estimée", unit: "ml/kg/min", optional: true, metric: "vo2max" },
+      { key: "met", label: "MET", unit: "MET", optional: true, metric: "met" },
     ],
     results: [
       { metric: "ftp", label: "FTP" },
@@ -134,6 +149,36 @@ export const EFFORT_TEST_CATALOG: Record<string, EffortTestDef> = {
       const ftp = Math.round(avg * 0.9);
       const out = [{ metric: "ftp", value: ftp }];
       if (weight_kg) out.push({ metric: "power_weight_wkg", value: Math.round((ftp / weight_kg) * 100) / 100 });
+      return out;
+    },
+  },
+  puissance_30s: {
+    slug: "puissance_30s",
+    label: "Test de puissance 30 secondes (vélo)",
+    sport: "cycling",
+    description: "Sprint de 30 secondes à l'effort maximal soutenable, pour évaluer la puissance et la capacité anaérobie.",
+    fields: [
+      { key: "avg_power_w", label: "Puissance moyenne", unit: "W" },
+      { key: "max_power_w", label: "Puissance max", unit: "W", optional: true, metric: "sprint_max_power_w" },
+      { key: "weight_kg", label: "Poids du jour", unit: "kg", optional: true, metric: "weight_kg" },
+      { key: "distance_m", label: "Distance parcourue", unit: "m", optional: true, metric: "test_distance_m" },
+      { key: "allure_moy", label: "Allure moyenne", unit: "min/km", optional: true, metric: "allure_moy_min_km" },
+      { key: "force_g_pct", label: "Équilibre de pédalage — Gauche", unit: "%", optional: true, metric: "pedal_force_g_pct" },
+      { key: "force_d_pct", label: "Équilibre de pédalage — Droite", unit: "%", optional: true, metric: "pedal_force_d_pct" },
+      { key: "angle_g_deg", label: "Angle de force max — Gauche", unit: "°", optional: true, metric: "pedal_angle_fmax_g_deg" },
+      { key: "angle_d_deg", label: "Angle de force max — Droite", unit: "°", optional: true, metric: "pedal_angle_fmax_d_deg" },
+      { key: "cadence_moy", label: "Cadence moyenne", unit: "t/min", optional: true, metric: "cadence_moy_tpm" },
+      { key: "cadence_max", label: "Cadence max", unit: "t/min", optional: true, metric: "cadence_max_tpm" },
+      { key: "coeff_fatigue", label: "Coefficient de fatigue", unit: "%", optional: true, metric: "coeff_fatigue_pct" },
+    ],
+    results: [
+      { metric: "sprint_avg_power_w", label: "Puissance moyenne (sprint 30 s)" },
+      { metric: "power_weight_wkg", label: "Puissance / poids" },
+    ],
+    compute: ({ avg_power_w, weight_kg }) => {
+      if (!avg_power_w) return [];
+      const out = [{ metric: "sprint_avg_power_w", value: Math.round(avg_power_w) }];
+      if (weight_kg) out.push({ metric: "power_weight_wkg", value: Math.round((avg_power_w / weight_kg) * 100) / 100 });
       return out;
     },
   },

@@ -233,6 +233,17 @@ export function EffortTestsPanel({
               />
             </label>
 
+            <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
+              <span className="font-medium text-ink-soft">Pièce jointe (facultatif)</span>
+              <input
+                type="file"
+                name="attachment"
+                accept="image/*,video/*,application/pdf"
+                className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss file:mr-3 file:rounded file:border-0 file:bg-paper-dim file:px-2 file:py-1 file:text-xs file:font-medium"
+              />
+              <span className="text-xs text-slate">Photo de la feuille de test, capture d&apos;écran du tableur, vidéo, PDF…</span>
+            </label>
+
             <div className="sm:col-span-2">
               <Button type="submit" loading={pending}>
                 Enregistrer le résultat
@@ -258,6 +269,19 @@ export function EffortTestsPanel({
                   <span className="text-ink">
                     {r.test_date} — <b className="font-semibold">{testLabel}</b> : {metricLabel} = {r.result_value}
                     {r.note && ` — ${r.note}`}
+                    {r.attachment_path && (
+                      <>
+                        {" "}
+                        <a
+                          href={`/api/effort-test-results/${r.id}/attachment`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-semibold text-moss-dark hover:underline"
+                        >
+                          📎 pièce jointe
+                        </a>
+                      </>
+                    )}
                   </span>
                   <button
                     type="button"

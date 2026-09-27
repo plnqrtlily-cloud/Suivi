@@ -594,6 +594,14 @@ const MIGRATIONS: string[] = [
   // l'avance. Renseigné seulement quand test_slug et custom_test_id sont tous
   // les deux NULL (cf. addEffortTestResultAction).
   `ALTER TABLE effort_test_results ADD COLUMN custom_label TEXT`,
+  // Pièce jointe (photo/vidéo/document) : un coach reçoit souvent le résultat
+  // d'un test sous forme de capture d'écran de son tableur ou d'une photo de
+  // la feuille imprimée par le laboratoire — plus rapide à joindre qu'à
+  // retranscrire champ par champ. Même mécanisme de stockage que les autres
+  // pièces jointes de l'app (cf. src/lib/storage.ts).
+  `ALTER TABLE effort_test_results ADD COLUMN attachment_path TEXT`,
+  `ALTER TABLE effort_test_results ADD COLUMN attachment_mime_type TEXT`,
+  `ALTER TABLE effort_test_results ADD COLUMN attachment_name TEXT`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

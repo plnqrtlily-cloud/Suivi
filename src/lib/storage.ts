@@ -21,6 +21,9 @@ export const ALLOWED_MIME_TYPES = [
   "video/mp4",
   "video/webm",
   "video/quicktime",
+  // Documents (ex. résultat de test exporté en PDF) — pas de formats bureautiques
+  // à macros (Word/Excel) pour ne pas élargir la surface de risque à l'upload.
+  "application/pdf",
 ];
 
 export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 Mo

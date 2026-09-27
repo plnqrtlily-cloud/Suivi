@@ -39,6 +39,9 @@ export const PERFORMANCE_METRICS: MetricDef[] = [
   { value: "pedal_force_d_pct", label: "Équilibre de pédalage — Droite", unit: "%", group: "Vélo" },
   { value: "pedal_angle_fmax_g_deg", label: "Angle de force max — Gauche", unit: "°", group: "Vélo" },
   { value: "pedal_angle_fmax_d_deg", label: "Angle de force max — Droite", unit: "°", group: "Vélo" },
+  // Sprint 30 s : capacité anaérobie, distincte du MMP (1 min) et du FTP (seuil).
+  { value: "sprint_avg_power_w", label: "Puissance moyenne — sprint 30 s", unit: "W", group: "Vélo" },
+  { value: "sprint_max_power_w", label: "Puissance max — sprint 30 s", unit: "W", group: "Vélo" },
 
   { value: "allure_moy_min_km", label: "Allure moyenne", unit: "min/km", group: "Course à pied" },
   { value: "cadence_moy_tpm", label: "Cadence moyenne", unit: "t/min", group: "Course à pied" },
