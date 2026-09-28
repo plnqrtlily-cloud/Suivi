@@ -512,6 +512,7 @@ export interface ImportedActivity {
   rpe: number | null;
   notes: string | null;
   route_points: string | null;
+  created_by?: string | null;
 }
 
 export interface PersonalRecord {
@@ -605,6 +606,7 @@ export interface AvailabilityBlock {
   date: string;
   time_of_day: AvailabilitySlot;
   reason: string | null;
+  created_by?: string | null;
 }
 
 export async function getAvailabilityBlocksForRange(

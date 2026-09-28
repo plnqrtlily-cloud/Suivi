@@ -15,6 +15,7 @@ import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, TIME_OF_DAY_HINTS, groupByTimeOf
 import { AVAILABILITY_SLOT_LABELS } from "@/lib/time-of-day";
 import { classifyHr } from "@/lib/hr-zones";
 import { todayISO } from "@/lib/dates";
+import { CoachAddEntryButton, CoachDeleteEntryButton } from "../../coach-add-entry";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const SOURCE_LABELS: Record<string, string> = { manual: "saisie manuelle", garmin: "Garmin Connect", strava: "Strava" };
@@ -28,12 +29,14 @@ interface CalendarEntry {
   href?: string;
   status?: string;
   routePoints?: string | null;
+  // Activité saisie par ce coach : supprimable par lui, et signalée comme telle.
+  coachEntryId?: string;
 }
 
-// Vue jour lecture seule côté coach — miroir de la vue jour de l'athlète, mais
-// sans les contrôles d'édition/suppression (qui restent la main de
-// l'athlète) : les séances renvoient vers leur page de détail/édition, le
-// reste (activités importées, indisponibilités) s'affiche à titre indicatif.
+// Vue jour côté coach — miroir de la vue jour de l'athlète. Les données saisies
+// par l'athlète restent en lecture seule (sa main à lui) ; le coach peut en
+// revanche ajouter pour son compte une séance faite, une séance à faire ou une
+// indisponibilité, et supprimer ce que lui-même a saisi.
 export default async function CoachAthleteDayPage({ params }: { params: Promise<{ athleteId: string; date: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -77,9 +80,10 @@ export default async function CoachAthleteDayPage({ params }: { params: Promise<
         title: sportLabel(a.sport),
         subtitle: `${a.duration_minutes ? `${a.duration_minutes} min · ` : ""}${a.distance_km ? `${a.distance_km} km · ` : ""}${
           a.avg_hr ? `FC moy. ${a.avg_hr}${zone ? ` (Z${zone.zone})` : ""} · ` : ""
-        }${SOURCE_LABELS[a.source] || a.source}`,
+        }${a.created_by ? (a.created_by === user.id ? "renseignée par vous" : "renseignée par un coach") : SOURCE_LABELS[a.source] || a.source}`,
         color: "#7C5C46",
         routePoints: a.route_points,
+        coachEntryId: a.created_by === user.id ? a.id : undefined,
       };
     }),
   ];
@@ -101,7 +105,13 @@ export default async function CoachAthleteDayPage({ params }: { params: Promise<
         <span className="truncate">
           <b className="font-semibold">{AVAILABILITY_SLOT_LABELS[b.time_of_day]} — indisponible</b>
           {b.reason && <span className="text-white/70"> — {b.reason}</span>}
+          {b.created_by === user!.id && <span className="text-white/50"> · renseignée par vous</span>}
         </span>
+        {b.created_by === user!.id && (
+          <span className="ml-auto">
+            <CoachDeleteEntryButton kind="availability" id={b.id} dark />
+          </span>
+        )}
       </div>
     );
   }
@@ -122,6 +132,7 @@ export default async function CoachAthleteDayPage({ params }: { params: Promise<
         <div className="flex items-center justify-between gap-2">
           <p className="font-medium text-ink">{e.title}</p>
           {e.status && <StatusBadge status={e.status} />}
+          {e.coachEntryId && <CoachDeleteEntryButton kind="activity" id={e.coachEntryId} />}
         </div>
         <p className="mt-1 text-slate">
           {formatPreciseTime(e.time) ? `${formatPreciseTime(e.time)} · ` : ""}
@@ -159,7 +170,10 @@ export default async function CoachAthleteDayPage({ params }: { params: Promise<
         {!isToday && <div className="mb-6" />}
 
         <section>
-          <h2 className="mb-3 font-display text-xl text-ink">Séances &amp; activités</h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-display text-xl text-ink">Séances &amp; activités</h2>
+            <CoachAddEntryButton athleteId={athleteId} athleteFirstName={athlete.first_name} defaultDate={date} today={today} />
+          </div>
 
           {entries.length === 0 && blocks.length === 0 ? (
             <Card>

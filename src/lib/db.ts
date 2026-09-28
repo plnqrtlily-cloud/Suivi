@@ -609,6 +609,13 @@ const MIGRATIONS: string[] = [
   // NULL sur les lignes déjà en base (tolérable : elles restent affichables
   // individuellement, seul le regroupement par lot ne s'applique pas à elles).
   `ALTER TABLE effort_test_results ADD COLUMN batch_id TEXT`,
+  // Qui a saisi l'entrée : NULL = l'athlète lui-même (ou un import Garmin/
+  // Strava), sinon l'identifiant du coach qui l'a renseignée à sa place
+  // (séance déjà faite racontée à l'oral, indisponibilité transmise par
+  // message). Permet d'afficher « renseigné par … » et de laisser le coach
+  // corriger/supprimer ce qu'il a lui-même saisi, sans toucher au reste.
+  `ALTER TABLE imported_activities ADD COLUMN created_by TEXT`,
+  `ALTER TABLE availability_blocks ADD COLUMN created_by TEXT`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

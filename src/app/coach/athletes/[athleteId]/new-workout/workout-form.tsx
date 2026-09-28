@@ -85,6 +85,7 @@ export function WorkoutForm({
   templates,
   otherAthletes,
   initial,
+  defaultDate,
 }: {
   athleteId: string;
   resources: LibraryResource[];
@@ -93,6 +94,7 @@ export function WorkoutForm({
   templates?: WorkoutTemplateOption[];
   otherAthletes?: OtherAthleteOption[];
   initial?: WorkoutFormInitial;
+  defaultDate?: string;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -108,8 +110,8 @@ export function WorkoutForm({
   const [blocks, setBlocks] = useState<BlockRow[]>(initial?.blocks ?? []);
   const [intervals, setIntervals] = useState<IntervalItem[]>(initial?.intervals ?? []);
   const [links, setLinks] = useState<{ label: string; url: string }[]>(initial?.links ?? []);
-  const [rangeStart, setRangeStart] = useState<string | null>(null);
-  const [rangeEnd, setRangeEnd] = useState<string | null>(null);
+  const [rangeStart, setRangeStart] = useState<string | null>(defaultDate ?? null);
+  const [rangeEnd, setRangeEnd] = useState<string | null>(defaultDate ?? null);
   // Filtre facultatif appliqué à la plage de dates : ex. cocher Lun/Mer/Ven sur
   // une plage de 4 semaines pour ne créer la séance que ces jours-là plutôt que
   // tous les jours consécutifs de la plage.

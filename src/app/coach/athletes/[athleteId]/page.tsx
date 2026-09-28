@@ -45,6 +45,7 @@ import {
   type BilanPeriodValue,
 } from "@/lib/dates";
 import { AthleteCalendar } from "./athlete-calendar";
+import { CoachAddEntryButton } from "./coach-add-entry";
 import { TrainingInsights } from "./training-insights";
 import { PeriodizationPanel } from "./periodization-panel";
 import { PeriodBadge } from "@/components/period-badge";
@@ -617,7 +618,8 @@ export default async function AthleteDetailPage({
         <div className="mb-3">
           <PeriodBadge periods={trainingPeriods} date={today} prefix="Aujourd'hui :" />
         </div>
-        <div className="mb-8">
+        <div className="mb-8 flex flex-col items-start gap-3">
+          <CoachAddEntryButton athleteId={athleteId} athleteFirstName={athlete.first_name} defaultDate={today} today={today} />
           <CopyWeekForm athleteId={athleteId} />
         </div>
         <AthleteCalendar athleteId={athleteId} view={view} week={week} month={month} today={today} />

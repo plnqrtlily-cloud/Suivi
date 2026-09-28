@@ -8,14 +8,20 @@ import { TemplateList } from "./template-list";
 
 export default async function NewWorkoutPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ athleteId: string }>;
+  searchParams: Promise<{ date?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "coach") redirect("/athlete");
 
   const { athleteId } = await params;
+  // Date pré-sélectionnée quand on arrive depuis le calendrier (bouton
+  // « Ajouter » → « Séance à faire » sur un jour précis).
+  const { date: rawDate } = await searchParams;
+  const defaultDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : undefined;
   if (!(await isCoachLinkedToAthlete(user.id, athleteId))) notFound();
   const athlete = await findUserById(athleteId);
   if (!athlete) notFound();
@@ -63,6 +69,7 @@ export default async function NewWorkoutPage({
           exerciseMaxes={exerciseMaxes}
           templates={templates}
           otherAthletes={otherAthletes}
+          defaultDate={defaultDate}
         />
       </main>
       </div>

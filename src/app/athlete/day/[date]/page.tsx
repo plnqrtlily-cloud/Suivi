@@ -69,7 +69,7 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
         title: sportLabel(a.sport),
         subtitle: `${a.duration_minutes ? `${a.duration_minutes} min · ` : ""}${a.distance_km ? `${a.distance_km} km · ` : ""}${
           a.avg_hr ? `FC moy. ${a.avg_hr}${zone ? ` (Z${zone.zone})` : ""} · ` : ""
-        }${SOURCE_LABELS[a.source] || a.source}`,
+        }${a.created_by ? "renseignée par votre coach" : SOURCE_LABELS[a.source] || a.source}`,
         color: "#7C5C46",
         activity: a,
       };
@@ -94,6 +94,7 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
           <span className="truncate">
             <b className="font-semibold">Indisponible</b>
             {b.reason && <span className="text-white/70"> — {b.reason}</span>}
+            {b.created_by && <span className="text-white/50"> · renseignée par votre coach</span>}
           </span>
         </span>
         <span className="flex flex-shrink-0 items-center gap-2">

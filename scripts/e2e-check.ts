@@ -1268,6 +1268,40 @@ async function main() {
     "Un antécédent de blessure supprimé n'apparaît plus dans l'historique"
   );
 
+  // --- Saisie par le coach pour le compte de l'athlète ----------------------
+  // Séance déjà faite et indisponibilité renseignées par le coach : elles
+  // portent created_by = coach, remontent dans les requêtes de l'athlète, et
+  // seules celles du coach sont supprimables par lui (même garde que
+  // coachDeleteEntryAction).
+  const coachActivityId = randomUUID();
+  await dbRun(
+    `INSERT INTO imported_activities (id, athlete_id, source, activity_date, sport, duration_minutes, rpe, created_by) VALUES (?, ?, 'manual', '2024-06-10', 'cycling', 90, 6, ?)`,
+    [coachActivityId, athlete.id, coach.id]
+  );
+  const coachBlockId = randomUUID();
+  await dbRun(
+    `INSERT INTO availability_blocks (id, athlete_id, date, time_of_day, reason, created_by) VALUES (?, ?, '2024-06-11', 'full_day', 'Déplacement', ?)`,
+    [coachBlockId, athlete.id, coach.id]
+  );
+  const athleteBlockId = randomUUID();
+  await dbRun(`INSERT INTO availability_blocks (id, athlete_id, date, time_of_day) VALUES (?, ?, '2024-06-11', 'morning')`, [
+    athleteBlockId,
+    athlete.id,
+  ]);
+  const { getImportedActivitiesForRange, getAvailabilityBlocksForRange } = await import("../src/lib/queries");
+  const acts = await getImportedActivitiesForRange(athlete.id, "2024-06-10", "2024-06-10");
+  assert(acts.some((a) => a.id === coachActivityId && a.created_by === coach.id), "Une séance faite saisie par le coach apparaît chez l'athlète, attribuée au coach");
+  const blocksCoach = await getAvailabilityBlocksForRange(athlete.id, "2024-06-11", "2024-06-11");
+  assert(
+    blocksCoach.find((b) => b.id === coachBlockId)?.created_by === coach.id &&
+      !blocksCoach.find((b) => b.id === athleteBlockId)?.created_by,
+    "Une indisponibilité saisie par le coach est attribuée au coach, celle de l'athlète non"
+  );
+  const canCoachDelete = async (table: string, id: string) =>
+    (await dbGet<any>(`SELECT created_by FROM ${table} WHERE id = ?`, [id]))?.created_by === coach.id;
+  assert(await canCoachDelete("availability_blocks", coachBlockId), "Le coach peut supprimer l'indisponibilité qu'il a saisie");
+  assert(!(await canCoachDelete("availability_blocks", athleteBlockId)), "Le coach ne peut pas supprimer une indisponibilité saisie par l'athlète");
+
   console.log("\nTest end-to-end terminé.");
 }
 

@@ -1659,6 +1659,113 @@ export async function deleteAvailabilityBlockAction(id: string) {
   revalidatePath(`/athlete/day/${block.date}`);
 }
 
+// ---------- SAISIE PAR LE COACH POUR LE COMPTE DE L'ATHLÈTE ----------
+// L'athlète ne passe pas toujours par l'application : il raconte sa sortie à
+// l'entraînement, prévient par SMS qu'il part en déplacement… Le coach peut
+// alors renseigner lui-même, sur le calendrier de l'athlète, une séance déjà
+// faite (hors programmation) ou une indisponibilité. La séance à faire, elle,
+// passe par le constructeur de séance habituel (new-workout?date=…).
+// Chaque entrée garde created_by = coach, pour l'afficher « renseigné par le
+// coach » et pour que le coach ne puisse modifier/supprimer que ce qu'il a
+// lui-même saisi — les données de l'athlète restent les siennes.
+
+async function requireCoachOf(athleteId: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  if (!athleteId || !(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+  return user;
+}
+
+function revalidateAthleteDays(athleteId: string, dates: string[]) {
+  revalidatePath(`/coach/athletes/${athleteId}`);
+  revalidatePath("/coach/planification");
+  revalidatePath("/athlete/programmation");
+  revalidatePath("/athlete/profile");
+  revalidatePath("/athlete");
+  for (const date of dates) {
+    revalidatePath(`/coach/athletes/${athleteId}/day/${date}`);
+    revalidatePath(`/athlete/day/${date}`);
+  }
+}
+
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const numOrNull = (v: FormDataEntryValue | null) => (v === null || v === "" ? null : Number(v));
+
+export async function coachAddActivityAction(athleteId: string, formData: FormData) {
+  const user = await requireCoachOf(athleteId);
+
+  const activityDate = String(formData.get("activityDate") || "");
+  const activityTime = String(formData.get("activityTime") || "").trim();
+  const sport = String(formData.get("sport") || "");
+  if (!DATE_ONLY_RE.test(activityDate) || !sport) throw new Error("Date et sport requis.");
+  const rpe = numOrNull(formData.get("rpe"));
+  if (rpe !== null && (rpe < 1 || rpe > 10)) throw new Error("Le RPE doit être compris entre 1 et 10.");
+  const notes = String(formData.get("notes") || "").trim();
+
+  await dbRun(
+    `INSERT INTO imported_activities (id, athlete_id, source, activity_date, activity_time, sport, duration_minutes, distance_km, avg_hr, elevation_gain_m, avg_power_w, rpe, notes, created_by)
+     VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      randomUUID(),
+      athleteId,
+      activityDate,
+      activityTime || null,
+      sport,
+      numOrNull(formData.get("durationMinutes")),
+      numOrNull(formData.get("distanceKm")),
+      numOrNull(formData.get("avgHr")),
+      numOrNull(formData.get("elevationGainM")),
+      numOrNull(formData.get("avgPowerW")),
+      rpe,
+      notes || null,
+      user.id,
+    ]
+  );
+
+  revalidateAthleteDays(athleteId, [activityDate]);
+}
+
+export async function coachAddAvailabilityBlockAction(params: {
+  athleteId: string;
+  dates: string[];
+  timeOfDay: string;
+  reason?: string;
+}) {
+  const user = await requireCoachOf(params.athleteId);
+  const dates = params.dates.filter((d) => DATE_ONLY_RE.test(d));
+  if (!dates.length || !VALID_TIME_OF_DAY.includes(params.timeOfDay)) {
+    throw new Error("Choisissez au moins un jour et un créneau.");
+  }
+  const reason = params.reason?.trim() || null;
+
+  await Promise.all(
+    dates.map((date) =>
+      dbRun(
+        `INSERT INTO availability_blocks (id, athlete_id, date, time_of_day, reason, created_by) VALUES (?, ?, ?, ?, ?, ?)`,
+        [randomUUID(), params.athleteId, date, params.timeOfDay, reason, user.id]
+      )
+    )
+  );
+
+  revalidateAthleteDays(params.athleteId, dates);
+}
+
+// Suppression réservée aux entrées que ce coach a lui-même saisies.
+export async function coachDeleteEntryAction(kind: "activity" | "availability", id: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const row =
+    kind === "activity"
+      ? await dbGet<any>(`SELECT athlete_id, activity_date AS date, created_by FROM imported_activities WHERE id = ?`, [id])
+      : await dbGet<any>(`SELECT athlete_id, date, created_by FROM availability_blocks WHERE id = ?`, [id]);
+  if (!row || row.created_by !== user.id) throw new Error("Non autorisé.");
+  if (!(await isCoachLinkedToAthlete(user.id, row.athlete_id))) throw new Error("Non autorisé.");
+
+  await dbRun(kind === "activity" ? `DELETE FROM imported_activities WHERE id = ?` : `DELETE FROM availability_blocks WHERE id = ?`, [id]);
+  revalidateAthleteDays(row.athlete_id, [row.date]);
+}
+
 // ---------- BIBLIOTHÈQUE DE RESSOURCES (vidéos, photos, matériel) ----------
 // Le coach dépose lui-même ses propres documents (cf. demande explicite).
 // Chaque coach ne voit et ne gère que ses propres ressources.
