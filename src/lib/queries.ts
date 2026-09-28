@@ -383,6 +383,7 @@ export interface EffortTestResultRow {
   attachment_path: string | null;
   attachment_mime_type: string | null;
   attachment_name: string | null;
+  batch_id: string | null;
   created_at: string;
 }
 
@@ -391,6 +392,60 @@ export async function getEffortTestResultsForAthlete(athleteId: string): Promise
     `SELECT * FROM effort_test_results WHERE athlete_id = ? ORDER BY test_date DESC, created_at DESC`,
     [athleteId]
   );
+}
+
+export interface EffortTestBatch {
+  batchId: string;
+  testSlug: string | null;
+  customTestId: string | null;
+  customLabel: string | null;
+  testDate: string;
+  device: string | null;
+  note: string | null;
+  attachmentPath: string | null;
+  attachmentMimeType: string | null;
+  attachmentName: string | null;
+  ids: string[];
+  metrics: { metric: string; value: number }[];
+}
+
+/**
+ * Regroupe les lignes d'une même soumission de test (cf. batch_id, une ligne
+ * par indicateur calculé/mesure directe) en un seul objet — un test FTP
+ * complet, par exemple, ne doit apparaître qu'une fois dans l'historique,
+ * pas une fois par indicateur qu'il a produit. Une ligne sans batch_id
+ * (saisie avant l'introduction de la colonne) forme son propre lot à elle
+ * seule, identifié par son propre id.
+ */
+export async function getEffortTestBatchesForAthlete(athleteId: string): Promise<EffortTestBatch[]> {
+  const rows = await getEffortTestResultsForAthlete(athleteId);
+  const batches = new Map<string, EffortTestBatch>();
+  for (const r of rows) {
+    const key = r.batch_id ?? r.id;
+    let batch = batches.get(key);
+    if (!batch) {
+      batch = {
+        batchId: key,
+        testSlug: r.test_slug,
+        customTestId: r.custom_test_id,
+        customLabel: r.custom_label,
+        testDate: r.test_date,
+        device: r.device,
+        note: r.note,
+        attachmentPath: r.attachment_path,
+        attachmentMimeType: r.attachment_mime_type,
+        attachmentName: r.attachment_name,
+        ids: [],
+        metrics: [],
+      };
+      batches.set(key, batch);
+    }
+    batch.ids.push(r.id);
+    batch.metrics.push({ metric: r.result_metric, value: r.result_value });
+  }
+  // getEffortTestResultsForAthlete trie déjà par date/création décroissante —
+  // l'ordre d'apparition des lots (premier id rencontré) le respecte.
+  return Array.from(batches.values());
 }
 
 export async function getJournalForAthlete(athleteId: string, entryDate?: string) {

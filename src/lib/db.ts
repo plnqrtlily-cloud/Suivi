@@ -602,6 +602,13 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE effort_test_results ADD COLUMN attachment_path TEXT`,
   `ALTER TABLE effort_test_results ADD COLUMN attachment_mime_type TEXT`,
   `ALTER TABLE effort_test_results ADD COLUMN attachment_name TEXT`,
+  // Une soumission de test peut produire plusieurs lignes (un indicateur
+  // calculé + plusieurs mesures directes, ex. FTP + poids + FC max + équilibre
+  // de pédalage) — sans identifiant commun, l'historique ne pouvait les
+  // afficher/supprimer que ligne par ligne, sans lien visible entre elles.
+  // NULL sur les lignes déjà en base (tolérable : elles restent affichables
+  // individuellement, seul le regroupement par lot ne s'applique pas à elles).
+  `ALTER TABLE effort_test_results ADD COLUMN batch_id TEXT`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

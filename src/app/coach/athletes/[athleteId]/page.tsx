@@ -24,7 +24,7 @@ import {
   getUnreadMessageCount,
   getTeamsForAthlete,
   getCustomEffortTestsForCoach,
-  getEffortTestResultsForAthlete,
+  getEffortTestBatchesForAthlete,
 } from "@/lib/queries";
 import { positionLabel, type TeamSport } from "@/lib/team-sports";
 import { UpcomingGoals } from "@/components/upcoming-goals";
@@ -172,7 +172,7 @@ export default async function AthleteDetailPage({
     unreadCount,
     athleteTeams,
     customEffortTests,
-    effortTestResults,
+    effortTestBatches,
   ] = await Promise.all([
     findUserById(athleteId),
     getUserAvatar(athleteId),
@@ -199,7 +199,7 @@ export default async function AthleteDetailPage({
     getUnreadMessageCount(user.id, athleteId, user.id),
     getTeamsForAthlete(athleteId, user.id),
     getCustomEffortTestsForCoach(user.id),
-    getEffortTestResultsForAthlete(athleteId),
+    getEffortTestBatchesForAthlete(athleteId),
   ]);
   if (!athlete) notFound();
 
@@ -734,7 +734,12 @@ export default async function AthleteDetailPage({
           les statistiques et zones ci-dessous, sans ressaisie.
         </p>
         <Card className="mb-8 rounded-3xl">
-          <EffortTestsPanel athleteId={athleteId} results={effortTestResults} customTests={customEffortTests} />
+          <EffortTestsPanel
+            athleteId={athleteId}
+            batches={effortTestBatches}
+            customTests={customEffortTests}
+            defaultSport={athleteSports.length === 1 ? athleteSports[0] : undefined}
+          />
         </Card>
 
         {(hrZones || powerZones || paceZones) && (

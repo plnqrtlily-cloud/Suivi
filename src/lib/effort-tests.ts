@@ -19,6 +19,11 @@ export interface EffortTestFieldDef {
    * par le matériel du coach (ex. FC max, équilibre de pédalage) plutôt que des
    * données brutes à transformer par une formule. */
   metric?: string;
+  /** Regroupement visuel des champs facultatifs (ex. "Équilibre de pédalage",
+   * "Fréquence cardiaque") — les champs requis n'en ont pas besoin, ils
+   * s'affichent toujours directement. Sert uniquement à structurer l'écran
+   * de saisie (cf. effort-tests-panel.tsx), aucun effet sur le calcul. */
+  group?: string;
 }
 
 export interface EffortTestResultDef {
@@ -47,7 +52,7 @@ export const EFFORT_TEST_CATALOG: Record<string, EffortTestDef> = {
     description: "Distance maximale parcourue en 6 minutes de course à intensité maximale soutenable.",
     fields: [
       { key: "distance_m", label: "Distance parcourue", unit: "m" },
-      { key: "avg_hr", label: "FC moyenne pendant le test", unit: "bpm", optional: true },
+      { key: "avg_hr", label: "FC moyenne pendant le test", unit: "bpm", optional: true, group: "Fréquence cardiaque" },
     ],
     results: [{ metric: "pma_vma", label: "PMA/VMA" }],
     compute: ({ distance_m }) => {
@@ -64,7 +69,7 @@ export const EFFORT_TEST_CATALOG: Record<string, EffortTestDef> = {
     description: "Distance maximale parcourue en 12 minutes de course à intensité maximale soutenable.",
     fields: [
       { key: "distance_m", label: "Distance parcourue", unit: "m" },
-      { key: "avg_hr", label: "FC moyenne pendant le test", unit: "bpm", optional: true },
+      { key: "avg_hr", label: "FC moyenne pendant le test", unit: "bpm", optional: true, group: "Fréquence cardiaque" },
     ],
     results: [{ metric: "vo2max", label: "VO2max estimée" }],
     compute: ({ distance_m }) => {
@@ -81,16 +86,16 @@ export const EFFORT_TEST_CATALOG: Record<string, EffortTestDef> = {
     description: "Puissance moyenne maintenue sur 20 minutes à l'effort maximal soutenable.",
     fields: [
       { key: "avg_power_w", label: "Puissance moyenne sur 20 min", unit: "W" },
-      { key: "weight_kg", label: "Poids du jour", unit: "kg", optional: true, metric: "weight_kg" },
-      { key: "mmp_w", label: "Puissance Max Minute (MMP)", unit: "W", optional: true, metric: "mmp_w" },
-      { key: "force_g_pct", label: "Équilibre de pédalage — Gauche", unit: "%", optional: true, metric: "pedal_force_g_pct" },
-      { key: "force_d_pct", label: "Équilibre de pédalage — Droite", unit: "%", optional: true, metric: "pedal_force_d_pct" },
-      { key: "angle_g_deg", label: "Angle de force max — Gauche", unit: "°", optional: true, metric: "pedal_angle_fmax_g_deg" },
-      { key: "angle_d_deg", label: "Angle de force max — Droite", unit: "°", optional: true, metric: "pedal_angle_fmax_d_deg" },
-      { key: "fc_max", label: "FC Max (MHR)", unit: "bpm", optional: true, metric: "fc_max" },
-      { key: "fcs", label: "FCS (FC de seuil)", unit: "bpm", optional: true, metric: "fc_seuil" },
-      { key: "vo2max_direct", label: "VO2max estimée", unit: "ml/kg/min", optional: true, metric: "vo2max" },
-      { key: "met", label: "MET", unit: "MET", optional: true, metric: "met" },
+      { key: "weight_kg", label: "Poids du jour", unit: "kg", optional: true, metric: "weight_kg", group: "Général" },
+      { key: "mmp_w", label: "Puissance Max Minute (MMP)", unit: "W", optional: true, metric: "mmp_w", group: "Puissance" },
+      { key: "force_g_pct", label: "Équilibre de pédalage — Gauche", unit: "%", optional: true, metric: "pedal_force_g_pct", group: "Équilibre de pédalage" },
+      { key: "force_d_pct", label: "Équilibre de pédalage — Droite", unit: "%", optional: true, metric: "pedal_force_d_pct", group: "Équilibre de pédalage" },
+      { key: "angle_g_deg", label: "Angle de force max — Gauche", unit: "°", optional: true, metric: "pedal_angle_fmax_g_deg", group: "Équilibre de pédalage" },
+      { key: "angle_d_deg", label: "Angle de force max — Droite", unit: "°", optional: true, metric: "pedal_angle_fmax_d_deg", group: "Équilibre de pédalage" },
+      { key: "fc_max", label: "FC Max (MHR)", unit: "bpm", optional: true, metric: "fc_max", group: "Fréquence cardiaque" },
+      { key: "fcs", label: "FCS (FC de seuil)", unit: "bpm", optional: true, metric: "fc_seuil", group: "Fréquence cardiaque" },
+      { key: "vo2max_direct", label: "VO2max estimée", unit: "ml/kg/min", optional: true, metric: "vo2max", group: "Estimations" },
+      { key: "met", label: "MET", unit: "MET", optional: true, metric: "met", group: "Estimations" },
     ],
     results: [
       { metric: "ftp", label: "FTP" },
@@ -113,7 +118,7 @@ export const EFFORT_TEST_CATALOG: Record<string, EffortTestDef> = {
       "Effort en paliers croissants jusqu'à l'échec : la meilleure puissance moyenne tenue sur 1 minute pendant le test.",
     fields: [
       { key: "best_1min_power_w", label: "Meilleure puissance moyenne sur 1 min", unit: "W" },
-      { key: "weight_kg", label: "Poids du jour", unit: "kg", optional: true },
+      { key: "weight_kg", label: "Poids du jour", unit: "kg", optional: true, group: "Général" },
     ],
     results: [
       { metric: "ftp", label: "FTP" },
@@ -136,7 +141,7 @@ export const EFFORT_TEST_CATALOG: Record<string, EffortTestDef> = {
     fields: [
       { key: "power_8min_1_w", label: "Puissance moyenne — 1er effort de 8 min", unit: "W" },
       { key: "power_8min_2_w", label: "Puissance moyenne — 2e effort de 8 min", unit: "W" },
-      { key: "weight_kg", label: "Poids du jour", unit: "kg", optional: true },
+      { key: "weight_kg", label: "Poids du jour", unit: "kg", optional: true, group: "Général" },
     ],
     results: [
       { metric: "ftp", label: "FTP" },
@@ -159,17 +164,17 @@ export const EFFORT_TEST_CATALOG: Record<string, EffortTestDef> = {
     description: "Sprint de 30 secondes à l'effort maximal soutenable, pour évaluer la puissance et la capacité anaérobie.",
     fields: [
       { key: "avg_power_w", label: "Puissance moyenne", unit: "W" },
-      { key: "max_power_w", label: "Puissance max", unit: "W", optional: true, metric: "sprint_max_power_w" },
-      { key: "weight_kg", label: "Poids du jour", unit: "kg", optional: true, metric: "weight_kg" },
-      { key: "distance_m", label: "Distance parcourue", unit: "m", optional: true, metric: "test_distance_m" },
-      { key: "allure_moy", label: "Allure moyenne", unit: "min/km", optional: true, metric: "allure_moy_min_km" },
-      { key: "force_g_pct", label: "Équilibre de pédalage — Gauche", unit: "%", optional: true, metric: "pedal_force_g_pct" },
-      { key: "force_d_pct", label: "Équilibre de pédalage — Droite", unit: "%", optional: true, metric: "pedal_force_d_pct" },
-      { key: "angle_g_deg", label: "Angle de force max — Gauche", unit: "°", optional: true, metric: "pedal_angle_fmax_g_deg" },
-      { key: "angle_d_deg", label: "Angle de force max — Droite", unit: "°", optional: true, metric: "pedal_angle_fmax_d_deg" },
-      { key: "cadence_moy", label: "Cadence moyenne", unit: "t/min", optional: true, metric: "cadence_moy_tpm" },
-      { key: "cadence_max", label: "Cadence max", unit: "t/min", optional: true, metric: "cadence_max_tpm" },
-      { key: "coeff_fatigue", label: "Coefficient de fatigue", unit: "%", optional: true, metric: "coeff_fatigue_pct" },
+      { key: "max_power_w", label: "Puissance max", unit: "W", optional: true, metric: "sprint_max_power_w", group: "Puissance" },
+      { key: "weight_kg", label: "Poids du jour", unit: "kg", optional: true, metric: "weight_kg", group: "Général" },
+      { key: "distance_m", label: "Distance parcourue", unit: "m", optional: true, metric: "test_distance_m", group: "Vitesse" },
+      { key: "allure_moy", label: "Allure moyenne", unit: "min/km", optional: true, metric: "allure_moy_min_km", group: "Vitesse" },
+      { key: "force_g_pct", label: "Équilibre de pédalage — Gauche", unit: "%", optional: true, metric: "pedal_force_g_pct", group: "Équilibre de pédalage" },
+      { key: "force_d_pct", label: "Équilibre de pédalage — Droite", unit: "%", optional: true, metric: "pedal_force_d_pct", group: "Équilibre de pédalage" },
+      { key: "angle_g_deg", label: "Angle de force max — Gauche", unit: "°", optional: true, metric: "pedal_angle_fmax_g_deg", group: "Équilibre de pédalage" },
+      { key: "angle_d_deg", label: "Angle de force max — Droite", unit: "°", optional: true, metric: "pedal_angle_fmax_d_deg", group: "Équilibre de pédalage" },
+      { key: "cadence_moy", label: "Cadence moyenne", unit: "t/min", optional: true, metric: "cadence_moy_tpm", group: "Cadence" },
+      { key: "cadence_max", label: "Cadence max", unit: "t/min", optional: true, metric: "cadence_max_tpm", group: "Cadence" },
+      { key: "coeff_fatigue", label: "Coefficient de fatigue", unit: "%", optional: true, metric: "coeff_fatigue_pct", group: "Fatigue" },
     ],
     results: [
       { metric: "sprint_avg_power_w", label: "Puissance moyenne (sprint 30 s)" },
@@ -218,7 +223,7 @@ export const EFFORT_TEST_CATALOG: Record<string, EffortTestDef> = {
       "Trente minutes à l'effort maximal soutenable. La FC moyenne des 20 dernières minutes approche la FC de seuil.",
     fields: [
       { key: "distance_m", label: "Distance parcourue en 30 min", unit: "m" },
-      { key: "avg_hr_last_20min", label: "FC moyenne des 20 dernières minutes", unit: "bpm", optional: true },
+      { key: "avg_hr_last_20min", label: "FC moyenne des 20 dernières minutes", unit: "bpm", optional: true, group: "Fréquence cardiaque" },
     ],
     results: [
       { metric: "allure_moy_min_km", label: "Allure de seuil" },

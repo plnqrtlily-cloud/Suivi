@@ -1069,6 +1069,12 @@ export async function addEffortTestResultAction(formData: FormData): Promise<{ o
     attachmentName = attachmentFile.name;
   }
 
+  // Commun aux lignes issues d'une même soumission — un test riche peut
+  // produire plusieurs lignes (un indicateur calculé + plusieurs mesures
+  // directes) : le lot permet de les afficher et de les supprimer ensemble
+  // dans l'historique, comme un seul événement plutôt que N lignes éparses.
+  const batchId = randomUUID();
+
   const testSlug = String(formData.get("testSlug") || "").trim();
   const customTestId = String(formData.get("customTestId") || "").trim();
 
@@ -1098,8 +1104,8 @@ export async function addEffortTestResultAction(formData: FormData): Promise<{ o
     for (const r of results) {
       const resultId = randomUUID();
       statements.push({
-        sql: `INSERT INTO effort_test_results (id, athlete_id, test_slug, test_date, data_json, result_metric, result_value, device, note, attachment_path, attachment_mime_type, attachment_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [resultId, athleteId, testSlug, testDate, JSON.stringify(rawData), r.metric, r.value, device || null, note || null, attachmentPath, attachmentMimeType, attachmentName],
+        sql: `INSERT INTO effort_test_results (id, athlete_id, test_slug, test_date, data_json, result_metric, result_value, device, note, attachment_path, attachment_mime_type, attachment_name, batch_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [resultId, athleteId, testSlug, testDate, JSON.stringify(rawData), r.metric, r.value, device || null, note || null, attachmentPath, attachmentMimeType, attachmentName, batchId],
       });
       statements.push({
         sql: `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note, device) VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -1135,8 +1141,8 @@ export async function addEffortTestResultAction(formData: FormData): Promise<{ o
     const resultId = randomUUID();
     await dbBatch([
       {
-        sql: `INSERT INTO effort_test_results (id, athlete_id, custom_test_id, test_date, data_json, result_metric, result_value, device, note, attachment_path, attachment_mime_type, attachment_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [resultId, athleteId, customTestId, testDate, JSON.stringify(rawData), resultMetric, resultValue, device || null, note || null, attachmentPath, attachmentMimeType, attachmentName],
+        sql: `INSERT INTO effort_test_results (id, athlete_id, custom_test_id, test_date, data_json, result_metric, result_value, device, note, attachment_path, attachment_mime_type, attachment_name, batch_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [resultId, athleteId, customTestId, testDate, JSON.stringify(rawData), resultMetric, resultValue, device || null, note || null, attachmentPath, attachmentMimeType, attachmentName, batchId],
       },
       {
         sql: `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note, device) VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -1160,8 +1166,8 @@ export async function addEffortTestResultAction(formData: FormData): Promise<{ o
     const resultId = randomUUID();
     await dbBatch([
       {
-        sql: `INSERT INTO effort_test_results (id, athlete_id, custom_label, test_date, data_json, result_metric, result_value, device, note, attachment_path, attachment_mime_type, attachment_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [resultId, athleteId, customLabel, testDate, JSON.stringify(rawData), resultMetric, resultValue, device || null, note || null, attachmentPath, attachmentMimeType, attachmentName],
+        sql: `INSERT INTO effort_test_results (id, athlete_id, custom_label, test_date, data_json, result_metric, result_value, device, note, attachment_path, attachment_mime_type, attachment_name, batch_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [resultId, athleteId, customLabel, testDate, JSON.stringify(rawData), resultMetric, resultValue, device || null, note || null, attachmentPath, attachmentMimeType, attachmentName, batchId],
       },
       {
         sql: `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note, device) VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -1182,6 +1188,29 @@ export async function deleteEffortTestResultAction(id: string, athleteId: string
   if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
 
   await dbRun(`DELETE FROM effort_test_results WHERE id = ? AND athlete_id = ?`, [id, athleteId]);
+
+  revalidatePath(`/coach/athletes/${athleteId}`);
+  return { ok: true };
+}
+
+// Supprime toutes les lignes d'une même soumission de test (cf. batch_id sur
+// addEffortTestResultAction) — un test riche produit plusieurs lignes
+// (indicateur calculé + mesures directes), l'historique les affiche comme un
+// seul événement et doit pouvoir les retirer d'un coup. Le fichier joint peut
+// maintenant être réellement supprimé : le lot garantit qu'aucune autre ligne
+// (d'une autre soumission) ne le référence.
+export async function deleteEffortTestBatchAction(batchId: string, athleteId: string): Promise<{ ok: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+
+  const rows = await dbAll<{ attachment_path: string | null }>(
+    `SELECT attachment_path FROM effort_test_results WHERE batch_id = ? AND athlete_id = ?`,
+    [batchId, athleteId]
+  );
+  await dbRun(`DELETE FROM effort_test_results WHERE batch_id = ? AND athlete_id = ?`, [batchId, athleteId]);
+  const attachmentPath = rows.find((r) => r.attachment_path)?.attachment_path;
+  if (attachmentPath) await deleteUploadedFile(attachmentPath);
 
   revalidatePath(`/coach/athletes/${athleteId}`);
   return { ok: true };
