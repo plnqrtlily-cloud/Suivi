@@ -1,10 +1,16 @@
 import { redirect, notFound } from "next/navigation";
 import { getCurrentUser, isCoachLinkedToAthlete, findUserById } from "@/lib/auth";
-import { getResourcesForCoach, getCoachExerciseHistory, getLatestExerciseMaxes, getWorkoutTemplatesForCoach, getAthletesForCoach } from "@/lib/queries";
+import { getResourcesForCoach, getCoachExerciseHistory, getLatestExerciseMaxes, getWorkoutTemplatesForCoach, getAthletesForCoach, getLatestMeasurements } from "@/lib/queries";
+import { zoneLabelsFor } from "@/lib/zone-labels";
 import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
 import { WorkoutForm, type WorkoutTemplateOption } from "./workout-form";
-import { TemplateList } from "./template-list";
+
+function longDateFr(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  const s = d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 export default async function NewWorkoutPage({
   params,
@@ -26,12 +32,13 @@ export default async function NewWorkoutPage({
   const athlete = await findUserById(athleteId);
   if (!athlete) notFound();
 
-  const [rawResources, exerciseHistory, exerciseMaxes, rawTemplates, allAthletes] = await Promise.all([
+  const [rawResources, exerciseHistory, exerciseMaxes, rawTemplates, allAthletes, latest] = await Promise.all([
     getResourcesForCoach(user.id),
     getCoachExerciseHistory(user.id),
     getLatestExerciseMaxes(athleteId),
     getWorkoutTemplatesForCoach(user.id),
     getAthletesForCoach(user.id),
+    getLatestMeasurements(athleteId),
   ]);
   const resources = rawResources.map((r) => ({ id: r.id, title: r.title, type: r.type }));
   const templates: WorkoutTemplateOption[] = rawTemplates.map((t) => ({
@@ -56,12 +63,12 @@ export default async function NewWorkoutPage({
         <div className="lg:hidden">
           <Nav user={user} />
         </div>
-      <main className="mx-auto max-w-3xl px-4 sm:px-6 py-10">
-        <h1 className="mb-1 font-display text-3xl text-ink">Nouvelle séance</h1>
-        <p className="mb-8 text-slate">
-          Pour {athlete.first_name} {athlete.last_name}
+      <main className="mx-auto max-w-5xl px-4 sm:px-6 py-10">
+        <p className="text-sm text-slate">
+          {athlete.first_name} {athlete.last_name}
+          {defaultDate ? ` · ${longDateFr(defaultDate)}` : ""}
         </p>
-        <TemplateList templates={templates} />
+        <h1 className="mb-6 text-[28px] font-bold tracking-tight text-ink">Nouvelle séance</h1>
         <WorkoutForm
           athleteId={athleteId}
           resources={resources}
@@ -70,6 +77,7 @@ export default async function NewWorkoutPage({
           templates={templates}
           otherAthletes={otherAthletes}
           defaultDate={defaultDate}
+          zones={zoneLabelsFor(latest)}
         />
       </main>
       </div>

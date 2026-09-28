@@ -243,6 +243,11 @@ export interface BlockInput {
   sets?: SetInput[];
 }
 
+function clampRpe(v: number | undefined): number | null {
+  if (v == null || Number.isNaN(v)) return null;
+  return Math.min(10, Math.max(1, Math.round(v)));
+}
+
 export async function createWorkoutAction(params: {
   athleteId: string;
   sport: string;
@@ -258,6 +263,8 @@ export async function createWorkoutAction(params: {
   intervalsJson?: string;
   linksJson?: string;
   isDraft?: boolean;
+  plannedRpe?: number;
+  planJson?: string;
 }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
@@ -307,8 +314,8 @@ export async function createWorkoutAction(params: {
       // le clic perceptiblement lent. Cf. dbBatch dans src/lib/db.ts.
       const statements: { sql: string; args: any[] }[] = [
         {
-          sql: `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, priority, title, date, time, duration_minutes, description, color, intervals_json, links_json, is_draft)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          sql: `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, priority, title, date, time, duration_minutes, description, color, intervals_json, links_json, is_draft, planned_rpe, plan_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             workoutId,
             user.id,
@@ -325,6 +332,8 @@ export async function createWorkoutAction(params: {
             params.sport !== "strength" ? params.intervalsJson || null : null,
             params.linksJson || null,
             params.isDraft ? 1 : 0,
+            clampRpe(params.plannedRpe),
+            params.planJson || null,
           ],
         },
       ];
@@ -406,6 +415,8 @@ export async function updateWorkoutAction(params: {
   blocks?: BlockInput[];
   intervalsJson?: string;
   linksJson?: string;
+  plannedRpe?: number;
+  planJson?: string;
 }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
@@ -439,7 +450,7 @@ export async function updateWorkoutAction(params: {
   // une base Turso distante.
   const statements: { sql: string; args: any[] }[] = [
     {
-      sql: `UPDATE workouts SET sport = ?, category = ?, priority = ?, title = ?, date = ?, time = ?, duration_minutes = ?, description = ?, color = ?, intervals_json = ?, links_json = ?
+      sql: `UPDATE workouts SET sport = ?, category = ?, priority = ?, title = ?, date = ?, time = ?, duration_minutes = ?, description = ?, color = ?, intervals_json = ?, links_json = ?, planned_rpe = ?, plan_json = ?
             WHERE id = ?`,
       args: [
         params.sport,
@@ -453,6 +464,8 @@ export async function updateWorkoutAction(params: {
         color,
         params.sport !== "strength" ? params.intervalsJson || null : null,
         params.linksJson || null,
+        clampRpe(params.plannedRpe),
+        params.planJson || null,
         params.workoutId,
       ],
     },
@@ -702,6 +715,8 @@ export async function duplicateWorkoutAction(params: { workoutId: string; target
     blocks: blockInputs.length ? blockInputs : undefined,
     intervalsJson: workout.intervals_json || undefined,
     linksJson: workout.links_json || undefined,
+    plannedRpe: workout.planned_rpe || undefined,
+    planJson: workout.plan_json || undefined,
   });
 }
 
@@ -723,6 +738,8 @@ export async function createWorkoutBulkAction(params: {
   blocks?: BlockInput[];
   intervalsJson?: string;
   linksJson?: string;
+  plannedRpe?: number;
+  planJson?: string;
 }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");

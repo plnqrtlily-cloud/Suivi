@@ -76,6 +76,7 @@ function StepRow({ step }: { step: any }) {
           {style.label}
         </span>
         <span className="text-sm font-semibold text-ink">{formatDuration(step.durationType, step.durationValue)}</span>
+        {step.stroke && <span className="text-sm text-ink-soft">{String(step.stroke).toLowerCase()}</span>}
         <TargetBadge target={step.target} />
       </span>
     </li>
@@ -95,7 +96,12 @@ export function IntervalList({ json }: { json: string }) {
     <ol className="flex flex-col gap-1.5">
       {items.map((item, i) => (
         <li key={item.id || i}>
-          {item.kind === "repeat" ? (
+          {item.kind === "bloc" ? (
+            <div className="flex flex-col gap-1.5">
+              <p className="mt-2 text-sm font-bold text-ink">{item.title}</p>
+              <IntervalList json={JSON.stringify(item.items || [])} />
+            </div>
+          ) : item.kind === "repeat" ? (
             <div className="rounded-2xl border-2 border-dashed border-moss/40 bg-moss/5 p-3">
               <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-moss-dark">
                 <span className="text-sm">🔁</span>

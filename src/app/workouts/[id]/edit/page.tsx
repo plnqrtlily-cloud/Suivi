@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { getCurrentUser, findUserById } from "@/lib/auth";
-import { getWorkoutById, getBlocksForWorkout, getResourcesForCoach, getCoachExerciseHistory, getLatestExerciseMaxes } from "@/lib/queries";
+import { getWorkoutById, getBlocksForWorkout, getResourcesForCoach, getCoachExerciseHistory, getLatestExerciseMaxes, getLatestMeasurements } from "@/lib/queries";
+import { zoneLabelsFor } from "@/lib/zone-labels";
 import { Nav } from "@/components/nav";
 import { WorkoutForm } from "@/app/coach/athletes/[athleteId]/new-workout/workout-form";
 import type { BlockRow } from "@/app/coach/athletes/[athleteId]/new-workout/strength-builder";
@@ -16,12 +17,13 @@ export default async function EditWorkoutPage({ params }: { params: Promise<{ id
   if (!workout) notFound();
   if (workout.coach_id !== user.id) notFound();
 
-  const [rawBlocks, athlete, rawResources, exerciseHistory, exerciseMaxes] = await Promise.all([
+  const [rawBlocks, athlete, rawResources, exerciseHistory, exerciseMaxes, latest] = await Promise.all([
     getBlocksForWorkout(id),
     findUserById(workout.athlete_id),
     getResourcesForCoach(user.id),
     getCoachExerciseHistory(user.id),
     getLatestExerciseMaxes(workout.athlete_id),
+    getLatestMeasurements(workout.athlete_id),
   ]);
   const resources = rawResources.map((r) => ({ id: r.id, title: r.title, type: r.type }));
 
@@ -62,14 +64,19 @@ export default async function EditWorkoutPage({ params }: { params: Promise<{ id
     links = [];
   }
 
+  const longDate = (() => {
+    const t = new Date(`${workout.date}T00:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  })();
+
   return (
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
-      <main className="mx-auto max-w-3xl px-4 sm:px-6 py-10">
-        <h1 className="mb-1 font-display text-3xl text-ink">Modifier la séance</h1>
-        <p className="mb-8 text-slate">
-          Pour {athlete?.first_name} {athlete?.last_name}
+      <main className="mx-auto max-w-5xl px-4 sm:px-6 py-10">
+        <p className="text-sm text-slate">
+          {athlete?.first_name} {athlete?.last_name} · {longDate}
         </p>
+        <h1 className="mb-6 text-[28px] font-bold tracking-tight text-ink">Modifier la séance</h1>
         <WorkoutForm
           athleteId={workout.athlete_id}
           resources={resources}
@@ -89,7 +96,10 @@ export default async function EditWorkoutPage({ params }: { params: Promise<{ id
             blocks,
             intervals,
             links,
+            plannedRpe: workout.planned_rpe ?? null,
+            planJson: workout.plan_json ?? null,
           }}
+          zones={zoneLabelsFor(latest)}
         />
       </main>
     </div>

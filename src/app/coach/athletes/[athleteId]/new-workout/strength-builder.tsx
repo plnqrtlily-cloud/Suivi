@@ -201,6 +201,17 @@ export function StrengthBuilder({
     update(without);
   }
 
+  // Séries lettrées A, B, C… dans l'ordre d'affichage, exercices A1, A2… :
+  // la notation des superséries qu'on retrouve dans la plupart des outils.
+  const letters = new Map<string, string>();
+  for (const group of BLOCK_GROUPS) {
+    for (const row of rows.filter((r) => group.types.some((t) => t.value === r.block_type))) {
+      const id = row.circuit_id || row.key;
+      if (!letters.has(id)) letters.set(id, String.fromCharCode(65 + (letters.size % 26)));
+    }
+  }
+  const letterOf = (id: string) => letters.get(id) ?? "";
+
   return (
     <div className="flex flex-col gap-5">
       <datalist id="exercise-suggestions">
@@ -251,9 +262,9 @@ export function StrengthBuilder({
         }
 
         return (
-          <div key={group.title} className="rounded-3xl border border-line bg-white p-4">
+          <div key={group.title} className="rounded-2xl border border-paper-dim bg-[#f7f9f8] p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate">{group.title}</h3>
+              <h3 className="text-base font-bold text-ink">{group.title}</h3>
               <div className="flex gap-2">
                 {groupRows.length > 1 && (
                   <Button
@@ -314,10 +325,10 @@ export function StrengthBuilder({
                   const seriesId = s.rows[0]?.circuit_id;
 
                   return (
-                    <div key={s.id} className="rounded-2xl border-2 border-dashed border-moss/40 bg-moss/5 p-3">
+                    <div key={s.id} className="rounded-xl border border-paper-dim bg-white p-3">
                       {/* Niveau SÉRIE : combien de fois, et récup entre chaque passage */}
                       <div className="mb-3 flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-semibold text-moss-dark">Série</span>
+                        <span className="mr-1 text-sm font-bold text-ink">Série {letterOf(s.id)}</span>
                         <label className="flex items-center gap-1 text-xs text-ink-soft">
                           <input
                             type="number"
@@ -327,10 +338,10 @@ export function StrengthBuilder({
                             onChange={(e) => seriesId && updateSeries(seriesId, { circuit_rounds: Number(e.target.value) })}
                             className="w-14 rounded border border-line px-2 py-1 text-sm"
                           />
-                          fois
+                          tours
                         </label>
                         <label className="flex items-center gap-1 text-xs text-ink-soft">
-                          récup. entre séries
+                          récup entre tours
                           <input
                             type="number"
                             min={0}
@@ -343,23 +354,19 @@ export function StrengthBuilder({
                           />
                           s
                         </label>
-                        {seriesId && s.rows.length > 1 && (
-                          <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-moss-dark">
-                            {s.rows.length} exercices enchaînés
-                          </span>
-                        )}
                         <button
                           type="button"
                           onClick={() => seriesId && removeSeries(seriesId)}
-                          className="ml-auto text-xs text-clay hover:underline"
+                          aria-label="Retirer la série"
+                          className="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-paper text-slate"
                         >
-                          Retirer la série
+                          ×
                         </button>
                       </div>
 
                       {/* Niveau EXERCICE */}
                       <div className="flex flex-col gap-3">
-                        {s.rows.map((row) => {
+                        {s.rows.map((row, rowIdx) => {
                           const hint = QUALITY_HINTS[row.training_quality || "default"];
                           const set = row.sets[0] ?? emptySet();
                           const maxKg = exerciseMaxes?.[row.exercise_name];
@@ -367,7 +374,8 @@ export function StrengthBuilder({
                           const resource = attachable.find((r) => r.id === row.resource_id);
 
                           return (
-                            <div key={row.key} className="rounded-xl bg-white p-3">
+                            <div key={row.key} className="rounded-xl border border-paper-dim bg-[#fafbfb] p-3">
+                              <p className="mb-2 text-[13px] font-bold text-[#5b8a8c]">{letterOf(s.id)}{rowIdx + 1}</p>
                               <div className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-12">
                                 <div className="sm:col-span-4">
                                   <SelectField

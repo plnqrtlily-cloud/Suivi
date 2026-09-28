@@ -35,6 +35,8 @@ export interface CalEntry {
   timeLabel: string | null;
   description: string | null;
   content: string[];
+  /** Objectifs chiffrés propres à la discipline (distance prévue, puissance cible…). */
+  plan: { label: string; value: string }[];
   feedback: string | null;
   reportedByCoach: boolean;
   /** Entrée saisie par ce coach (activité hors programme) : lui seul peut la supprimer. */

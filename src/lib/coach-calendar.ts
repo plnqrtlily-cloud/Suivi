@@ -21,6 +21,7 @@ import { formatWorkoutTime, AVAILABILITY_SLOT_LABELS } from "./time-of-day";
 import { periodsOnDate, weekPosition } from "./periodization";
 import { intervalsToLines, strengthBlocksToLines } from "./workout-content";
 import { sessionLoad } from "./training-stats";
+import { activityForSport, parsePlan, planSummary } from "./discipline";
 import type {
   CoachCalendarData,
   CalDay,
@@ -154,13 +155,15 @@ export async function loadCoachCalendar(params: {
       w.sport === "strength"
         ? strengthBlocksToLines(strengthBlocks.filter((b) => b.workout_id === w.id))
         : intervalsToLines(w.intervals_json);
+    const plan = parsePlan(w.plan_json);
     return {
       id: w.id,
       kind: "workout",
       date: w.date,
       title: w.title,
       sport: w.sport,
-      sportLabel: SPORT_LABELS[w.sport] || w.sport,
+      sportLabel: plan?.activity ? activityForSport(w.sport, plan).label : SPORT_LABELS[w.sport] || w.sport,
+      plan: planSummary(plan),
       status: workoutStatus(w),
       isGoal: w.category === "objectif" || w.category === "evenement",
       isDraft: !!w.is_draft,
@@ -203,6 +206,7 @@ export async function loadCoachCalendar(params: {
     timeLabel: a.activity_time || null,
     description: a.notes,
     content: [],
+    plan: [],
     feedback: null,
     reportedByCoach: a.created_by === coachId,
     createdByMe: a.created_by === coachId,

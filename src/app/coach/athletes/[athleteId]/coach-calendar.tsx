@@ -773,6 +773,7 @@ function EntryPanel({
             <div className="flex flex-wrap gap-10 border-y border-paper-dim py-4 text-sm text-slate">
               <span>Durée prévue <b className="mt-1 block text-[22px] text-ink">{fmt(e.plannedMin)}</b></span>
               {e.plannedRpe && <span>RPE visé <b className="mt-1 block text-[22px] text-ink">{e.plannedRpe}</b></span>}
+              {e.plan.map((p) => <span key={p.label}>{p.label} <b className="mt-1 block text-[22px] text-ink">{p.value}</b></span>)}
               {e.timeLabel && <span>Moment <b className="mt-1 block text-[22px] text-ink">{e.timeLabel}</b></span>}
             </div>
           )}

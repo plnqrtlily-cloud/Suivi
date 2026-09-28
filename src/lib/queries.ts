@@ -193,6 +193,7 @@ export interface Workout {
   avg_power_w: number | null;
   reported_by: string | null;
   planned_rpe?: number | null;
+  plan_json?: string | null;
   coach_first_name?: string;
   coach_last_name?: string;
 }

@@ -3,11 +3,12 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createWorkoutAction, updateWorkoutAction, saveWorkoutTemplateAction, createWorkoutBulkAction } from "@/lib/actions";
-import { Field, SelectField, TextAreaField, Button, ErrorText } from "@/components/ui";
+import { Button, ErrorText } from "@/components/ui";
 import { DateRangePicker, dateRangeToList } from "@/components/date-range-picker";
 import { StrengthBuilder, BlockRow, LibraryResource, sortBlocksByGroupOrder } from "./strength-builder";
-import { IntervalBuilder, IntervalItem } from "./interval-builder";
-import { sportConfig } from "@/lib/sport-config";
+import type { IntervalItem } from "./interval-builder";
+import { StructureBuilder, toBlocs, defaultStructure, adaptStructure, type BlocItem, type StructureItem, type ZoneLabels } from "./structure-builder";
+import { ACTIVITIES, PLAN_FIELDS, activityById, activityForSport, parsePlan, type PlanKey } from "@/lib/discipline";
 import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, isTimeOfDaySlug, type TimeOfDay } from "@/lib/time-of-day";
 
 type TimeMode = "none" | "precise" | TimeOfDay;
@@ -37,14 +38,6 @@ export interface WorkoutTemplateOption {
   blocks: TemplateBlockInput[];
 }
 
-const SPORTS = [
-  { value: "running", label: "Course à pied" },
-  { value: "cycling", label: "Vélo (Route/VTT/BMX)" },
-  { value: "hiking", label: "Randonnée" },
-  { value: "swimming", label: "Natation" },
-  { value: "climbing", label: "Escalade" },
-  { value: "strength", label: "Musculation" },
-];
 
 const CATEGORIES = [
   { value: "entrainement", label: "Entraînement" },
@@ -70,6 +63,8 @@ export interface WorkoutFormInitial {
   blocks: BlockRow[];
   intervals: IntervalItem[];
   links: { label: string; url: string }[];
+  plannedRpe?: number | null;
+  planJson?: string | null;
 }
 
 export interface OtherAthleteOption {
@@ -86,6 +81,7 @@ export function WorkoutForm({
   otherAthletes,
   initial,
   defaultDate,
+  zones,
 }: {
   athleteId: string;
   resources: LibraryResource[];
@@ -95,10 +91,21 @@ export function WorkoutForm({
   otherAthletes?: OtherAthleteOption[];
   initial?: WorkoutFormInitial;
   defaultDate?: string;
+  zones?: ZoneLabels;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
-  const [sport, setSport] = useState(initial?.sport ?? "running");
+  const initialPlan = parsePlan(initial?.planJson);
+  const [activityId, setActivityId] = useState(initial ? activityForSport(initial.sport, initialPlan).id : "running");
+  const activity = activityById(activityId);
+  const sport = activity.sport;
+  const [planValues, setPlanValues] = useState<Partial<Record<PlanKey, string>>>(initialPlan?.values ?? {});
+  const [plannedRpe, setPlannedRpe] = useState(initial?.plannedRpe ? String(initial.plannedRpe) : "");
+  const [duration, setDuration] = useState(initial?.durationMinutes ? String(initial.durationMinutes) : "");
+  const [structure, setStructure] = useState<BlocItem[]>(() => {
+    const init = (initial?.intervals ?? []) as unknown as StructureItem[];
+    return init.length ? toBlocs(init) : defaultStructure(activityForSport(initial?.sport ?? "running", initialPlan));
+  });
   const [category, setCategory] = useState(initial?.category ?? "entrainement");
   // Le coach ne connaît pas toujours l'heure exacte d'une séance à venir —
   // seulement "le matin" ou "en soirée". Le créneau choisi part directement
@@ -108,7 +115,6 @@ export function WorkoutForm({
   const [preciseTime, setPreciseTime] = useState(initial?.time && !isTimeOfDaySlug(initial.time) ? initial.time : "");
   const [color, setColor] = useState(initial?.color ?? COLORS[0]);
   const [blocks, setBlocks] = useState<BlockRow[]>(initial?.blocks ?? []);
-  const [intervals, setIntervals] = useState<IntervalItem[]>(initial?.intervals ?? []);
   const [links, setLinks] = useState<{ label: string; url: string }[]>(initial?.links ?? []);
   const [rangeStart, setRangeStart] = useState<string | null>(defaultDate ?? null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(defaultDate ?? null);
@@ -130,36 +136,7 @@ export function WorkoutForm({
   const [templateKey, setTemplateKey] = useState(0);
   const [templatePending, setTemplatePending] = useState(false);
 
-  function applyTemplate(id: string) {
-    const tpl = templates?.find((t) => t.id === id);
-    if (!tpl) return;
-    setAppliedTemplate(tpl);
-    setSport(tpl.sport);
-    setCategory(tpl.category);
-    setColor(tpl.color);
-    setBlocks(
-      tpl.blocks.map((b) => ({
-        key: crypto.randomUUID(),
-        block_type: b.block_type,
-        exercise_name: b.exercise_name,
-        notes: b.notes || "",
-        resource_id: b.resource_id || "",
-        training_quality: (b.training_quality as BlockRow["training_quality"]) || "",
-        rep_type: (b as any).rep_type === "time" ? "time" : "reps",
-        circuit_id: (b as any).circuit_id || undefined,
-        circuit_rounds: (b as any).circuit_rounds || undefined,
-        circuit_rest_seconds: (b as any).circuit_rest_seconds || undefined,
-        sets: (b.sets && b.sets.length ? b.sets : [{}]).map((s) => ({
-          reps: s.reps || "",
-          load: s.load || "",
-          restSeconds: s.restSeconds ? String(s.restSeconds) : "",
-          rpe: s.rpe ? String(s.rpe) : "",
-          rir: (s as any).rir ? String((s as any).rir) : "",
-        })),
-      }))
-    );
-    setTemplateKey((k) => k + 1);
-  }
+
 
   async function handleSaveAsTemplate() {
     const name = window.prompt("Nom du modèle (ex. \"Bloc force bas du corps\") :");
@@ -171,7 +148,7 @@ export function WorkoutForm({
         name,
         sport,
         category,
-        durationMinutes: formData.get("duration") ? Number(formData.get("duration")) : undefined,
+        durationMinutes: duration ? Number(duration) : undefined,
         description: String(formData.get("description") || ""),
         color,
         blocks: blocksPayload(),
@@ -207,6 +184,20 @@ export function WorkoutForm({
       : undefined;
   }
 
+  // Structure nettoyée (étapes sans durée ni cible gardées : le coach peut
+  // vouloir une étape « au ressenti ») et objectifs propres à la discipline.
+  function structureJson(): string | undefined {
+    if (sport === "strength") return undefined;
+    const kept = structure.filter((b) => b.items.length > 0);
+    return kept.length ? JSON.stringify(kept) : undefined;
+  }
+  function planJson(): string {
+    const values: Partial<Record<PlanKey, string>> = {};
+    for (const k of activity.plan) if (planValues[k]?.trim()) values[k] = planValues[k]!.trim();
+    return JSON.stringify({ activity: activity.id, values });
+  }
+  const rpeNumber = plannedRpe ? Number(plannedRpe) : undefined;
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -228,14 +219,16 @@ export function WorkoutForm({
           title: String(formData.get("title")),
           date,
           time: String(formData.get("time") || ""),
-          durationMinutes: formData.get("duration") ? Number(formData.get("duration")) : undefined,
+          durationMinutes: duration ? Number(duration) : undefined,
           description: String(formData.get("description") || ""),
           color,
           blocks: blocksPayload(),
-          intervalsJson: sport !== "strength" ? JSON.stringify(intervals) : undefined,
+          intervalsJson: structureJson(),
+          plannedRpe: rpeNumber,
+          planJson: planJson(),
           linksJson: JSON.stringify(links.filter((l) => l.label && l.url)),
         });
-        router.push(`/workouts/${initial.workoutId}`);
+        router.push(`/coach/athletes/${athleteId}`);
       } catch (err: any) {
         setError(err.message || "Une erreur est survenue.");
         setPending(false);
@@ -243,13 +236,13 @@ export function WorkoutForm({
       return;
     }
 
-    if (!rangeStart || !rangeEnd) {
+    if (!defaultDate && (!rangeStart || !rangeEnd)) {
       setError("Choisissez au moins un jour dans le calendrier.");
       return;
     }
     setPending(true);
     setError(undefined);
-    let dates = dateRangeToList(rangeStart, rangeEnd);
+    let dates = defaultDate ? [defaultDate] : dateRangeToList(rangeStart!, rangeEnd!);
     // N'applique le filtre que si au moins un jour est coché ET que la plage
     // couvre plusieurs jours — sur un jour unique, le filtre n'aurait pas de sens.
     if (weekdayFilter.length > 0 && dates.length > 1) {
@@ -269,11 +262,13 @@ export function WorkoutForm({
         title: String(formData.get("title")),
         dates,
         time: String(formData.get("time") || ""),
-        durationMinutes: formData.get("duration") ? Number(formData.get("duration")) : undefined,
+        durationMinutes: duration ? Number(duration) : undefined,
         description: String(formData.get("description") || ""),
         color,
         blocks: blocksPayload(),
-        intervalsJson: sport !== "strength" ? JSON.stringify(intervals) : undefined,
+        intervalsJson: structureJson(),
+          plannedRpe: rpeNumber,
+          planJson: planJson(),
         linksJson: JSON.stringify(links.filter((l) => l.label && l.url)),
         isDraft: draftRef.current,
       });
@@ -286,90 +281,130 @@ export function WorkoutForm({
           title: String(formData.get("title")),
           dates,
           time: String(formData.get("time") || ""),
-          durationMinutes: formData.get("duration") ? Number(formData.get("duration")) : undefined,
+          durationMinutes: duration ? Number(duration) : undefined,
           description: String(formData.get("description") || ""),
           color,
           blocks: blocksPayload(),
-          intervalsJson: sport !== "strength" ? JSON.stringify(intervals) : undefined,
+          intervalsJson: structureJson(),
+          plannedRpe: rpeNumber,
+          planJson: planJson(),
           linksJson: JSON.stringify(links.filter((l) => l.label && l.url)),
         });
       }
-      router.push(dates.length === 1 && alsoSendTo.length === 0 ? `/workouts/${result.workoutIds[0]}` : `/coach/athletes/${athleteId}`);
+      void result;
+      router.push(`/coach/athletes/${athleteId}`);
     } catch (err: any) {
       setError(err.message || "Une erreur est survenue.");
       setPending(false);
     }
   }
 
+  const label = "flex flex-col gap-1.5 text-sm font-bold text-ink";
+  const input = "rounded-[10px] border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink outline-none focus:border-moss";
+  const section = "flex flex-col gap-4 rounded-2xl bg-white p-5 sm:p-6";
+  const slots: { value: TimeMode; label: string }[] = [
+    ...TIME_OF_DAY_ORDER.map((slot) => ({ value: slot as TimeMode, label: TIME_OF_DAY_LABELS[slot] })),
+    { value: "precise", label: "Heure précise" },
+  ];
+  const knownDate = initial?.date ?? defaultDate;
+
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-5">
-      {!initial && templates && templates.length > 0 && (
-        <SelectField label="Charger un modèle (facultatif)" value={appliedTemplate?.id ?? ""} onChange={(e) => applyTemplate(e.target.value)}>
-          <option value="">Partir de zéro</option>
-          {templates.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </SelectField>
-      )}
+      {knownDate && <input type="hidden" name="date" value={knownDate} />}
 
-      <SelectField label="Sport" value={sport} onChange={(e) => setSport(e.target.value)}>
-        {SPORTS.map((s) => (
-          <option key={s.value} value={s.value}>
-            {s.label}
-          </option>
-        ))}
-      </SelectField>
+      <section className={section}>
+        <h2 className="text-base font-bold text-ink">L&apos;essentiel</h2>
+        <div className="grid gap-3 sm:grid-cols-[1fr_2fr_1fr]">
+          <label className={label}>
+            Activité
+            <select value={activityId} onChange={(e) => { setActivityId(e.target.value); setStructure((st) => adaptStructure(st, activityById(e.target.value))); }} className={input}>
+              {ACTIVITIES.map((a) => (
+                <option key={a.id} value={a.id}>{a.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className={label}>
+            Titre
+            <input key={`title-${templateKey}`} name="title" required placeholder={activity.titlePh} defaultValue={appliedTemplate?.name ?? initial?.title} className={input} />
+          </label>
+          <label className={label}>
+            Catégorie
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className={input}>
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field
-          key={`title-${templateKey}`}
-          label="Titre de la séance"
-          name="title"
-          required
-          placeholder="ex. Sortie longue endurance"
-          defaultValue={appliedTemplate?.name ?? initial?.title}
-        />
-        <SelectField label="Catégorie" value={category} onChange={(e) => setCategory(e.target.value)}>
-          {CATEGORIES.map((c) => (
-            <option key={c.value} value={c.value}>
-              {c.label}
-            </option>
-          ))}
-        </SelectField>
-      </div>
+        {(category === "objectif" || category === "evenement") && (
+          <label className={label}>
+            Priorité
+            <select name="priority" defaultValue={initial?.priority ?? ""} className={input}>
+              <option value="">Non définie</option>
+              <option value="A">A — Objectif principal (l&apos;affûtage se planifie autour de cette date)</option>
+              <option value="B">B — Objectif secondaire</option>
+              <option value="C">C — Sortie de calage / test</option>
+            </select>
+          </label>
+        )}
 
-      {(category === "objectif" || category === "evenement") && (
-        <SelectField
-          label="Priorité"
-          name="priority"
-          defaultValue={initial?.priority ?? ""}
-        >
-          <option value="">Non définie</option>
-          <option value="A">A — Objectif principal (l'affûtage se planifie autour de cette date)</option>
-          <option value="B">B — Objectif secondaire</option>
-          <option value="C">C — Sortie de calage / test</option>
-        </SelectField>
-      )}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <label className={label}>
+            Durée prévue (min)
+            <input type="number" min={0} value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="60" className={input} />
+          </label>
+          <label className={label}>
+            RPE visé
+            <input type="number" min={1} max={10} value={plannedRpe} onChange={(e) => setPlannedRpe(e.target.value)} placeholder="1-10" className={input} />
+          </label>
+          {activity.plan.map((k) => {
+            const f = PLAN_FIELDS[k];
+            return (
+              <label key={k} className={label}>
+                {f.label}{f.unit ? ` (${f.unit})` : ""}
+                <input
+                  inputMode={f.numeric ? "decimal" : "text"}
+                  value={planValues[k] ?? ""}
+                  onChange={(e) => setPlanValues((v) => ({ ...v, [k]: e.target.value }))}
+                  placeholder={f.ph}
+                  className={input}
+                />
+              </label>
+            );
+          })}
+        </div>
 
-      {initial ? (
-        <Field label="Jour" type="date" name="date" required defaultValue={initial.date} />
-      ) : (
-        <div>
-          <span className="mb-1.5 block text-sm font-medium text-ink-soft">Jour(s)</span>
-          <p className="mb-2 text-xs text-slate">
-            Cliquez un jour pour une séance unique, ou un deuxième jour pour répéter la même séance sur toute la période
-            (comme sur Booking pour un séjour).
-          </p>
-          <DateRangePicker start={rangeStart} end={rangeEnd} onChange={({ start, end }) => { setRangeStart(start); setRangeEnd(end); }} />
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm font-bold text-ink">
+            Moment <span className="text-[13px] font-normal text-slate">facultatif</span>
+          </span>
+          <div className="flex flex-wrap rounded-full bg-paper-dim p-[3px]">
+            {slots.map((sl) => (
+              <button
+                key={sl.value}
+                type="button"
+                onClick={() => setTimeMode(timeMode === sl.value ? "none" : sl.value)}
+                className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${timeMode === sl.value ? "bg-white text-ink shadow-sm" : "text-slate"}`}
+              >
+                {sl.label}
+              </button>
+            ))}
+          </div>
+          {timeMode === "precise" && (
+            <input type="time" value={preciseTime} onChange={(e) => setPreciseTime(e.target.value)} className={input} />
+          )}
+          <input type="hidden" name="time" value={timeMode === "none" ? "" : timeMode === "precise" ? preciseTime : timeMode} />
+        </div>
 
-          {rangeStart && rangeEnd && rangeStart !== rangeEnd && (
-            <div className="mt-3">
-              <p className="mb-1.5 text-xs font-medium text-ink-soft">
-                Ne répéter que certains jours de la semaine (facultatif — sinon tous les jours de la plage)
-              </p>
-              <div className="flex flex-wrap gap-2">
+        {!knownDate && (
+          <div>
+            <span className="mb-1.5 block text-sm font-bold text-ink">Jour(s)</span>
+            <p className="mb-2 text-xs text-slate">Un jour pour une séance unique, ou un deuxième jour pour la répéter sur toute la période.</p>
+            <DateRangePicker start={rangeStart} end={rangeEnd} onChange={({ start, end }) => { setRangeStart(start); setRangeEnd(end); }} />
+            {rangeStart && rangeEnd && rangeStart !== rangeEnd && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-ink-soft">Seulement certains jours :</span>
                 {[
                   { value: 1, label: "Lun" },
                   { value: 2, label: "Mar" },
@@ -382,99 +417,21 @@ export function WorkoutForm({
                   <button
                     key={d.value}
                     type="button"
-                    onClick={() =>
-                      setWeekdayFilter((prev) => (prev.includes(d.value) ? prev.filter((x) => x !== d.value) : [...prev, d.value]))
-                    }
-                    className={`rounded-full border px-3 py-1 text-xs ${
-                      weekdayFilter.includes(d.value) ? "border-gold-light bg-gold-light/10 text-ink" : "border-line text-slate"
-                    }`}
+                    onClick={() => setWeekdayFilter((prev) => (prev.includes(d.value) ? prev.filter((x) => x !== d.value) : [...prev, d.value]))}
+                    className={`rounded-full border px-3 py-1 text-xs ${weekdayFilter.includes(d.value) ? "border-moss bg-[#e3eeed] text-ink" : "border-line text-slate"}`}
                   >
                     {d.label}
                   </button>
                 ))}
               </div>
-            </div>
-          )}
-
-          {otherAthletes && otherAthletes.length > 0 && (
-            <div className="mt-3">
-              <p className="mb-1.5 text-xs font-medium text-ink-soft">Envoyer aussi à d&apos;autres athlètes (facultatif)</p>
-              <div className="flex flex-wrap gap-2">
-                {otherAthletes.map((a) => (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => setAlsoSendTo((prev) => (prev.includes(a.id) ? prev.filter((x) => x !== a.id) : [...prev, a.id]))}
-                    className={`rounded-full border px-3 py-1 text-xs ${
-                      alsoSendTo.includes(a.id) ? "border-gold-light bg-gold-light/10 text-ink" : "border-line text-slate"
-                    }`}
-                  >
-                    {a.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="flex flex-col gap-1.5 text-sm">
-          <span className="text-ink-soft font-medium">Heure (facultatif)</span>
-          <div className="flex flex-wrap gap-2">
-            <select
-              value={timeMode}
-              onChange={(e) => setTimeMode(e.target.value as TimeMode)}
-              className="rounded-md border border-line bg-white px-3 py-2 text-ink outline-none focus:border-moss focus:ring-1 focus:ring-moss"
-            >
-              <option value="none">Non précisée</option>
-              <option value="precise">Heure précise</option>
-              {TIME_OF_DAY_ORDER.map((slot) => (
-                <option key={slot} value={slot}>
-                  {TIME_OF_DAY_LABELS[slot]}
-                </option>
-              ))}
-            </select>
-            {timeMode === "precise" && (
-              <input
-                type="time"
-                value={preciseTime}
-                onChange={(e) => setPreciseTime(e.target.value)}
-                className="rounded-md border border-line bg-white px-3 py-2 text-ink outline-none focus:border-moss focus:ring-1 focus:ring-moss"
-              />
             )}
           </div>
-          <input type="hidden" name="time" value={timeMode === "none" ? "" : timeMode === "precise" ? preciseTime : timeMode} />
-        </div>
-        <Field
-          key={`duration-${templateKey}`}
-          label="Durée prévue (minutes)"
-          type="number"
-          name="duration"
-          min={0}
-          defaultValue={appliedTemplate?.duration_minutes ?? initial?.durationMinutes ?? ""}
-        />
-      </div>
+        )}
+      </section>
 
-      <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium text-ink-soft">Couleur</span>
-        <div className="flex gap-2">
-          {COLORS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setColor(c)}
-              className="h-7 w-7 rounded-full border-2"
-              style={{ backgroundColor: c, borderColor: color === c ? "#182220" : "transparent" }}
-              aria-label={`Choisir la couleur ${c}`}
-            />
-          ))}
-        </div>
-      </label>
-
-      {sport === "strength" ? (
-        <div>
-          <p className="mb-3 text-sm font-medium text-ink-soft">Structure de la séance</p>
+      <section className={section}>
+        <h2 className="text-base font-bold text-ink">Structure de la séance</h2>
+        {sport === "strength" ? (
           <StrengthBuilder
             key={`sb-${templateKey}`}
             onChange={setBlocks}
@@ -483,99 +440,65 @@ export function WorkoutForm({
             initialBlocks={blocks}
             exerciseMaxes={exerciseMaxes}
           />
-        </div>
-      ) : (
-        <div>
-          <p className="mb-3 text-sm font-medium text-ink-soft">Structure de la séance (facultatif)</p>
-          <IntervalBuilder items={intervals} onChange={setIntervals} sport={sport} />
+        ) : (
+          <StructureBuilder items={structure} onChange={setStructure} activity={activity} zones={zones ?? {}} onUseDuration={(m) => setDuration(String(m))} />
+        )}
+      </section>
 
-          {/* Volume global, proposé selon le sport : une distance en mètres pour
-              la natation, des kilomètres et du dénivelé pour le vélo ou la
-              course, un nombre de voies en escalade. */}
-          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {sportConfig(sport).volumeFields.map((f) => (
-              <Field
-                key={f.name}
-                label={f.unit ? `${f.label} (${f.unit})` : f.label}
-                type="number"
-                step="0.1"
-                min={0}
-                name={f.name}
-                placeholder="Facultatif"
-              />
-            ))}
-          </div>
+      <section className={section}>
+        <div className="flex items-baseline">
+          <h2 className="text-base font-bold text-ink">Options</h2>
+          <span className="flex-1" />
+          <span className="text-[13px] text-slate">facultatif</span>
         </div>
-      )}
-
-      <div>
-        <p className="mb-2 text-sm font-medium text-ink-soft">Liens utiles (facultatif)</p>
-        <p className="mb-3 text-xs text-slate">Plan d&apos;entraînement externe, vidéo, carte de parcours…</p>
+        <label className={label}>
+          Consignes pour l&apos;athlète
+          <textarea
+            key={`description-${templateKey}`}
+            name="description"
+            rows={3}
+            placeholder={activity.notesPh}
+            defaultValue={appliedTemplate?.description ?? initial?.description ?? ""}
+            className={`${input} resize-y`}
+          />
+        </label>
         <div className="flex flex-col gap-2">
+          <span className="text-sm font-bold text-ink">Liens et ressources</span>
           {links.map((l, i) => (
-            <div key={i} className="flex flex-wrap items-end gap-2">
-              <label className="flex flex-1 flex-col gap-1.5 text-sm">
-                <span className="font-medium text-ink-soft">Titre</span>
-                <input
-                  value={l.label}
-                  onChange={(e) => setLinks(links.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
-                  placeholder="ex. Carte du parcours"
-                  className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
-                />
-              </label>
-              <label className="flex flex-[2] flex-col gap-1.5 text-sm">
-                <span className="font-medium text-ink-soft">Lien</span>
-                <input
-                  value={l.url}
-                  onChange={(e) => setLinks(links.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))}
-                  placeholder="https://…"
-                  className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
-                />
-              </label>
-              <button
-                type="button"
-                onClick={() => setLinks(links.filter((_, j) => j !== i))}
-                className="pb-2.5 text-xs text-clay hover:underline"
-              >
-                Retirer
-              </button>
+            <div key={i} className="flex flex-wrap items-center gap-2">
+              <input value={l.label} onChange={(e) => setLinks(links.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} placeholder="Titre (ex. carte du parcours)" className={`${input} flex-1`} />
+              <input value={l.url} onChange={(e) => setLinks(links.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))} placeholder="https://…" className={`${input} flex-[2]`} />
+              <button type="button" onClick={() => setLinks(links.filter((_, j) => j !== i))} aria-label="Retirer le lien" className="flex h-8 w-8 items-center justify-center rounded-full bg-paper text-slate">×</button>
             </div>
           ))}
+          <button type="button" onClick={() => setLinks([...links, { label: "", url: "" }])} className="self-start rounded-[10px] border border-dashed border-[#aab4b1] px-3 py-1.5 text-[13px] font-semibold text-moss">
+            + Ajouter un lien
+          </button>
         </div>
-        <Button type="button" variant="secondary" onClick={() => setLinks([...links, { label: "", url: "" }])} className="mt-2">
-          + Ajouter un lien
-        </Button>
-      </div>
-
-      <TextAreaField
-        key={`description-${templateKey}`}
-        label="Notes complémentaires (facultatif)"
-        name="description"
-        rows={3}
-        placeholder="Parcours, consignes techniques, contexte particulier…"
-        defaultValue={appliedTemplate?.description ?? initial?.description ?? ""}
-      />
+        {!initial && otherAthletes && otherAthletes.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-bold text-ink">Envoyer aussi à</span>
+            {otherAthletes.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => setAlsoSendTo((prev) => (prev.includes(a.id) ? prev.filter((x) => x !== a.id) : [...prev, a.id]))}
+                className={`rounded-full border px-3 py-1 text-xs ${alsoSendTo.includes(a.id) ? "border-moss bg-[#e3eeed] text-ink" : "border-line text-slate"}`}
+              >
+                {a.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
 
       <ErrorText>{error}</ErrorText>
       <div className="flex flex-wrap gap-3">
-        <Button
-          type="submit"
-          disabled={pending}
-          onClick={() => {
-            draftRef.current = false;
-          }}
-        >
-          {pending ? (initial ? "Enregistrement…" : "Envoi…") : initial ? "Enregistrer les modifications" : "Envoyer la séance"}
+        <Button type="submit" disabled={pending} onClick={() => { draftRef.current = false; }}>
+          {pending ? (initial ? "Enregistrement…" : "Envoi…") : initial ? "Enregistrer les modifications" : "Programmer la séance"}
         </Button>
         {!initial && (
-          <Button
-            type="submit"
-            variant="secondary"
-            disabled={pending}
-            onClick={() => {
-              draftRef.current = true;
-            }}
-          >
+          <Button type="submit" variant="secondary" disabled={pending} onClick={() => { draftRef.current = true; }}>
             Enregistrer en brouillon
           </Button>
         )}

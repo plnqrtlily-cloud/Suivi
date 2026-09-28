@@ -619,6 +619,10 @@ const MIGRATIONS: string[] = [
   // RPE visé par le coach, distinct du RPE réellement ressenti (rpe) : sans lui,
   // le calendrier ne peut pas comparer prévu et réalisé ni estimer la charge prévue.
   `ALTER TABLE workouts ADD COLUMN planned_rpe INTEGER`,
+  // Objectifs chiffrés propres à la discipline (distance, dénivelé, allure ou
+  // puissance cible, cadence, bassin, voies…) et variante (VTT, trail, home
+  // trainer…) : un JSON plutôt qu'une colonne par sport.
+  `ALTER TABLE workouts ADD COLUMN plan_json TEXT`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER
