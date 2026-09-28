@@ -290,7 +290,7 @@ export function EffortTestsPanel({
                 <div className="mt-3 flex flex-col gap-3">
                   {groupFields(optionalFields).map(({ group, fields }) => (
                     <div key={group}>
-                      <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate">{group}</p>
+                      <p className="mb-1.5 text-sm font-semibold text-ink">{group}</p>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         {fields.map((f) => (
                           <label key={f.key} className="flex flex-col gap-1.5 text-sm">
@@ -366,7 +366,7 @@ export function EffortTestsPanel({
 
       {batches.length > 0 && (
         <div className="mt-5 border-t border-line pt-4">
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate">Historique des tests</p>
+          <p className="mb-2 text-sm font-semibold text-ink">Historique des tests</p>
           <ul className="flex flex-col gap-1.5 text-sm">
             {visibleBatches.map((b) => {
               const testLabel = b.testSlug

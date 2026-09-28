@@ -747,6 +747,20 @@ export async function getUnreadMessageCount(coachId: string, athleteId: string, 
   return row?.count ?? 0;
 }
 
+/** Dernier message non lu reçu par `forUserId` dans une conversation. */
+export async function getLastUnreadMessage(
+  coachId: string,
+  athleteId: string,
+  forUserId: string
+): Promise<{ body: string; created_at: string } | undefined> {
+  return dbGet(
+    `SELECT body, created_at FROM messages
+     WHERE coach_id = ? AND athlete_id = ? AND sender_id != ? AND read_at IS NULL
+     ORDER BY created_at DESC LIMIT 1`,
+    [coachId, athleteId, forUserId]
+  );
+}
+
 // Total des messages non lus d'un coach, tous athlètes confondus — pour la
 // pastille de la barre latérale.
 export async function getUnreadMessageCountForCoach(coachId: string): Promise<number> {
@@ -828,6 +842,9 @@ export async function getAthleteSports(userId: string): Promise<string[]> {
 export interface CoachNotes {
   strengths: string | null;
   weaknesses: string | null;
+  context?: string | null;
+  objectives?: string | null;
+  constraints?: string | null;
   updated_at: string;
 }
 
@@ -844,7 +861,7 @@ export async function getCoachReminders(coachId: string, limit = 30) {
 }
 
 export async function getCoachNotes(coachId: string, athleteId: string): Promise<CoachNotes | undefined> {
-  return dbGet(`SELECT strengths, weaknesses, updated_at FROM coach_athlete_notes WHERE coach_id = ? AND athlete_id = ?`, [
+  return dbGet(`SELECT strengths, weaknesses, context, objectives, constraints, updated_at FROM coach_athlete_notes WHERE coach_id = ? AND athlete_id = ?`, [
     coachId,
     athleteId,
   ]);
@@ -948,6 +965,7 @@ export interface CoachNoteEntry {
   athlete_id: string;
   entry_date: string;
   body: string;
+  kind?: string | null;
   created_at: string;
   updated_at: string;
 }

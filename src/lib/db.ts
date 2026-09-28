@@ -623,6 +623,13 @@ const MIGRATIONS: string[] = [
   // puissance cible, cadence, bassin, voies…) et variante (VTT, trail, home
   // trainer…) : un JSON plutôt qu'une colonne par sport.
   `ALTER TABLE workouts ADD COLUMN plan_json TEXT`,
+  // Portrait du coach en cinq rubriques (contexte, objectifs, contraintes,
+  // ce qui marche = strengths, points de vigilance = weaknesses) et type des
+  // notes datées (entretien, observation, décision) pour les filtrer.
+  `ALTER TABLE coach_athlete_notes ADD COLUMN context TEXT`,
+  `ALTER TABLE coach_athlete_notes ADD COLUMN objectives TEXT`,
+  `ALTER TABLE coach_athlete_notes ADD COLUMN constraints TEXT`,
+  `ALTER TABLE coach_note_entries ADD COLUMN kind TEXT`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

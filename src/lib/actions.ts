@@ -991,6 +991,40 @@ export async function addInjuryAction(formData: FormData) {
   revalidatePath("/athlete/profile");
 }
 
+// Blessure déclarée par le coach (constatée en séance, rapportée par un
+// kiné…) : même table que celle de l'athlète, qui la voit sur son profil.
+export async function addInjuryForAthleteAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  const athleteId = String(formData.get("athleteId") || "");
+  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+
+  const zone = String(formData.get("zone") || "").trim();
+  const description = String(formData.get("description") || "").trim();
+  const dateStart = String(formData.get("dateStart") || "");
+  const dateEnd = String(formData.get("dateEnd") || "");
+  if (!zone || !/^\d{4}-\d{2}-\d{2}$/.test(dateStart)) return;
+
+  await dbRun(
+    `INSERT INTO injuries (id, athlete_id, zone, description, date_start, date_end) VALUES (?, ?, ?, ?, ?, ?)`,
+    [randomUUID(), athleteId, zone, description || null, dateStart, /^\d{4}-\d{2}-\d{2}$/.test(dateEnd) ? dateEnd : null]
+  );
+  revalidatePath("/athlete/profile");
+  revalidatePath(`/coach/athletes/${athleteId}`);
+}
+
+/** Le coach clôt une blessure en cours (retour à l'entraînement normal). */
+export async function closeInjuryForAthleteAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  const injuryId = String(formData.get("injuryId") || "");
+  const row = await dbGet<{ athlete_id: string }>(`SELECT athlete_id FROM injuries WHERE id = ?`, [injuryId]);
+  if (!row || !(await isCoachLinkedToAthlete(user.id, row.athlete_id))) throw new Error("Non autorisé.");
+  await dbRun(`UPDATE injuries SET date_end = ? WHERE id = ? AND date_end IS NULL`, [todayISO(), injuryId]);
+  revalidatePath("/athlete/profile");
+  revalidatePath(`/coach/athletes/${row.athlete_id}`);
+}
+
 export async function updateInjuryAction(id: string, formData: FormData) {
   const user = await getCurrentUser();
   if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
@@ -2010,14 +2044,23 @@ export async function upsertCoachNotesAction(formData: FormData) {
   const athleteId = String(formData.get("athleteId") || "");
   if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
 
-  const strengths = String(formData.get("strengths") || "").trim();
-  const weaknesses = String(formData.get("weaknesses") || "").trim();
+  // Chaque rubrique du portrait est facultative dans le formulaire : seules
+  // celles envoyées sont réécrites, les autres gardent leur valeur.
+  const FIELDS = ["strengths", "weaknesses", "context", "objectives", "constraints"] as const;
+  const existing = await dbGet<Record<string, string | null>>(
+    `SELECT strengths, weaknesses, context, objectives, constraints FROM coach_athlete_notes WHERE coach_id = ? AND athlete_id = ?`,
+    [user.id, athleteId]
+  );
+  const values = FIELDS.map((f) =>
+    formData.has(f) ? String(formData.get(f) || "").trim() || null : existing?.[f] ?? null
+  );
 
   await dbRun(
-    `INSERT INTO coach_athlete_notes (coach_id, athlete_id, strengths, weaknesses, updated_at)
-     VALUES (?, ?, ?, ?, datetime('now'))
-     ON CONFLICT(coach_id, athlete_id) DO UPDATE SET strengths = excluded.strengths, weaknesses = excluded.weaknesses, updated_at = excluded.updated_at`,
-    [user.id, athleteId, strengths || null, weaknesses || null]
+    `INSERT INTO coach_athlete_notes (coach_id, athlete_id, strengths, weaknesses, context, objectives, constraints, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+     ON CONFLICT(coach_id, athlete_id) DO UPDATE SET strengths = excluded.strengths, weaknesses = excluded.weaknesses,
+       context = excluded.context, objectives = excluded.objectives, constraints = excluded.constraints, updated_at = excluded.updated_at`,
+    [user.id, athleteId, ...values]
   );
 
   revalidatePath(`/coach/athletes/${athleteId}`);
@@ -2333,6 +2376,37 @@ export async function updateTrainingPeriodAction(formData: FormData) {
   revalidatePath(`/coach/planification`);
 }
 
+/** Copie une période juste après elle-même (même durée, mêmes réglages). */
+export async function duplicateTrainingPeriodAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const periodId = String(formData.get("periodId") || "");
+  const p = await dbGet<any>(`SELECT * FROM training_periods WHERE id = ?`, [periodId]);
+  if (!p || p.coach_id !== user.id) throw new Error("Non autorisé.");
+  if (!(await isCoachLinkedToAthlete(user.id, p.athlete_id))) throw new Error("Non autorisé.");
+
+  const shift = (iso: string, days: number) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return toISODate(new Date(y, m - 1, d + days));
+  };
+  const [y1, m1, d1] = p.start_date.split("-").map(Number);
+  const [y2, m2, d2] = p.end_date.split("-").map(Number);
+  const length = Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000);
+  const start = shift(p.end_date, 1);
+  const newId = randomUUID();
+
+  await dbRun(
+    `INSERT INTO training_periods (id, coach_id, athlete_id, parent_id, level, name, focus, start_date, end_date, load_pattern, volume, intensity, objective, notes, color)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [newId, user.id, p.athlete_id, p.parent_id, p.level, `${p.name} (copie)`, p.focus, start, shift(start, length), p.load_pattern, p.volume, p.intensity, p.objective, p.notes, p.color]
+  );
+
+  revalidatePath(`/coach/athletes/${p.athlete_id}`);
+  revalidatePath(`/coach/planification`);
+  return { id: newId };
+}
+
 export async function deleteTrainingPeriodAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
@@ -2356,6 +2430,11 @@ export async function deleteTrainingPeriodAction(formData: FormData) {
 
 // ---------- NOTES JOURNALIÈRES DU COACH ----------
 
+function noteKind(v: FormDataEntryValue | null): string | null {
+  const k = String(v || "");
+  return k === "entretien" || k === "observation" || k === "decision" ? k : null;
+}
+
 export async function addCoachNoteEntryAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
@@ -2372,8 +2451,8 @@ export async function addCoachNoteEntryAction(formData: FormData) {
   const entryDate = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : todayISO();
 
   await dbRun(
-    `INSERT INTO coach_note_entries (id, coach_id, athlete_id, entry_date, body) VALUES (?, ?, ?, ?, ?)`,
-    [randomUUID(), user.id, athleteId, entryDate, body]
+    `INSERT INTO coach_note_entries (id, coach_id, athlete_id, entry_date, body, kind) VALUES (?, ?, ?, ?, ?, ?)`,
+    [randomUUID(), user.id, athleteId, entryDate, body, noteKind(formData.get("kind"))]
   );
 
   revalidatePath(`/coach/athletes/${athleteId}`);
@@ -2398,9 +2477,9 @@ export async function updateCoachNoteEntryAction(formData: FormData) {
   const entryDate = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : undefined;
 
   await dbRun(
-    `UPDATE coach_note_entries SET body = ?, entry_date = COALESCE(?, entry_date), updated_at = datetime('now')
+    `UPDATE coach_note_entries SET body = ?, entry_date = COALESCE(?, entry_date), kind = COALESCE(?, kind), updated_at = datetime('now')
      WHERE id = ?`,
-    [body, entryDate ?? null, entryId]
+    [body, entryDate ?? null, formData.has("kind") ? noteKind(formData.get("kind")) : null, entryId]
   );
 
   revalidatePath(`/coach/athletes/${entry.athlete_id}`);
