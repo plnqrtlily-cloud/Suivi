@@ -616,6 +616,9 @@ const MIGRATIONS: string[] = [
   // corriger/supprimer ce qu'il a lui-même saisi, sans toucher au reste.
   `ALTER TABLE imported_activities ADD COLUMN created_by TEXT`,
   `ALTER TABLE availability_blocks ADD COLUMN created_by TEXT`,
+  // RPE visé par le coach, distinct du RPE réellement ressenti (rpe) : sans lui,
+  // le calendrier ne peut pas comparer prévu et réalisé ni estimer la charge prévue.
+  `ALTER TABLE workouts ADD COLUMN planned_rpe INTEGER`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

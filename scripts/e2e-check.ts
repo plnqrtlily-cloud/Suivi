@@ -21,6 +21,8 @@ import {
   updateUserPassword,
 } from "../src/lib/auth";
 import { estimateCyclePhase, getCycleSettings } from "../src/lib/cycle";
+import { cycleDayForDate } from "../src/lib/cycle-types";
+import { intervalsToLines, strengthBlocksToLines } from "../src/lib/workout-content";
 import { getCoachExerciseHistory } from "../src/lib/queries";
 import { saveUploadedFile, readUploadedFile, deleteUploadedFile } from "../src/lib/storage";
 import { createNotification, getNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead } from "../src/lib/notifications";
@@ -1301,6 +1303,18 @@ async function main() {
     (await dbGet<any>(`SELECT created_by FROM ${table} WHERE id = ?`, [id]))?.created_by === coach.id;
   assert(await canCoachDelete("availability_blocks", coachBlockId), "Le coach peut supprimer l'indisponibilité qu'il a saisie");
   assert(!(await canCoachDelete("availability_blocks", athleteBlockId)), "Le coach ne peut pas supprimer une indisponibilité saisie par l'athlète");
+
+  // --- Calendrier coach : phases du cycle par date et contenu des séances ---
+  const cycleSet = { average_cycle_length_days: 28, average_period_length_days: 5 };
+  const starts = ["2026-09-23"];
+  assert(cycleDayForDate(starts, cycleSet, "2026-09-23")?.key === "regles" && cycleDayForDate(starts, cycleSet, "2026-09-23")?.day === 1, "Le premier jour des règles est bien J1 en phase « règles »");
+  assert(cycleDayForDate(starts, cycleSet, "2026-09-22")?.key === "lut" && cycleDayForDate(starts, cycleSet, "2026-09-22")?.day === 28, "La veille des règles est projetée en fin de phase lutéale (J28)");
+  assert(cycleDayForDate(starts, cycleSet, "2026-10-05")?.key === "ovu", "L'ovulation est estimée vers J13-J15");
+  assert(cycleDayForDate([], cycleSet, "2026-10-05") === null, "Sans date de règles connue, aucune phase n'est affichée");
+  const ivLines = intervalsToLines(JSON.stringify([{ kind: "step", stepType: "warmup", durationType: "time", durationValue: "12:00", target: { type: "hr_zone", zone: 2 } }, { kind: "repeat", count: 3, steps: [{ kind: "step", stepType: "work", durationType: "time", durationValue: "03:00", target: { type: "none" } }, { kind: "step", stepType: "recovery", durationType: "time", durationValue: "02:00", target: { type: "none" } }] }]));
+  assert(ivLines[0] === "12 min Échauffement · Z2 FC" && ivLines[1] === "3 × (3 min Effort + 2 min Récupération)", "Les étapes et répétitions d'une séance se lisent en clair dans le calendrier");
+  const stLines = strengthBlocksToLines([{ id: "a", block_type: "main", exercise_name: "Squat", circuit_id: "s1", circuit_rounds: 4, circuit_rest_seconds: 150, exerciseSets: [{ reps: "5", load: "80%" }] }, { id: "b", block_type: "main", exercise_name: "Squat jump", circuit_id: "s1", circuit_rounds: 4, circuit_rest_seconds: 150, exerciseSets: [{ reps: "5", load: "PDC" }] }]);
+  assert(stLines[0] === "Corps de séance" && stLines[1].trim() === "Série A · 4 tours, récup 2 min 30 : A1 Squat × 5 @ 80% + A2 Squat jump × 5 @ PDC", "Une série de musculation se résume en une ligne (A1, A2…)");
 
   console.log("\nTest end-to-end terminé.");
 }

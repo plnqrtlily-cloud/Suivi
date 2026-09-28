@@ -192,6 +192,7 @@ export interface Workout {
   elevation_gain_m: number | null;
   avg_power_w: number | null;
   reported_by: string | null;
+  planned_rpe?: number | null;
   coach_first_name?: string;
   coach_last_name?: string;
 }
@@ -263,6 +264,36 @@ export async function getBlocksForWorkout(workoutId: string) {
       return { ...b, exerciseSets };
     })
   );
+}
+
+// Versions groupées pour le calendrier coach : une requête pour toute la
+// période affichée plutôt qu'une par séance.
+export async function getCommentsForWorkouts(workoutIds: string[]) {
+  if (workoutIds.length === 0) return [];
+  const marks = workoutIds.map(() => "?").join(",");
+  return dbAll<any>(
+    `SELECT c.*, u.first_name, u.last_name, u.role
+     FROM workout_comments c JOIN users u ON u.id = c.author_id
+     WHERE c.workout_id IN (${marks}) ORDER BY c.created_at ASC`,
+    workoutIds
+  );
+}
+
+export async function getBlocksForWorkouts(workoutIds: string[]) {
+  if (workoutIds.length === 0) return [];
+  const marks = workoutIds.map(() => "?").join(",");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const blocks = await dbAll<any>(
+    `SELECT * FROM workout_blocks WHERE workout_id IN (${marks}) ORDER BY workout_id, order_index ASC`,
+    workoutIds
+  );
+  if (blocks.length === 0) return [];
+  const bMarks = blocks.map(() => "?").join(",");
+  const sets = await dbAll<any>(
+    `SELECT * FROM exercise_sets WHERE block_id IN (${bMarks}) ORDER BY order_index ASC`,
+    blocks.map((b) => b.id)
+  );
+  return blocks.map((b) => ({ ...b, exerciseSets: sets.filter((x) => x.block_id === b.id) }));
 }
 
 export async function getCommentsForWorkout(workoutId: string) {

@@ -55,3 +55,12 @@ export async function estimateCyclePhase(athleteId: string): Promise<CycleEstima
 
   return { phase, dayOfCycle: dayOfCycle + 1, lastPeriodStart: lastStart.entry_date };
 }
+
+/** Débuts de règles connus (du plus récent au plus ancien), pour le calendrier. */
+export async function getPeriodStarts(athleteId: string, limit = 24): Promise<string[]> {
+  const rows = await dbAll<any>(
+    `SELECT entry_date FROM cycle_entries WHERE athlete_id = ? AND entry_type = 'period_start' ORDER BY entry_date DESC LIMIT ?`,
+    [athleteId, limit]
+  );
+  return rows.map((r) => String(r.entry_date).slice(0, 10));
+}

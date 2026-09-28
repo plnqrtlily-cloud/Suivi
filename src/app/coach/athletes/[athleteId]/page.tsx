@@ -44,8 +44,6 @@ import {
   bilanRangeDays,
   type BilanPeriodValue,
 } from "@/lib/dates";
-import { AthleteCalendar } from "./athlete-calendar";
-import { CoachAddEntryButton } from "./coach-add-entry";
 import { TrainingInsights } from "./training-insights";
 import { PeriodizationPanel } from "./periodization-panel";
 import { PeriodBadge } from "@/components/period-badge";
@@ -58,8 +56,9 @@ import { computePaceZones, formatPace } from "@/lib/pace-zones";
 import { ExerciseMaxesPanel } from "./exercise-maxes-panel";
 import { MeasurementsHistory } from "./measurements-history";
 import { EffortTestsPanel } from "./effort-tests-panel";
-import { CopyWeekForm } from "./copy-week-form";
 import { AthleteTabs } from "./athlete-tabs";
+import { CoachCalendar } from "./coach-calendar";
+import { loadCoachCalendar } from "@/lib/coach-calendar";
 import { upsertCoachNotesAction, addMeasurementAction } from "@/lib/actions";
 import { PERFORMANCE_METRICS, MEASUREMENT_DEVICES, computeDerivedMetrics, groupMetrics } from "@/lib/performance-metrics";
 import { PerformanceStats, MeasurementPoint } from "@/app/athlete/profile/performance-stats";
@@ -256,6 +255,16 @@ export default async function AthleteDetailPage({
   if (signals.unvalidatedRecently > 0) overviewAlerts.push(`${signals.unvalidatedRecently} séance(s) sans retour`);
   if (signals.daysUntilNextWorkout === null) overviewAlerts.push("plus rien de programmé");
   const activeInjury = injuries.find((i) => !i.date_end) ?? null;
+  const calendarData = await loadCoachCalendar({
+    athleteId,
+    athleteName: athlete.first_name,
+    coachId: user.id,
+    view,
+    week,
+    month,
+    today,
+    cycleShared: athleteGender === "female" && !!cycleSettings.share_with_coaches,
+  });
   const todayWorkouts = allWorkouts.filter((w) => w.date === today && w.status !== "cancelled");
 
   return (
@@ -265,7 +274,7 @@ export default async function AthleteDetailPage({
         <div className="lg:hidden">
           <Nav user={user} />
         </div>
-      <main className="mx-auto max-w-5xl px-4 sm:px-6 py-10">
+      <main className="mx-auto max-w-[1360px] px-4 sm:px-6 py-10">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Avatar userId={athleteId} firstName={athlete.first_name} hasAvatar={!!athleteAvatar?.avatar_path} size="lg" />
@@ -612,24 +621,7 @@ export default async function AthleteDetailPage({
             ),
             programmation: (
               <>
-        <h2 className="mb-3 font-display text-xl text-ink">Calendrier</h2>
-        <p className="mb-3 text-sm text-slate">Séances récentes, à venir et activités importées, en un coup d&apos;œil.</p>
-        {/* Rappel de la période en cours : on programme dans un cycle, pas dans le vide. */}
-        <div className="mb-3">
-          <PeriodBadge periods={trainingPeriods} date={today} prefix="Aujourd'hui :" />
-        </div>
-        <div className="mb-8 flex flex-col items-start gap-3">
-          <CoachAddEntryButton athleteId={athleteId} athleteFirstName={athlete.first_name} defaultDate={today} today={today} />
-          <CopyWeekForm athleteId={athleteId} />
-        </div>
-        <AthleteCalendar athleteId={athleteId} view={view} week={week} month={month} today={today} />
-
-        {/* Les objectifs vivent ici et nulle part ailleurs : c'est en programmant
-            qu'on a besoin de voir vers quoi on programme. */}
-        <div className="mt-8">
-          <UpcomingGoals goals={upcomingGoals} athleteId={athleteId} />
-        </div>
-
+        <CoachCalendar data={calendarData} />
               </>
             ),
             periodisation: <PeriodizationPanel athleteId={athleteId} periods={trainingPeriods} today={today} />,

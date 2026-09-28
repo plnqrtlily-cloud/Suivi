@@ -877,6 +877,7 @@ export async function addWorkoutCommentAction(workoutId: string, formData: FormD
   ]);
 
   revalidatePath(`/workouts/${workoutId}`);
+  revalidatePath(`/coach/athletes/${workout.athlete_id}`);
 
   const recipientId = workout.athlete_id === user.id ? workout.coach_id : workout.athlete_id;
   await createNotification({
@@ -2572,4 +2573,42 @@ export async function createTeamSessionAction(params: {
 
   revalidatePath(`/coach/equipes/${params.teamId}`);
   return { count: result.count };
+}
+
+// ---------- CALENDRIER COACH ----------
+// Actions rapides du détail de séance dans le calendrier coach : déplacer une
+// séance à une autre date (sans toucher à son contenu ni à son retour), et la
+// marquer faite telle que prévue.
+
+export async function moveWorkoutAction(params: { workoutId: string; date: string }) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  if (!DATE_ONLY_RE.test(params.date)) throw new Error("Date invalide.");
+  const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [params.workoutId]);
+  if (!workout || workout.coach_id !== user.id) throw new Error("Non autorisé.");
+  await dbRun(`UPDATE workouts SET date = ? WHERE id = ?`, [params.date, params.workoutId]);
+  revalidatePath(`/workouts/${params.workoutId}`);
+  revalidateAthleteDays(workout.athlete_id, [workout.date, params.date]);
+  if (!workout.is_draft && params.date !== workout.date) {
+    await createNotification({
+      userId: workout.athlete_id,
+      type: "workout_updated",
+      title: "Séance déplacée",
+      body: `${workout.title} : ${params.date.slice(8, 10)}/${params.date.slice(5, 7)}`,
+      link: `/workouts/${params.workoutId}`,
+    });
+  }
+}
+
+export async function markWorkoutDoneAsPlannedAction(workoutId: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [workoutId]);
+  if (!workout || workout.coach_id !== user.id) throw new Error("Non autorisé.");
+  await dbRun(
+    `UPDATE workouts SET status = 'done', actual_duration_minutes = COALESCE(actual_duration_minutes, duration_minutes), rpe = COALESCE(rpe, planned_rpe), reported_by = 'coach' WHERE id = ?`,
+    [workoutId]
+  );
+  revalidatePath(`/workouts/${workoutId}`);
+  revalidateAthleteDays(workout.athlete_id, [workout.date]);
 }
