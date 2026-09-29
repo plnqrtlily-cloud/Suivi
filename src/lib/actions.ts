@@ -3248,3 +3248,90 @@ export async function setSelfEvaluationAction(qualityId: string, level: number) 
   revalidatePath("/athlete/auto-evaluation");
   revalidatePath(`/coach/athletes/${user.id}`);
 }
+
+// --- Planification (tous les athlètes) : déplacer, retoucher, supprimer ---
+
+/** Déplace une séance vers un autre jour et/ou un autre athlète du coach. */
+export async function planningMoveWorkoutAction(params: { workoutId: string; athleteId: string; date: string }) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  if (!DATE_ONLY_RE.test(params.date)) throw new Error("Date invalide.");
+  const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [params.workoutId]);
+  if (!workout || workout.coach_id !== user.id) throw new Error("Non autorisé.");
+  if (params.athleteId !== workout.athlete_id && !(await isCoachLinkedToAthlete(user.id, params.athleteId))) {
+    throw new Error("Ce coach n'est pas lié à cet athlète.");
+  }
+  if (params.athleteId === workout.athlete_id && params.date === workout.date) return;
+  await dbRun(`UPDATE workouts SET date = ?, athlete_id = ? WHERE id = ?`, [params.date, params.athleteId, params.workoutId]);
+  revalidatePath(`/workouts/${params.workoutId}`);
+  revalidateAthleteDays(workout.athlete_id, [workout.date]);
+  revalidateAthleteDays(params.athleteId, [params.date]);
+  if (!workout.is_draft) {
+    if (params.athleteId !== workout.athlete_id) {
+      await createNotification({
+        userId: workout.athlete_id,
+        type: "workout_cancelled",
+        title: "Séance retirée",
+        body: `« ${workout.title} » prévue le ${workout.date.slice(8, 10)}/${workout.date.slice(5, 7)} a été retirée de votre programme.`,
+      });
+      await createNotification({
+        userId: params.athleteId,
+        type: "workout_updated",
+        title: "Nouvelle séance",
+        body: `${workout.title} : ${params.date.slice(8, 10)}/${params.date.slice(5, 7)}`,
+        link: `/workouts/${params.workoutId}`,
+      });
+    } else {
+      await createNotification({
+        userId: workout.athlete_id,
+        type: "workout_updated",
+        title: "Séance déplacée",
+        body: `${workout.title} : ${params.date.slice(8, 10)}/${params.date.slice(5, 7)}`,
+        link: `/workouts/${params.workoutId}`,
+      });
+    }
+  }
+}
+
+/** Retouche rapide depuis la planification : titre, sport, durée, date (le contenu détaillé ne bouge pas). */
+export async function planningUpdateWorkoutAction(params: { workoutId: string; title: string; sport: string; durationMinutes: number | null; date: string }) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  if (!DATE_ONLY_RE.test(params.date)) throw new Error("Date invalide.");
+  const title = params.title.trim();
+  if (!title) throw new Error("Donnez un titre à la séance.");
+  const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [params.workoutId]);
+  if (!workout || workout.coach_id !== user.id) throw new Error("Non autorisé.");
+  const minutes = params.durationMinutes && params.durationMinutes > 0 ? Math.round(params.durationMinutes) : null;
+  await dbRun(`UPDATE workouts SET title = ?, sport = ?, duration_minutes = ?, date = ? WHERE id = ?`, [title, params.sport, minutes, params.date, params.workoutId]);
+  revalidatePath(`/workouts/${params.workoutId}`);
+  revalidateAthleteDays(workout.athlete_id, [workout.date, params.date]);
+  if (!workout.is_draft) {
+    await createNotification({
+      userId: workout.athlete_id,
+      type: "workout_updated",
+      title: "Séance modifiée",
+      body: `${title} : ${params.date.slice(8, 10)}/${params.date.slice(5, 7)}`,
+      link: `/workouts/${params.workoutId}`,
+    });
+  }
+}
+
+/** Suppression depuis la planification (sans quitter la page, contrairement à cancelWorkoutAction). */
+export async function planningDeleteWorkoutAction(workoutId: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [workoutId]);
+  if (!workout) return;
+  if (workout.coach_id !== user.id) throw new Error("Non autorisé.");
+  await dbRun(`DELETE FROM workouts WHERE id = ?`, [workoutId]);
+  revalidateAthleteDays(workout.athlete_id, [workout.date]);
+  if (!workout.is_draft) {
+    await createNotification({
+      userId: workout.athlete_id,
+      type: "workout_cancelled",
+      title: "Séance annulée",
+      body: `« ${workout.title} » prévue le ${workout.date.slice(8, 10)}/${workout.date.slice(5, 7)} a été annulée par votre coach.`,
+    });
+  }
+}
