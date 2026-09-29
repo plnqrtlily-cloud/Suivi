@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -13,12 +13,15 @@ import {
   markWorkoutDoneAsPlannedAction,
   validateWorkoutAction,
   moveWorkoutAction,
+  loadCoachCalendarWeeksAction,
 } from "@/lib/actions";
 import type { CoachCalendarData, CalDay, CalEntry, CalWeek, EntryStatus } from "@/lib/coach-calendar-types";
 import { CYCLE_DAY_STYLE } from "@/lib/cycle-types";
 
-// Calendrier coach : semaine (défilement horizontal) ou mois, et un panneau de
-// détail qui s'ouvre en douceur sous le calendrier (jour, séance, ajout, copie).
+// Calendrier coach : défilement continu, jour après jour en vue semaine et
+// semaine après semaine en vue mois (d'autres semaines se chargent au fil du
+// défilement), et un panneau de détail qui s'ouvre en douceur sous le
+// calendrier (jour, séance, ajout, copie).
 
 const BAR: Record<EntryStatus, string> = {
   done: "3px solid #1b4b4f",
@@ -106,17 +109,24 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
   const [popWeek, setPopWeek] = useState<string | null>(null);
   const base = `/coach/athletes/${data.athleteId}`;
 
-  // Animation de glissement entre deux semaines / deux mois.
-  const dirRef = useRef(0);
-  const [slide, setSlide] = useState<{ x: number; anim: boolean }>({ x: 0, anim: false });
-  const key = data.view === "week" ? data.weeks[0]?.weekStart : data.month;
-  useEffect(() => {
-    if (!dirRef.current) return;
-    setSlide({ x: dirRef.current * 60, anim: false });
-    const r = requestAnimationFrame(() => requestAnimationFrame(() => setSlide({ x: 0, anim: true })));
-    dirRef.current = 0;
-    return () => cancelAnimationFrame(r);
-  }, [key]);
+  // Semaines chargées : celles de la page, puis d'autres au fil du défilement.
+  // Après une modification, la page renvoie des semaines à jour : on les fusionne.
+  const [weeks, setWeeks] = useState(data.weeks);
+  const [source, setSource] = useState(data);
+  if (source !== data) {
+    setSource(data);
+    setWeeks((prev) => mergeWeeks(prev, data.weeks));
+  }
+  const [view, setView] = useState<"week" | "month">(data.view);
+  // Vue semaine : premier jour visible · vue mois : 1er du mois affiché.
+  const [focus, setFocus] = useState(data.focus);
+
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const headRef = useRef<HTMLDivElement>(null);
+  const jumpRef = useRef<{ date: string; smooth: boolean } | null>({ date: data.focus, smooth: false });
+  const firstRef = useRef<string | null>(null);
+  const loadingRef = useRef(false);
+  const frameRef = useRef(0);
 
   useEffect(() => {
     if (!toast) return;
@@ -124,7 +134,7 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const allDays = useMemo(() => data.weeks.flatMap((w) => w.days), [data.weeks]);
+  const allDays = useMemo(() => weeks.flatMap((w) => w.days), [weeks]);
   const findEntry = (id: string) => {
     for (const d of allDays) {
       const e = d.entries.find((x) => x.id === id);
@@ -133,17 +143,151 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
     return null;
   };
 
-  function go(href: string, dir: number) {
-    dirRef.current = dir;
-    setPanel(null);
-    setPicker(null);
-    setPopWeek(null);
-    startTransition(() => router.push(href, { scroll: false }));
+  function scrollToDate(date: string, smooth: boolean) {
+    const sc = scrollerRef.current;
+    if (!sc) return;
+    const behavior: ScrollBehavior = smooth ? "smooth" : "auto";
+    if (view === "week") {
+      const el = sc.querySelector<HTMLElement>(`[data-date="${date}"]`);
+      if (el) sc.scrollTo({ left: el.offsetLeft, behavior });
+    } else {
+      const el = sc.querySelector<HTMLElement>(`[data-date="${mondayOf(date)}"]`);
+      if (el) sc.scrollTo({ top: el.offsetTop - (headRef.current?.offsetHeight ?? 0) - 6, behavior });
+    }
   }
-  const goWeek = (offset: number) => go(`${base}?view=week&week=${offset}`, offset > data.offset ? 1 : -1);
-  const goMonth = (m: string) => go(`${base}?view=month&month=${m}`, m > data.month ? 1 : -1);
-  const prev = () => (data.view === "week" ? goWeek(data.offset - 1) : goMonth(data.prevMonth));
-  const next = () => (data.view === "week" ? goWeek(data.offset + 1) : goMonth(data.nextMonth));
+
+  // Aller à une date : défilement doux si elle est déjà chargée, sinon on
+  // charge les semaines autour d'elle puis on s'y place.
+  async function goTo(date: string, smooth = true) {
+    const last = weeks[weeks.length - 1]?.days[6].date;
+    if (weeks.length && date >= weeks[0].weekStart && date <= last) {
+      scrollToDate(date, smooth);
+      return;
+    }
+    loadingRef.current = true;
+    try {
+      const fresh = await loadCoachCalendarWeeksAction(data.athleteId, addDays(mondayOf(date), -8 * 7), 20);
+      firstRef.current = null;
+      jumpRef.current = { date, smooth: false };
+      setWeeks(fresh);
+    } finally {
+      loadingRef.current = false;
+    }
+  }
+
+  async function loadMore(dir: -1 | 1) {
+    if (loadingRef.current || !weeks.length) return;
+    loadingRef.current = true;
+    try {
+      const from = dir < 0 ? addDays(weeks[0].weekStart, -CHUNK * 7) : addDays(weeks[weeks.length - 1].weekStart, 7);
+      const more = await loadCoachCalendarWeeksAction(data.athleteId, from, CHUNK);
+      setWeeks((prev) => mergeWeeks(prev, more));
+    } catch {
+      // Hors ligne ou session expirée : on réessaiera au prochain défilement.
+    } finally {
+      loadingRef.current = false;
+    }
+  }
+
+  // Après ajout de semaines au début, on décale le défilement d'autant pour que
+  // rien ne bouge à l'écran ; puis on exécute un saut demandé (ouverture, « Aujourd'hui »…).
+  useLayoutEffect(() => {
+    const sc = scrollerRef.current;
+    const first = weeks[0]?.weekStart ?? null;
+    const old = firstRef.current;
+    firstRef.current = first;
+    if (sc && old && first && old !== first && !jumpRef.current) {
+      const oldEl = sc.querySelector<HTMLElement>(`[data-date="${old}"]`);
+      const firstEl = sc.querySelector<HTMLElement>(`[data-date="${first}"]`);
+      if (oldEl && firstEl) {
+        if (view === "week") sc.scrollLeft += oldEl.offsetLeft - firstEl.offsetLeft;
+        else sc.scrollTop += oldEl.offsetTop - firstEl.offsetTop;
+      }
+    }
+    const jump = jumpRef.current;
+    if (jump) {
+      jumpRef.current = null;
+      scrollToDate(jump.date, jump.smooth);
+    }
+    // scrollToDate ne dépend que de la vue et du DOM déjà rendu.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weeks, view]);
+
+  function onScroll() {
+    cancelAnimationFrame(frameRef.current);
+    frameRef.current = requestAnimationFrame(() => {
+      const sc = scrollerRef.current;
+      if (!sc || !allDays.length) return;
+      if (view === "week") {
+        const stride = (sc.scrollWidth + GAP) / allDays.length;
+        const i = Math.max(0, Math.min(allDays.length - 1, Math.round(sc.scrollLeft / stride)));
+        const d = allDays[i].date;
+        if (d !== focus) setFocus(d);
+        if (sc.scrollLeft < stride * 10) loadMore(-1);
+        else if (sc.scrollLeft + sc.clientWidth > sc.scrollWidth - stride * 10) loadMore(1);
+      } else {
+        const y = sc.scrollTop + (headRef.current?.offsetHeight ?? 0) + sc.clientHeight * 0.3;
+        const rows = sc.querySelectorAll<HTMLElement>("[data-date]");
+        let row = rows[0];
+        for (const r of rows) if (r.offsetTop <= y) row = r;
+        const w = weeks.find((x) => x.weekStart === row?.dataset.date);
+        if (w) {
+          const m = `${w.days[3].date.slice(0, 7)}-01`;
+          if (m !== focus) setFocus(m);
+        }
+        if (sc.scrollTop < 700) loadMore(-1);
+        else if (sc.scrollTop + sc.clientHeight > sc.scrollHeight - 700) loadMore(1);
+      }
+    });
+  }
+
+  // L'adresse suit la période affichée (sans recharger) : un rechargement ou
+  // un lien partagé retombe au même endroit.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const u = new URL(window.location.href);
+      u.searchParams.set("view", view);
+      if (view === "week") {
+        u.searchParams.set("week", String(Math.round(daysBetween(mondayOf(data.today), mondayOf(addDays(focus, 3))) / 7)));
+        u.searchParams.delete("month");
+      } else {
+        u.searchParams.set("month", focus.slice(0, 7));
+        u.searchParams.delete("week");
+      }
+      if (u.href !== window.location.href) window.history.replaceState(null, "", u.pathname + u.search);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [view, focus, data.today]);
+
+  function switchView(v: "week" | "month") {
+    if (v === view) return;
+    setPanel(null);
+    setPopWeek(null);
+    let target: string;
+    if (v === "month") {
+      target = `${addDays(focus, 3).slice(0, 7)}-01`;
+    } else {
+      target = focus.slice(0, 7) === data.today.slice(0, 7) ? mondayOf(data.today) : mondayOf(focus);
+    }
+    jumpRef.current = { date: target, smooth: false };
+    setFocus(target);
+    setView(v);
+  }
+
+  function step(dir: -1 | 1) {
+    const sc = scrollerRef.current;
+    if (!sc) return;
+    if (view === "week") {
+      const stride = (sc.scrollWidth + GAP) / allDays.length;
+      sc.scrollBy({ left: dir * 7 * stride, behavior: "smooth" });
+    } else {
+      const [y, m] = focus.split("-").map(Number);
+      const d = new Date(y, m - 1 + dir, 1);
+      goTo(isoOf(d));
+    }
+  }
+
+  const goToday = () => goTo(view === "week" ? mondayOf(data.today) : `${data.today.slice(0, 7)}-01`);
 
   function run(fn: () => Promise<unknown>, message: string, after?: () => void) {
     startTransition(async () => {
@@ -164,27 +308,67 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
     setPanel((cur) => (cur && p && JSON.stringify(cur) === JSON.stringify(p) ? null : p));
   }
 
-  // Défilement au trackpad / balayage tactile.
-  const wheelLock = useRef(false);
-  const touchX = useRef(0);
-  function onWheel(e: React.WheelEvent) {
-    if (Math.abs(e.deltaX) < Math.abs(e.deltaY) || Math.abs(e.deltaX) < 25 || wheelLock.current) return;
-    wheelLock.current = true;
-    setTimeout(() => (wheelLock.current = false), 700);
-    if (e.deltaX > 0) next();
-    else prev();
-  }
+  // Titre, sous-titre et bilan de la période à l'écran.
+  const monthKey = focus.slice(0, 7);
+  const head = useMemo(() => {
+    if (view === "week") {
+      const i = Math.max(0, allDays.findIndex((d) => d.date === focus));
+      const vis = allDays.slice(i, i + 7);
+      const mid = vis[Math.min(3, vis.length - 1)]?.date ?? focus;
+      const w = weeks.find((x) => x.days.some((d) => d.date === mid));
+      const a = parse(vis[0]?.date ?? focus);
+      const b = parse(vis[vis.length - 1]?.date ?? focus);
+      const title =
+        a.getMonth() === b.getMonth()
+          ? `${a.getDate()} – ${b.getDate()} ${MONTHS[b.getMonth()]}`
+          : `${a.getDate()} ${MONTHS[a.getMonth()]} – ${b.getDate()} ${MONTHS[b.getMonth()]}`;
+      return {
+        title,
+        subtitle: w ? `Semaine ${w.number}${w.periodLabel ? ` · ${w.periodLabel}` : ""}` : "",
+        stats: w ? { load: w.load, plannedLoad: w.plannedLoad, minutes: w.minutes, plannedMinutes: w.plannedMinutes, done: w.done, total: w.total } : EMPTY_STATS,
+        week: w ?? null,
+      };
+    }
+    const [y, m] = monthKey.split("-").map(Number);
+    const inMonth = weeks.filter((w) => w.days.some((d) => d.date.startsWith(monthKey)));
+    const names = Array.from(new Set(inMonth.map((w) => w.period).filter(Boolean)));
+    const stats = { ...EMPTY_STATS };
+    for (const w of inMonth)
+      for (const day of w.days.filter((d) => d.date.startsWith(monthKey)))
+        for (const e of day.entries) {
+          if (e.isGoal && e.kind === "workout" && !e.plannedMin) continue;
+          const realised = e.status === "done" || e.status === "tovalidate" || e.status === "hors";
+          if (e.kind === "workout") {
+            stats.total++;
+            if (e.status === "done" || e.status === "tovalidate") stats.done++;
+            stats.plannedMinutes += e.plannedMin || 0;
+            stats.plannedLoad += (e.plannedMin || 0) * (e.plannedRpe || 0);
+          }
+          if (realised) {
+            const min = e.realMin ?? e.plannedMin ?? 0;
+            stats.minutes += min;
+            stats.load += min * (e.rpe || 0);
+          }
+        }
+    return {
+      title: `${MONTHS[m - 1].charAt(0).toUpperCase()}${MONTHS[m - 1].slice(1)} ${y}`,
+      subtitle: inMonth.length ? `Semaines ${inMonth[0].number} à ${inMonth[inMonth.length - 1].number}${names.length ? ` · ${names.join(", ")}` : ""}` : "",
+      stats,
+      week: null,
+    };
+  }, [view, focus, monthKey, allDays, weeks]);
 
-  const s = data.stats;
+  const s = head.stats;
   const bar = (v: number, of: number) => `${of ? Math.min(100, Math.round((v / of) * 100)) : 0}%`;
+  const arrow = "flex h-[38px] w-[38px] items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-paper-dim";
 
   return (
     <div className="flex flex-col gap-6">
       {/* En-tête */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 className="text-[28px] font-bold leading-tight tracking-tight text-ink">{data.title}</h2>
-          <p className="text-sm text-slate">{data.subtitle}</p>
+          <h2 className="text-[28px] font-bold leading-tight tracking-tight text-ink">{head.title}</h2>
+          <p className="min-h-5 text-sm text-slate">{head.subtitle}</p>
         </div>
         <span className="flex-1" />
         {data.goal && data.goal.days >= 0 && (
@@ -195,13 +379,24 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
             </span>
           </div>
         )}
+        <div className="flex items-center">
+          <button type="button" onClick={() => step(-1)} aria-label={view === "week" ? "Semaine précédente" : "Mois précédent"} className={arrow}>
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.5 4.5 7 10l5.5 5.5" /></svg>
+          </button>
+          <button type="button" onClick={goToday} className="rounded-full px-3 py-2 text-[13px] font-semibold text-ink-soft transition-colors hover:bg-paper-dim">
+            Aujourd&apos;hui
+          </button>
+          <button type="button" onClick={() => step(1)} aria-label={view === "week" ? "Semaine suivante" : "Mois suivant"} className={arrow}>
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7.5 4.5 13 10l-5.5 5.5" /></svg>
+          </button>
+        </div>
         <div className="flex rounded-full bg-paper-dim p-[3px]">
           {(["week", "month"] as const).map((v) => (
             <button
               key={v}
               type="button"
-              onClick={() => v !== data.view && go(`${base}?view=${v}`, 0)}
-              className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${data.view === v ? "bg-white text-ink shadow-sm" : "text-slate"}`}
+              onClick={() => switchView(v)}
+              className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${view === v ? "bg-white text-ink shadow-sm" : "text-slate"}`}
             >
               {v === "week" ? "Semaine" : "Mois"}
             </button>
@@ -219,14 +414,11 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
           </button>
           {menu && (
             <div role="menu" className="absolute right-0 top-11 z-30 flex w-56 flex-col rounded-xl bg-white p-1.5 shadow-[0_10px_28px_rgba(24,34,32,0.18)]">
-              {data.view === "week" && (
+              {view === "week" && head.week && (
                 <button type="button" role="menuitem" onClick={() => open({ type: "copy" })} className="rounded-lg px-3 py-2 text-left text-sm hover:bg-paper">
-                  Copier cette semaine…
+                  Copier la semaine {head.week.number}…
                 </button>
               )}
-              <button type="button" role="menuitem" onClick={() => { setMenu(false); go(`${base}?view=${data.view}`, 0); }} className="rounded-lg px-3 py-2 text-left text-sm hover:bg-paper">
-                Revenir à aujourd&apos;hui
-              </button>
               <Link role="menuitem" href={`${base}/new-workout`} className="rounded-lg px-3 py-2 text-left text-sm hover:bg-paper">
                 Nouvelle séance (éditeur complet)
               </Link>
@@ -256,43 +448,43 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
         ))}
       </div>
 
-      {/* Calendrier */}
-      <div className="relative -mx-2 overflow-x-auto px-2 pb-1" onWheel={onWheel}
-        onTouchStart={(e) => (touchX.current = e.touches[0].clientX)}
-        onTouchEnd={(e) => { const dx = e.changedTouches[0].clientX - touchX.current; if (Math.abs(dx) > 60) (dx < 0 ? next : prev)(); }}>
+      {/* Calendrier : défilement continu (jours à l'horizontale, semaines à la verticale) */}
+      {view === "week" ? (
         <div
-          className="min-w-[860px]"
-          style={{
-            transform: `translateX(${slide.x}px)`,
-            opacity: slide.x ? 0.3 : pending ? 0.7 : 1,
-            transition: slide.anim ? "transform 320ms cubic-bezier(.2,.8,.2,1), opacity 320ms ease" : "none",
-          }}
+          key="week"
+          ref={scrollerRef}
+          onScroll={onScroll}
+          className="relative -mx-1 grid snap-x snap-mandatory grid-flow-col gap-2 overflow-x-auto overscroll-x-contain px-1 pb-2 animate-expand-in [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          style={{ gridAutoColumns: `max(128px, calc((100% - ${6 * GAP}px) / 7))`, scrollPaddingLeft: 4 }}
         >
-          {data.view === "week" ? (
-            <div className="flex items-stretch gap-2">
-              <button type="button" onClick={prev} aria-label="Semaine précédente" className="w-8 shrink-0 rounded-r-2xl bg-white/60 transition-colors hover:bg-white" />
-              <div className="grid flex-1 grid-cols-7 gap-2">
-                {data.weeks[0].days.map((d) => (
-                  <DayCard
-                    key={d.date}
-                    day={d}
-                    selected={panel}
-                    hoverForme={hoverForme}
-                    setHoverForme={setHoverForme}
-                    onOpenDay={() => open({ type: "day", date: d.date })}
-                    onOpenEntry={(id) => open({ type: "entry", id })}
-                    onAdd={() => open({ type: "add", date: d.date, mode: d.date <= data.today ? "done" : "todo" })}
-                  />
-                ))}
-              </div>
-              <button type="button" onClick={next} aria-label="Semaine suivante" className="w-8 shrink-0 rounded-l-2xl bg-white/60 transition-colors hover:bg-white" />
-            </div>
-          ) : (
-            <MonthGrid data={data} panel={panel} popWeek={popWeek} setPopWeek={setPopWeek} onPrev={prev} onNext={next}
-              onOpenDay={(date) => open({ type: "day", date })} onOpenEntry={(id) => open({ type: "entry", id })} />
-          )}
+          {allDays.map((d) => (
+            <DayCard
+              key={d.date}
+              day={d}
+              selected={panel}
+              hoverForme={hoverForme}
+              setHoverForme={setHoverForme}
+              onOpenDay={() => open({ type: "day", date: d.date })}
+              onOpenEntry={(id) => open({ type: "entry", id })}
+              onAdd={() => open({ type: "add", date: d.date, mode: d.date <= data.today ? "done" : "todo" })}
+            />
+          ))}
         </div>
-      </div>
+      ) : (
+        <MonthScroller
+          key="month"
+          scrollerRef={scrollerRef}
+          headRef={headRef}
+          onScroll={onScroll}
+          weeks={weeks}
+          monthKey={monthKey}
+          panel={panel}
+          popWeek={popWeek}
+          setPopWeek={setPopWeek}
+          onOpenDay={(date) => open({ type: "day", date })}
+          onOpenEntry={(id) => open({ type: "entry", id })}
+        />
+      )}
 
       {/* Légende */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate">
@@ -327,7 +519,7 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
               <button type="button" onClick={() => setPanel(null)} aria-label="Fermer" className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-full bg-paper text-ink-soft">
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M5 5l10 10M15 5L5 15" /></svg>
               </button>
-              {panel.type === "day" && <DayPanel day={allDays.find((d) => d.date === panel.date)} data={data} onOpenEntry={(id) => open({ type: "entry", id })} onDelete={(kind, id) => run(() => coachDeleteEntryAction(kind, id), "Supprimé")} />}
+              {panel.type === "day" && <DayPanel day={allDays.find((d) => d.date === panel.date)} weeks={weeks} data={data} onOpenEntry={(id) => open({ type: "entry", id })} onDelete={(kind, id) => run(() => coachDeleteEntryAction(kind, id), "Supprimé")} />}
               {panel.type === "entry" && (() => {
                 const f = findEntry(panel.id);
                 if (!f) return <p className="text-sm text-slate">Cette entrée n&apos;est plus dans la période affichée.</p>;
@@ -370,11 +562,12 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
                   }
                 />
               )}
-              {panel.type === "copy" && (
+              {panel.type === "copy" && head.week && (
                 <CopyPanel
-                  data={data}
+                  weekStart={head.week.weekStart}
+                  title={`Semaine ${head.week.number}`}
                   onCopy={(target) =>
-                    run(() => copyWeekAction({ athleteId: data.athleteId, sourceWeekStart: data.weeks[0].weekStart, targetWeekStart: target }), "Semaine copiée", () => setPanel(null))
+                    run(() => copyWeekAction({ athleteId: data.athleteId, sourceWeekStart: head.week!.weekStart, targetWeekStart: target }), "Semaine copiée", () => setPanel(null))
                   }
                 />
               )}
@@ -390,6 +583,34 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
       )}
     </div>
   );
+}
+
+const GAP = 8;
+const CHUNK = 8;
+const EMPTY_STATS = { load: 0, plannedLoad: 0, minutes: 0, plannedMinutes: 0, done: 0, total: 0 };
+
+function isoOf(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function addDays(date: string, n: number): string {
+  const d = parse(date);
+  d.setDate(d.getDate() + n);
+  return isoOf(d);
+}
+function mondayOf(date: string): string {
+  return addDays(date, -((parse(date).getDay() + 6) % 7));
+}
+function daysBetween(a: string, b: string): number {
+  return Math.round((parse(b).getTime() - parse(a).getTime()) / 86400000);
+}
+/** Réunit deux listes de semaines (les plus récentes l'emportent) si elles restent consécutives. */
+function mergeWeeks(prev: CalWeek[], next: CalWeek[]): CalWeek[] {
+  if (!prev.length) return next;
+  const map = new Map(prev.map((w) => [w.weekStart, w]));
+  for (const w of next) map.set(w.weekStart, w);
+  const keys = [...map.keys()].sort();
+  for (let i = 1; i < keys.length; i++) if (addDays(keys[i - 1], 7) !== keys[i]) return next;
+  return keys.map((k) => map.get(k)!);
 }
 
 // ---------------------------------------------------------------------------
@@ -461,14 +682,16 @@ function DayCard({
   const empty = day.entries.length + day.blocks.length === 0;
   return (
     <div
+      data-date={day.date}
       onClick={(e) => { if ((e.target as HTMLElement).closest("button")) return; onOpenDay(); }}
-      className="relative flex min-h-[230px] cursor-pointer flex-col gap-3 rounded-2xl px-2.5 pb-2.5 pt-3 transition-colors"
+      className="relative flex min-h-[230px] snap-start cursor-pointer flex-col gap-3 rounded-2xl px-2.5 pb-2.5 pt-3 transition-colors"
       style={{ background: day.isToday ? "#fffaf7" : "#ffffff", border: `2px solid ${isSel ? "#1b4b4f" : day.isToday ? "#e8896a" : "transparent"}` }}
     >
       {day.isToday && <div className="-mx-2.5 -mt-3 rounded-t-[13px] bg-gold-light py-1 text-center text-[11px] font-bold text-[#3b1f0c]">Aujourd&apos;hui</div>}
       <button type="button" onClick={onOpenDay} className="flex items-baseline gap-1.5 self-start">
         <span className="text-xs font-semibold" style={{ color: day.isToday ? "#a4492a" : "#5b6660" }}>{day.dow}</span>
         <span className="text-[19px] font-bold" style={{ color: day.isToday ? "#a4492a" : "#182220" }}>{day.num}</span>
+        {day.num === 1 && <span className="text-xs font-semibold text-slate">{MONTHS[parse(day.date).getMonth()].slice(0, 4)}{MONTHS[parse(day.date).getMonth()].length > 4 ? "." : ""}</span>}
       </button>
       <div className="flex flex-col gap-1.5">
         <FormeLine day={day} hoverForme={hoverForme} setHoverForme={setHoverForme} />
@@ -506,46 +729,56 @@ function DayCard({
   );
 }
 
-function MonthGrid({
-  data,
+function MonthScroller({
+  scrollerRef,
+  headRef,
+  onScroll,
+  weeks,
+  monthKey,
   panel,
   popWeek,
   setPopWeek,
-  onPrev,
-  onNext,
   onOpenDay,
   onOpenEntry,
 }: {
-  data: CoachCalendarData;
+  scrollerRef: React.RefObject<HTMLDivElement | null>;
+  headRef: React.RefObject<HTMLDivElement | null>;
+  onScroll: () => void;
+  weeks: CalWeek[];
+  monthKey: string;
   panel: Panel;
   popWeek: string | null;
   setPopWeek: (w: string | null) => void;
-  onPrev: () => void;
-  onNext: () => void;
   onOpenDay: (date: string) => void;
   onOpenEntry: (id: string) => void;
 }) {
+  const cols = "grid grid-cols-[repeat(7,minmax(0,1fr))_180px] gap-1.5";
   return (
-    <div className="flex items-stretch gap-2">
-      <button type="button" onClick={onPrev} aria-label="Mois précédent" className="w-8 shrink-0 rounded-r-2xl bg-white/60 hover:bg-white" />
-      <div className="flex-1">
-        <div className="mb-1.5 grid grid-cols-[repeat(7,minmax(0,1fr))_180px] gap-1.5 px-1 text-xs font-semibold text-slate">
+    <div
+      ref={scrollerRef}
+      onScroll={onScroll}
+      className="relative -mx-1 h-[min(74vh,780px)] min-h-[460px] overflow-auto overscroll-contain px-1 animate-expand-in [scrollbar-width:thin]"
+    >
+      <div className="min-w-[860px]">
+        <div ref={headRef} className={`${cols} sticky top-0 z-20 bg-paper px-1 pb-1.5 pt-0.5 text-xs font-semibold text-slate`}>
           {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim", "Semaine"].map((l) => <span key={l}>{l}</span>)}
         </div>
-        <div className="flex flex-col gap-1.5">
-          {data.weeks.map((w) => (
-            <div key={w.weekStart} className="grid grid-cols-[repeat(7,minmax(0,1fr))_180px] gap-1.5">
+        <div className="flex flex-col gap-1.5 pb-2">
+          {weeks.map((w) => (
+            <div key={w.weekStart} data-date={w.weekStart} className={cols}>
               {w.days.map((d) => {
                 const sel = panel?.type === "day" && panel.date === d.date;
+                const inMonth = d.date.startsWith(monthKey);
                 return (
                   <div
                     key={d.date}
                     onClick={(e) => { if ((e.target as HTMLElement).closest("button")) return; onOpenDay(d.date); }}
-                    className="flex min-h-[104px] cursor-pointer flex-col gap-1.5 overflow-hidden rounded-xl px-2 py-2"
-                    style={{ background: d.isToday ? "#fffaf7" : d.inMonth ? "#ffffff" : "#f7f8f8", border: `2px solid ${sel ? "#1b4b4f" : d.isToday ? "#e8896a" : "transparent"}` }}
+                    className="flex min-h-[104px] cursor-pointer flex-col gap-1.5 overflow-hidden rounded-xl px-2 py-2 transition-[background-color,opacity] duration-300"
+                    style={{ background: d.isToday ? "#fffaf7" : inMonth ? "#ffffff" : "#f7f8f8", opacity: inMonth || d.isToday ? 1 : 0.75, border: `2px solid ${sel ? "#1b4b4f" : d.isToday ? "#e8896a" : "transparent"}` }}
                   >
                     <div className="flex items-baseline gap-1.5">
-                      <span className="text-[15px] font-bold" style={{ color: d.isToday ? "#a4492a" : d.inMonth ? "#182220" : "#9aa39c" }}>{d.num}</span>
+                      <span className="text-[15px] font-bold transition-colors duration-300" style={{ color: d.isToday ? "#a4492a" : inMonth ? "#182220" : "#9aa39c" }}>{d.num}</span>
+                      {d.num === 1 && <span className="text-xs font-semibold text-slate">{MONTHS[parse(d.date).getMonth()]}</span>}
                       <span className="flex-1" />
                       {d.forme && (
                         <span className="text-[11.5px] font-semibold" style={{ color: d.forme.score < 6 ? "#8a3a1f" : "#5b6660" }}>● {String(d.forme.score).replace(".", ",")}</span>
@@ -568,7 +801,6 @@ function MonthGrid({
           ))}
         </div>
       </div>
-      <button type="button" onClick={onNext} aria-label="Mois suivant" className="w-8 shrink-0 rounded-l-2xl bg-white/60 hover:bg-white" />
     </div>
   );
 }
@@ -647,12 +879,12 @@ function PanelHead({ date, title, children }: { date: string; title: string; chi
 const pill = "rounded-full border border-line bg-white px-4 py-2 text-[13.5px] font-semibold text-moss transition-colors hover:bg-paper disabled:opacity-50";
 const pillMain = "rounded-full bg-moss px-4 py-2 text-[13.5px] font-semibold text-white transition-opacity disabled:opacity-50";
 
-function DayPanel({ day, data, onOpenEntry, onDelete }: { day?: CalDay; data: CoachCalendarData; onOpenEntry: (id: string) => void; onDelete: (kind: "activity" | "availability", id: string) => void }) {
+function DayPanel({ day, weeks, data, onOpenEntry, onDelete }: { day?: CalDay; weeks: CalWeek[]; data: CoachCalendarData; onOpenEntry: (id: string) => void; onDelete: (kind: "activity" | "availability", id: string) => void }) {
   if (!day) return null;
   const f = day.forme;
   return (
     <div>
-      <PanelHead date={`Semaine ${data.weeks.find((w) => w.days.includes(day))?.number ?? ""}`} title={longDate(day.date)} />
+      <PanelHead date={`Semaine ${weeks.find((w) => w.days.includes(day))?.number ?? ""}`} title={longDate(day.date)} />
       <div className="grid gap-7 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="flex flex-col gap-3">
           <b className="text-sm text-ink">Séances et activités</b>
@@ -981,8 +1213,8 @@ function AddPanel({
   );
 }
 
-function CopyPanel({ data, onCopy }: { data: CoachCalendarData; onCopy: (target: string) => void }) {
-  const start = parse(data.weeks[0].weekStart);
+function CopyPanel({ weekStart, title, onCopy }: { weekStart: string; title: string; onCopy: (target: string) => void }) {
+  const start = parse(weekStart);
   const targets = [1, 2, 3].map((n) => {
     const d = new Date(start);
     d.setDate(start.getDate() + n * 7);
@@ -992,7 +1224,7 @@ function CopyPanel({ data, onCopy }: { data: CoachCalendarData; onCopy: (target:
   });
   return (
     <div>
-      <PanelHead date={data.title} title="Copier la semaine" />
+      <PanelHead date={title} title="Copier la semaine" />
       <p className="mb-4 max-w-2xl text-sm text-ink-soft">
         Les séances programmées de cette semaine sont recopiées « à faire », le même jour de la semaine choisie. Les indisponibilités et les activités hors programme ne sont pas copiées.
       </p>

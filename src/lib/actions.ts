@@ -2859,3 +2859,23 @@ export async function validateWorkoutAction(workoutId: string, validated = true)
   revalidatePath(`/workouts/${workoutId}`);
   revalidateAthleteDays(workout.athlete_id, [workout.date]);
 }
+
+/**
+ * Semaines supplémentaires du calendrier coach, chargées au fil du défilement
+ * (vue semaine ou mois), sans rechargement de page.
+ */
+export async function loadCoachCalendarWeeksAction(athleteId: string, from: string, count: number) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) throw new Error("Date invalide.");
+  const { loadCalendarWeeks, isCycleSharedWithCoach } = await import("./coach-calendar");
+  return loadCalendarWeeks({
+    athleteId,
+    coachId: user.id,
+    from,
+    count: Math.max(1, Math.min(26, Math.floor(count) || 1)),
+    today: todayISO(),
+    cycleShared: await isCycleSharedWithCoach(athleteId),
+  });
+}

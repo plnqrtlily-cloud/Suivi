@@ -10,13 +10,14 @@ import {
   getBlocksForWorkouts,
   getTrainingPeriods,
   getNextGoalForAthlete,
+  getUserGender,
   type Workout,
   type ImportedActivity,
 } from "./queries";
 import { getCycleSettings, getPeriodStarts } from "./cycle";
 import { cycleDayForDate } from "./cycle-types";
 import { computeGlobalScore, scoreLabel } from "./checkin-types";
-import { getWeekDates, getMonthGrid, daysUntil } from "./dates";
+import { daysUntil } from "./dates";
 import { formatWorkoutTime, AVAILABILITY_SLOT_LABELS } from "./time-of-day";
 import { periodsOnDate, weekPosition } from "./periodization";
 import { intervalsToLines, strengthBlocksToLines } from "./workout-content";
@@ -93,6 +94,31 @@ function workoutStatus(w: Workout, today: string): EntryStatus {
   }
 }
 
+function addDaysISO(iso: string, n: number): string {
+  const d = parse(iso);
+  d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function mondayISO(iso: string): string {
+  const d = parse(iso);
+  return addDaysISO(iso, -((d.getDay() + 6) % 7));
+}
+
+/** Semaines chargées d'un coup autour de la date affichée, puis par blocs au défilement. */
+export const CALENDAR_INITIAL_BEFORE = 8;
+export const CALENDAR_INITIAL_AFTER = 12;
+export const CALENDAR_CHUNK = 8;
+
+export async function isCycleSharedWithCoach(athleteId: string): Promise<boolean> {
+  const [gender, settings] = await Promise.all([getUserGender(athleteId), getCycleSettings(athleteId)]);
+  return gender === "female" && !!settings?.share_with_coaches;
+}
+
+/**
+ * Calendrier coach : la page charge quelques mois autour de la semaine ou du
+ * mois demandé ; le composant client en charge d'autres au fil du défilement
+ * (loadCoachCalendarWeeksAction), sans changer de page.
+ */
 export async function loadCoachCalendar(params: {
   athleteId: string;
   athleteName: string;
@@ -105,30 +131,49 @@ export async function loadCoachCalendar(params: {
 }): Promise<CoachCalendarData> {
   const { athleteId, coachId, today } = params;
   const view: "week" | "month" = params.view === "month" ? "month" : "week";
-  const offset = params.week && /^-?\d+$/.test(params.week) ? Number(params.week) : 0;
+  const offset = params.week && /^-?\d+$/.test(params.week) ? Math.max(-520, Math.min(520, Number(params.week))) : 0;
   const [ty, tm] = today.split("-").map(Number);
   const monthStr = params.month && /^\d{4}-\d{2}$/.test(params.month) ? params.month : `${ty}-${String(tm).padStart(2, "0")}`;
-  const [my, mm] = monthStr.split("-").map(Number);
+  const focus = view === "week" ? addDaysISO(mondayISO(today), offset * 7) : `${monthStr}-01`;
+  const from = addDaysISO(mondayISO(focus), -CALENDAR_INITIAL_BEFORE * 7);
+  const [weeks, goal] = await Promise.all([
+    loadCalendarWeeks({ athleteId, coachId, from, count: CALENDAR_INITIAL_BEFORE + CALENDAR_INITIAL_AFTER, today, cycleShared: params.cycleShared }),
+    getNextGoalForAthlete(athleteId, today),
+  ]);
+  return {
+    athleteId,
+    athleteName: params.athleteName,
+    view,
+    focus,
+    today,
+    goal: goal ? { title: goal.title, dateLabel: frDay(goal.date), days: daysUntil(goal.date) } : null,
+    weeks,
+    cycleShared: params.cycleShared,
+  };
+}
 
-  // Jours affichés, groupés en semaines (lundi → dimanche).
-  let weeksDates: { date: string; inMonth: boolean }[][];
-  if (view === "week") {
-    weeksDates = [getWeekDates(offset).map((date) => ({ date, inMonth: true }))];
-  } else {
-    const cells = getMonthGrid(my, mm);
-    weeksDates = [];
-    for (let i = 0; i < cells.length; i += 7) weeksDates.push(cells.slice(i, i + 7).map((c) => ({ date: c.date, inMonth: c.inMonth })));
-  }
-  const from = weeksDates[0][0].date;
+/** `count` semaines complètes (lundi → dimanche) à partir du lundi `from`. */
+export async function loadCalendarWeeks(params: {
+  athleteId: string;
+  coachId: string;
+  from: string;
+  count: number;
+  today: string;
+  cycleShared: boolean;
+}): Promise<CalWeek[]> {
+  const { athleteId, coachId, today } = params;
+  const from = mondayISO(params.from);
+  const weeksDates: { date: string; inMonth: boolean }[][] = Array.from({ length: params.count }, (_, w) =>
+    Array.from({ length: 7 }, (_, d) => ({ date: addDaysISO(from, w * 7 + d), inMonth: true }))
+  );
   const to = weeksDates[weeksDates.length - 1][6].date;
 
-  const [workouts, imports, blocks, checkins, periods, goal] = await Promise.all([
+  const [workouts, imports, blocks, checkins, periods] = await Promise.all([
     getWorkoutsForAthlete(athleteId, from, to, true),
     getImportedActivitiesForRange(athleteId, from, to),
     getAvailabilityBlocksForRange(athleteId, from, to),
     getCheckinsForRange(athleteId, from, to),
     getTrainingPeriods(athleteId),
-    getNextGoalForAthlete(athleteId, today),
   ]);
   const ids = workouts.map((w) => w.id);
   const strengthIds = workouts.filter((w) => w.sport === "strength").map((w) => w.id);
@@ -281,10 +326,12 @@ export async function loadCoachCalendar(params: {
     const mid = wk[3].date;
     const active = periodsOnDate(periods, mid);
     const finest = active[active.length - 1];
+    const pos = finest ? weekPosition(finest, mid) : null;
     return {
       weekStart: wk[0].date,
       number: isoWeek(wk[0].date),
       period: finest ? finest.name : null,
+      periodLabel: finest ? `${finest.name}${pos ? `, semaine ${pos.week} sur ${pos.totalWeeks}${pos.isDeload ? " (décharge)" : ""}` : ""}` : null,
       load,
       plannedLoad,
       minutes,
@@ -299,79 +346,5 @@ export async function loadCoachCalendar(params: {
     };
   });
 
-  const stats = weeks.reduce(
-    (acc, w) => {
-      const onlyMonth = view === "month";
-      // En vue mois, on ne somme que les jours du mois affiché.
-      if (!onlyMonth) {
-        acc.load += w.load;
-        acc.plannedLoad += w.plannedLoad;
-        acc.minutes += w.minutes;
-        acc.plannedMinutes += w.plannedMinutes;
-        acc.done += w.done;
-        acc.total += w.total;
-      } else {
-        for (const day of w.days.filter((d) => d.inMonth)) {
-          for (const e of day.entries) {
-            const realised = e.status === "done" || e.status === "tovalidate" || e.status === "hors";
-            if (e.kind === "workout") {
-              acc.total++;
-              if (e.status === "done" || e.status === "tovalidate") acc.done++;
-              acc.plannedMinutes += e.plannedMin || 0;
-              acc.plannedLoad += sessionLoad(e.plannedMin, e.plannedRpe);
-            }
-            if (realised) {
-              const m = e.realMin ?? e.plannedMin ?? 0;
-              acc.minutes += m;
-              acc.load += sessionLoad(m, e.rpe);
-            }
-          }
-        }
-      }
-      return acc;
-    },
-    { load: 0, plannedLoad: 0, minutes: 0, plannedMinutes: 0, done: 0, total: 0 }
-  );
-
-  let title: string;
-  let subtitle: string;
-  if (view === "week") {
-    const a = parse(weeksDates[0][0].date);
-    const b = parse(weeksDates[0][6].date);
-    title =
-      a.getMonth() === b.getMonth()
-        ? `${a.getDate()} – ${b.getDate()} ${MONTHS[b.getMonth()]}`
-        : `${a.getDate()} ${MONTHS[a.getMonth()]} – ${b.getDate()} ${MONTHS[b.getMonth()]}`;
-    const w = weeks[0];
-    const active = periodsOnDate(periods, weeksDates[0][3].date);
-    const finest = active[active.length - 1];
-    const pos = finest ? weekPosition(finest, weeksDates[0][3].date) : null;
-    subtitle = `Semaine ${w.number}` + (finest ? ` · ${finest.name}${pos ? `, semaine ${pos.week} sur ${pos.totalWeeks}${pos.isDeload ? " (décharge)" : ""}` : ""}` : "");
-  } else {
-    title = `${MONTHS[mm - 1].charAt(0).toUpperCase()}${MONTHS[mm - 1].slice(1)} ${my}`;
-    const names = Array.from(new Set(weeks.map((w) => w.period).filter(Boolean)));
-    subtitle = `Semaines ${weeks[0].number} à ${weeks[weeks.length - 1].number}` + (names.length ? ` · ${names.join(", ")}` : "");
-  }
-
-  const prev = new Date(my, mm - 2, 1);
-  const next = new Date(my, mm, 1);
-  const ym = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-
-  return {
-    athleteId,
-    athleteName: params.athleteName,
-    view,
-    offset,
-    month: monthStr,
-    prevMonth: ym(prev),
-    nextMonth: ym(next),
-    today,
-    title,
-    subtitle,
-    goal: goal ? { title: goal.title, dateLabel: frDay(goal.date), days: daysUntil(goal.date) } : null,
-    stats,
-    weeks,
-    cycleShared: !!cycleSettings,
-  };
+  return weeks;
 }
-

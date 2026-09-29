@@ -91,6 +91,8 @@ export interface CalWeek {
   weekStart: string;
   number: number;
   period: string | null;
+  /** Période en cours et position (« Spécifique, semaine 3 sur 5 »). */
+  periodLabel: string | null;
   load: number;
   plannedLoad: number;
   minutes: number;
@@ -106,15 +108,11 @@ export interface CoachCalendarData {
   athleteId: string;
   athleteName: string;
   view: "week" | "month";
-  offset: number;
-  month: string; // YYYY-MM
-  prevMonth: string;
-  nextMonth: string;
+  /** Lundi de la semaine affichée (vue semaine) ou 1er du mois (vue mois). */
+  focus: string;
   today: string;
-  title: string;
-  subtitle: string;
   goal: { title: string; dateLabel: string; days: number } | null;
-  stats: { load: number; plannedLoad: number; minutes: number; plannedMinutes: number; done: number; total: number };
+  /** Semaines consécutives déjà chargées ; le client en ajoute au défilement. */
   weeks: CalWeek[];
   cycleShared: boolean;
 }
