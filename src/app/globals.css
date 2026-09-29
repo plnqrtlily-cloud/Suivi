@@ -75,3 +75,74 @@ body {
     animation: none !important;
   }
 }
+
+/* Messagerie : bulles façon Messages d'Apple, avec la petite queue recourbée
+   sur la dernière bulle d'un groupe. La queue est dessinée par deux
+   pseudo-éléments (couleur de la bulle puis fond blanc qui la découpe) : le
+   fil de discussion doit donc rester sur fond blanc. */
+.imsg {
+  position: relative;
+  max-width: 70%;
+  border-radius: 18px;
+  padding: 7px 12px;
+  font-size: 15.5px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.imsg-me {
+  background: #0a84ff;
+  color: #fff;
+}
+.imsg-them {
+  background: #e9e9eb;
+  color: #111;
+}
+.imsg-tail::before,
+.imsg-tail::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  height: 20px;
+}
+.imsg-me.imsg-tail::before {
+  right: -7px;
+  width: 20px;
+  background: #0a84ff;
+  border-bottom-left-radius: 16px 14px;
+}
+.imsg-me.imsg-tail::after {
+  right: -26px;
+  width: 26px;
+  background: #fff;
+  border-bottom-left-radius: 10px;
+}
+.imsg-them.imsg-tail::before {
+  left: -7px;
+  width: 20px;
+  background: #e9e9eb;
+  border-bottom-right-radius: 16px 14px;
+}
+.imsg-them.imsg-tail::after {
+  left: -26px;
+  width: 26px;
+  background: #fff;
+  border-bottom-right-radius: 10px;
+}
+@keyframes imsg-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.imsg-in {
+  animation: imsg-in 220ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .imsg-in {
+    animation: none;
+  }
+}
