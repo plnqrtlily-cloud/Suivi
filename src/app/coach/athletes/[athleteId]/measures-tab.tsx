@@ -169,7 +169,7 @@ export function MeasuresTab({
 
   return (
     <div className="flex flex-col gap-6">
-      <TabHeader title="Mesures" subtitle="Tests, zones, charges de référence et records" />
+      <TabHeader title="Mesures" />
 
       <div className="grid gap-6 lg:grid-cols-[1.45fr_1fr]">
         <Panel>
