@@ -3,7 +3,13 @@
 
 import type { CycleDay } from "./cycle-types";
 
-export type EntryStatus = "todo" | "done" | "part" | "miss" | "postponed" | "hors";
+/**
+ * todo : à faire · noreport : date passée sans retour de l'athlète ·
+ * tovalidate : réalisée, retour pas encore validé par le coach · done :
+ * réalisée et validée · miss : non réalisée · postponed : reportée · hors :
+ * activité hors programme.
+ */
+export type EntryStatus = "todo" | "noreport" | "tovalidate" | "done" | "miss" | "postponed" | "hors";
 
 export interface CalComment {
   id: string;

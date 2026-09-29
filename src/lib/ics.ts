@@ -65,7 +65,6 @@ function foldLine(line: string): string {
 const STATUS_PREFIX: Record<string, string> = {
   done: "✓ ",
   not_done: "✗ ",
-  partial: "~ ",
   cancelled: "Annulé — ",
 };
 

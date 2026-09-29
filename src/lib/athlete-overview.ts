@@ -275,30 +275,44 @@ export function buildAttention(params: {
     }
   }
 
-  // Séances des 7 derniers jours non faites ou coupées.
-  const missed = workouts
-    .filter(
-      (w) =>
-        !w.is_draft &&
-        w.date < today &&
-        w.date >= addDays(today, -7) &&
-        (w.status === "partial" || w.status === "not_done")
-    )
+  // Séances des 7 derniers jours non réalisées.
+  const recentPast = workouts.filter((w) => !w.is_draft && w.date < today && w.date >= addDays(today, -7));
+  const missed = recentPast
+    .filter((w) => w.status === "not_done")
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 2);
   for (const w of missed) {
-    const partial = w.status === "partial";
-    const text =
-      partial && w.actual_duration_minutes && w.duration_minutes
-        ? `${w.title} coupée à ${fmtMinutes(w.actual_duration_minutes)} sur ${fmtMinutes(w.duration_minutes)} prévue.`
-        : w.athlete_feedback
-          ? `${w.title} · « ${w.athlete_feedback.slice(0, 80)} »`
-          : w.title;
     items.push({
       tone: "warn",
-      title: `Séance ${partial ? "partielle" : "non faite"} ${dayName(w.date)}`,
-      text,
+      title: `Séance non réalisée ${dayName(w.date)}`,
+      text: w.athlete_feedback ? `${w.title} · « ${w.athlete_feedback.slice(0, 80)} »` : w.title,
       action: { label: "Ouvrir la séance", href: `${base}/day/${w.date}` },
+    });
+  }
+
+  // Séances passées sans aucun retour de l'athlète.
+  const noReport = recentPast.filter((w) => w.status === "planned");
+  if (noReport.length > 0) {
+    items.push({
+      tone: "info",
+      title: noReport.length > 1 ? `${noReport.length} séances sans retour` : "Une séance sans retour",
+      text: noReport.map((w) => `${w.title} (${dayName(w.date)})`).slice(0, 3).join(", "),
+      action: { label: "Voir la semaine", href: `${base}?view=week` },
+    });
+  }
+
+  // Retours de l'athlète que le coach n'a pas encore validés.
+  const toValidate = workouts.filter((w) => !w.is_draft && (w.status === "done" || w.status === "partial") && !w.coach_validated_at && w.date >= addDays(today, -14));
+  if (toValidate.length > 0) {
+    items.push({
+      tone: "info",
+      title: toValidate.length > 1 ? `${toValidate.length} séances à valider` : "Une séance à valider",
+      text: toValidate
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 3)
+        .map((w) => `${w.title} (${dayName(w.date)})`)
+        .join(", "),
+      action: { label: "Voir la semaine", href: `${base}?view=week` },
     });
   }
 

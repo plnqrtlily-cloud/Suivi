@@ -11,6 +11,7 @@ import {
   copyWeekAction,
   duplicateWorkoutAction,
   markWorkoutDoneAsPlannedAction,
+  validateWorkoutAction,
   moveWorkoutAction,
 } from "@/lib/actions";
 import type { CoachCalendarData, CalDay, CalEntry, CalWeek, EntryStatus } from "@/lib/coach-calendar-types";
@@ -21,23 +22,26 @@ import { CYCLE_DAY_STYLE } from "@/lib/cycle-types";
 
 const BAR: Record<EntryStatus, string> = {
   done: "3px solid #1b4b4f",
-  part: "3px solid #e8896a",
+  tovalidate: "3px solid #8fb8b5",
+  noreport: "3px dotted #c96f52",
   miss: "3px solid #9aa39c",
   postponed: "3px solid #9aa39c",
   todo: "3px dashed #1b4b4f",
   hors: "3px solid #b9a18f",
 };
 const STATUS_LABEL: Record<EntryStatus, string> = {
-  done: "Faite",
-  part: "Partielle",
-  miss: "Non faite",
+  done: "Réalisée",
+  tovalidate: "Non validée",
+  noreport: "Pas de retour",
+  miss: "Non réalisée",
   postponed: "Reportée",
   todo: "À faire",
   hors: "Hors programme",
 };
 const STATUS_COLOR: Record<EntryStatus, string> = {
   done: "#0f3336",
-  part: "#8a3a1f",
+  tovalidate: "#3f6f6c",
+  noreport: "#a4492a",
   miss: "#5b6660",
   postponed: "#5b6660",
   todo: "#1b4b4f",
@@ -87,7 +91,7 @@ function longDate(dateISO: string): string {
 function entrySub(e: CalEntry): string {
   if (e.isGoal) return `Objectif · ${e.sportLabel}`;
   if (e.status === "todo") return [e.sportLabel, e.plannedMin ? fmt(e.plannedMin) : null, e.plannedRpe ? `RPE ${e.plannedRpe} visé` : null].filter(Boolean).join(" · ");
-  if (e.status === "miss" || e.status === "postponed") return `${e.sportLabel} · ${STATUS_LABEL[e.status].toLowerCase()}`;
+  if (e.status === "miss" || e.status === "postponed" || e.status === "noreport") return `${e.sportLabel} · ${STATUS_LABEL[e.status].toLowerCase()}`;
   return [e.sportLabel, fmt(e.realMin ?? e.plannedMin), e.rpe ? `RPE ${e.rpe}` : null].filter(Boolean).join(" · ");
 }
 
@@ -292,7 +296,7 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
 
       {/* Légende */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate">
-        {(["done", "part", "miss", "todo", "hors"] as EntryStatus[]).map((k) => (
+        {(["todo", "done", "tovalidate", "noreport", "miss", "postponed", "hors"] as EntryStatus[]).map((k) => (
           <span key={k} className="inline-flex items-center gap-1.5">
             <span className="h-3" style={{ borderLeft: BAR[k] }} />
             {STATUS_LABEL[k]}
@@ -334,7 +338,8 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
                     picker={picker}
                     setPicker={setPicker}
                     pending={pending}
-                    onDone={() => run(() => markWorkoutDoneAsPlannedAction(f.entry.id), "Séance marquée faite")}
+                    onDone={() => run(() => markWorkoutDoneAsPlannedAction(f.entry.id), "Séance marquée réalisée")}
+                    onValidate={() => run(() => validateWorkoutAction(f.entry.id), "Retour validé")}
                     onPick={(mode, date) =>
                       run(
                         () => (mode === "move" ? moveWorkoutAction({ workoutId: f.entry.id, date }) : duplicateWorkoutAction({ workoutId: f.entry.id, targetDate: date })),
@@ -574,7 +579,7 @@ function WeekSummary({ w, open, toggle, onOpenEntry }: { w: CalWeek; open: boole
   const pie = total
     ? `conic-gradient(${w.disciplines.map((d) => { const p = (d.minutes / total) * 100; const s = `${d.color} ${acc.toFixed(1)}% ${(acc + p).toFixed(1)}%`; acc += p; return s; }).join(", ")})`
     : "#e6eae9";
-  const acts = w.days.flatMap((d) => d.entries.filter((e) => e.status === "done" || e.status === "part" || e.status === "hors"));
+  const acts = w.days.flatMap((d) => d.entries.filter((e) => e.status === "done" || e.status === "tovalidate" || e.status === "hors"));
   return (
     <div className="relative">
       <button type="button" onClick={toggle} className="flex h-full w-full flex-col gap-0.5 rounded-xl border-l-2 border-line py-1.5 pl-3 text-left text-xs text-slate hover:bg-white/70">
@@ -701,6 +706,7 @@ function EntryPanel({
   setPicker,
   pending,
   onDone,
+  onValidate,
   onPick,
   onDeleteImport,
   onComment,
@@ -711,12 +717,13 @@ function EntryPanel({
   setPicker: (p: { mode: "move" | "dup"; id: string } | null) => void;
   pending: boolean;
   onDone: () => void;
+  onValidate: () => void;
   onPick: (mode: "move" | "dup", date: string) => void;
   onDeleteImport: () => void;
   onComment: (body: string) => void;
 }) {
   const [draft, setDraft] = useState("");
-  const realised = e.status === "done" || e.status === "part" || e.status === "hors";
+  const realised = e.status === "done" || e.status === "tovalidate" || e.status === "hors";
   const warnDur = !!e.plannedMin && !!e.realMin && e.realMin < e.plannedMin * 0.9;
   const warnRpe = !!e.plannedRpe && !!e.rpe && e.rpe > e.plannedRpe;
   const isWorkout = e.kind === "workout";
@@ -731,10 +738,11 @@ function EntryPanel({
     <div>
       <PanelHead date={longDate(e.date)} title={e.title}>
         <div className="flex flex-wrap gap-2">
-          {isWorkout && e.status === "todo" && <button type="button" disabled={pending} onClick={onDone} className={pillMain}>Marquer faite</button>}
+          {isWorkout && e.status === "tovalidate" && <button type="button" disabled={pending} onClick={onValidate} className={pillMain}>Valider</button>}
+          {isWorkout && (e.status === "todo" || e.status === "noreport") && <button type="button" disabled={pending} onClick={onDone} className={e.status === "noreport" ? pill : pillMain}>Marquer réalisée</button>}
           {isWorkout && <Link href={`/workouts/${e.id}/edit`} className={pill}>Modifier</Link>}
           {isWorkout && <button type="button" disabled={pending} onClick={() => togglePicker("dup")} className={pill} style={picker?.mode === "dup" ? { background: "#e3eeed" } : undefined}>{e.status === "miss" ? "Reprogrammer" : "Dupliquer"}</button>}
-          {isWorkout && e.status === "todo" && <button type="button" disabled={pending} onClick={() => togglePicker("move")} className={pill} style={picker?.mode === "move" ? { background: "#e3eeed" } : undefined}>Déplacer</button>}
+          {isWorkout && (e.status === "todo" || e.status === "noreport") && <button type="button" disabled={pending} onClick={() => togglePicker("move")} className={pill} style={picker?.mode === "move" ? { background: "#e3eeed" } : undefined}>Déplacer</button>}
           {!isWorkout && e.createdByMe && <button type="button" disabled={pending} onClick={onDeleteImport} className={pill}>Supprimer</button>}
         </div>
       </PanelHead>

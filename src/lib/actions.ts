@@ -607,7 +607,7 @@ export async function addCompletionPhotoAction(workoutId: string, formData: Form
 
 export async function updateWorkoutStatusAction(params: {
   workoutId: string;
-  status: "done" | "not_done" | "partial" | "postponed";
+  status: "done" | "not_done" | "postponed";
   rpe?: number;
   athleteFeedback?: string;
   actualDurationMinutes?: number;
@@ -645,7 +645,8 @@ export async function updateWorkoutStatusAction(params: {
   const reportedBy = isReschedule ? null : workout.athlete_id === user.id ? "athlete" : "coach";
 
   await dbRun(
-    `UPDATE workouts SET status = ?, date = ?, rpe = ?, athlete_feedback = ?, actual_duration_minutes = ?, distance_km = ?, avg_hr = ?, elevation_gain_m = ?, avg_power_w = ?, reported_by = ?
+    `UPDATE workouts SET status = ?, date = ?, rpe = ?, athlete_feedback = ?, actual_duration_minutes = ?, distance_km = ?, avg_hr = ?, elevation_gain_m = ?, avg_power_w = ?, reported_by = ?,
+       coach_validated_at = ?
      WHERE id = ?`,
     [
       finalStatus,
@@ -658,6 +659,9 @@ export async function updateWorkoutStatusAction(params: {
       feedbackFields.elevationGainM ?? null,
       feedbackFields.avgPowerW ?? null,
       reportedBy,
+      // Saisi par le coach : validé d'office. Saisi par l'athlète : le coach
+      // doit (re)valider ce nouveau retour.
+      reportedBy === "coach" && finalStatus === "done" ? new Date().toISOString() : null,
       params.workoutId,
     ]
   );
@@ -2829,9 +2833,20 @@ export async function markWorkoutDoneAsPlannedAction(workoutId: string) {
   const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [workoutId]);
   if (!workout || workout.coach_id !== user.id) throw new Error("Non autorisé.");
   await dbRun(
-    `UPDATE workouts SET status = 'done', actual_duration_minutes = COALESCE(actual_duration_minutes, duration_minutes), rpe = COALESCE(rpe, planned_rpe), reported_by = 'coach' WHERE id = ?`,
+    `UPDATE workouts SET status = 'done', actual_duration_minutes = COALESCE(actual_duration_minutes, duration_minutes), rpe = COALESCE(rpe, planned_rpe), reported_by = 'coach', coach_validated_at = datetime('now') WHERE id = ?`,
     [workoutId]
   );
+  revalidatePath(`/workouts/${workoutId}`);
+  revalidateAthleteDays(workout.athlete_id, [workout.date]);
+}
+
+/** Le coach valide (ou dévalide) le retour d'une séance réalisée. */
+export async function validateWorkoutAction(workoutId: string, validated = true) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [workoutId]);
+  if (!workout || workout.coach_id !== user.id) throw new Error("Non autorisé.");
+  await dbRun(`UPDATE workouts SET coach_validated_at = ? WHERE id = ?`, [validated ? new Date().toISOString() : null, workoutId]);
   revalidatePath(`/workouts/${workoutId}`);
   revalidateAthleteDays(workout.athlete_id, [workout.date]);
 }

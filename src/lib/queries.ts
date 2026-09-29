@@ -197,6 +197,7 @@ export interface Workout {
   reported_by: string | null;
   planned_rpe?: number | null;
   plan_json?: string | null;
+  coach_validated_at?: string | null;
   coach_first_name?: string;
   coach_last_name?: string;
 }

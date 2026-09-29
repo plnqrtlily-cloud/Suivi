@@ -79,18 +79,17 @@ function commentWhen(createdAt: string): string {
   return `${day} ${time}`;
 }
 
-function workoutStatus(w: Workout): EntryStatus {
+function workoutStatus(w: Workout, today: string): EntryStatus {
   switch (w.status) {
     case "done":
-      return "done";
     case "partial":
-      return "part";
+      return w.coach_validated_at ? "done" : "tovalidate";
     case "not_done":
       return "miss";
     case "postponed":
       return "postponed";
     default:
-      return "todo";
+      return w.date < today ? "noreport" : "todo";
   }
 }
 
@@ -164,7 +163,7 @@ export async function loadCoachCalendar(params: {
       sport: w.sport,
       sportLabel: plan?.activity ? activityForSport(w.sport, plan).label : SPORT_LABELS[w.sport] || w.sport,
       plan: planSummary(plan),
-      status: workoutStatus(w),
+      status: workoutStatus(w, today),
       isGoal: w.category === "objectif" || w.category === "evenement",
       isDraft: !!w.is_draft,
       plannedMin: w.duration_minutes,
@@ -263,10 +262,10 @@ export async function loadCoachCalendar(params: {
     for (const day of days) {
       for (const e of day.entries) {
         if (e.isGoal && e.kind === "workout" && !e.plannedMin) continue;
-        const realised = e.status === "done" || e.status === "part" || e.status === "hors";
+        const realised = e.status === "done" || e.status === "tovalidate" || e.status === "hors";
         if (e.kind === "workout") {
           total++;
-          if (e.status === "done" || e.status === "part") done++;
+          if (e.status === "done" || e.status === "tovalidate") done++;
           plannedMinutes += e.plannedMin || 0;
           plannedLoad += sessionLoad(e.plannedMin, e.plannedRpe);
         }
@@ -314,10 +313,10 @@ export async function loadCoachCalendar(params: {
       } else {
         for (const day of w.days.filter((d) => d.inMonth)) {
           for (const e of day.entries) {
-            const realised = e.status === "done" || e.status === "part" || e.status === "hors";
+            const realised = e.status === "done" || e.status === "tovalidate" || e.status === "hors";
             if (e.kind === "workout") {
               acc.total++;
-              if (e.status === "done" || e.status === "part") acc.done++;
+              if (e.status === "done" || e.status === "tovalidate") acc.done++;
               acc.plannedMinutes += e.plannedMin || 0;
               acc.plannedLoad += sessionLoad(e.plannedMin, e.plannedRpe);
             }

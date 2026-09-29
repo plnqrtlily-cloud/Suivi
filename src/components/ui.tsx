@@ -118,9 +118,8 @@ export function Card({
 
 const STATUS_LABELS: Record<string, string> = {
   planned: "Prévue",
-  done: "Faite",
+  done: "Réalisée",
   not_done: "Non réalisée",
-  partial: "Partielle",
   postponed: "Reportée",
 };
 
@@ -130,7 +129,6 @@ const STATUS_STYLES: Record<string, string> = {
   planned: "bg-moss/10 text-moss-dark",
   done: "bg-moss-dark/10 text-moss-dark",
   not_done: "bg-status-notdone/20 text-slate",
-  partial: "bg-status-partial/15 text-status-partial",
   postponed: "bg-status-postponed/15 text-status-postponed",
 };
 

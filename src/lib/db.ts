@@ -640,6 +640,11 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE coach_athlete_links ADD COLUMN invite_first_name TEXT`,
   `ALTER TABLE coach_athlete_links ADD COLUMN invite_message TEXT`,
   `ALTER TABLE coach_athlete_links ADD COLUMN invite_sent_at TEXT`,
+  // Statuts de séance : « partielle » disparaît (une séance écourtée est
+  // réalisée, la durée réelle et le retour disent le reste) ; le coach valide
+  // désormais le retour de l'athlète (coach_validated_at).
+  `ALTER TABLE workouts ADD COLUMN coach_validated_at TEXT`,
+  `UPDATE workouts SET status = 'done' WHERE status = 'partial'`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

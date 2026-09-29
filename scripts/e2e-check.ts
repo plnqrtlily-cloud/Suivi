@@ -1321,17 +1321,17 @@ async function main() {
   const wkBase = { coach_id: "c", athlete_id: "a", category: "entrainement", priority: null, time: null, description: null, color: "", intervals_json: null, links_json: null, completion_photo_path: null, is_draft: 0, athlete_feedback: null, distance_km: null, avg_hr: null, elevation_gain_m: null, avg_power_w: null, reported_by: null };
   const ovWorkouts = [
     { ...wkBase, id: "w1", sport: "cycling", title: "Seuil", date: "2026-09-22", duration_minutes: 60, status: "done", rpe: 7, actual_duration_minutes: 60, planned_rpe: 7 },
-    { ...wkBase, id: "w2", sport: "cycling", title: "Endurance", date: "2026-09-24", duration_minutes: 90, status: "partial", rpe: 5, actual_duration_minutes: 60, planned_rpe: 4 },
+    { ...wkBase, id: "w2", sport: "cycling", title: "Endurance", date: "2026-09-24", duration_minutes: 90, status: "not_done", rpe: 5, actual_duration_minutes: 60, planned_rpe: 4 },
     { ...wkBase, id: "w3", sport: "cycling", title: "PMA", date: "2026-10-06", duration_minutes: 120, status: "planned", rpe: null, actual_duration_minutes: null, planned_rpe: 8 },
     { ...wkBase, id: "w4", sport: "cycling", title: "Brouillon", date: "2026-10-07", duration_minutes: 600, status: "planned", rpe: null, actual_duration_minutes: null, planned_rpe: 8, is_draft: 1 },
     { ...wkBase, id: "w5", sport: "cycling", title: "Cardio", date: "2026-09-29", duration_minutes: 60, status: "planned", rpe: null, actual_duration_minutes: null, planned_rpe: 5 },
   ] as any[];
   const ovWeeks = buildLoadWeeks({ workouts: ovWorkouts, imports: [], checkins: [], periods: [], fromMonday: "2026-09-21", toMonday: "2026-10-05", today: "2026-09-28" });
   assert(mondayOf("2026-10-04") === "2026-09-28" && isoWeekNumber("2026-09-28") === 40, "Semaine ISO et lundi de référence corrects");
-  assert(ovWeeks[0].load === 60 * 7 + 60 * 5 && ovWeeks[0].done === 2 && ovWeeks[0].plannedLoad === 60 * 7 + 90 * 4, "La charge réalisée et prévue d'une semaine suit durée × RPE");
+  assert(ovWeeks[0].load === 60 * 7 && ovWeeks[0].done === 1 && ovWeeks[0].plannedLoad === 60 * 7 + 90 * 4, "La charge réalisée et prévue d'une semaine suit durée × RPE");
   assert(ovWeeks[2].plannedLoad === 120 * 8 && ovWeeks[2].isFuture, "Les brouillons ne comptent pas dans la charge prévue");
   const ovAttention = buildAttention({ athleteId: "a", firstName: "Laura", today: "2026-09-28", workouts: ovWorkouts, checkins: [], weeks: ovWeeks.slice(1), acwr: { acuteLoad: 0, chronicWeeklyLoad: 0, ratio: null, status: "insufficient_data" }, activeInjury: null, unread: { count: 0 }, hasUpcoming: true });
-  assert(ovAttention.some((a) => a.title === "Séance partielle jeudi") && ovAttention.some((a) => a.title.startsWith("Semaine prochaine : +")), "L'aperçu signale la séance coupée et la hausse de charge de la semaine suivante");
+  assert(ovAttention.some((a) => a.title === "Séance non réalisée jeudi") && ovAttention.some((a) => a.title === "Une séance à valider") && ovAttention.some((a) => a.title.startsWith("Semaine prochaine : +")), "L'aperçu signale la séance non réalisée, celle à valider et la hausse de charge de la semaine suivante");
   const cyc = cycleSummary({ periodStarts: ["2026-08-26", "2026-09-23"], settings: cycleSet, checkins: [], today: "2026-09-28", firstName: "Laura" });
   assert(cyc.rows[0].value === "28 jours" && cyc.rows.some((r) => r.label === "Prochaines règles" && r.value === "vers le 21 oct."), "Le résumé du cycle donne la durée moyenne et les prochaines règles");
 

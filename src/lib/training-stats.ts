@@ -45,7 +45,7 @@ export function computeWeeklyLoad(workouts: Workout[], imports: ImportedActivity
   const byWeek: Record<string, number> = {};
 
   for (const w of workouts) {
-    if (w.status !== "done" && w.status !== "partial") continue;
+    if (w.status !== "done") continue;
     const minutes = w.actual_duration_minutes ?? w.duration_minutes;
     const load = sessionLoad(minutes, w.rpe);
     if (load > 0) {
@@ -85,7 +85,7 @@ export function computeRpeEvolution(workouts: Workout[], imports: ImportedActivi
 export function computeSportDistribution(workouts: Workout[], imports: ImportedActivity[]): { sport: string; count: number }[] {
   const counts: Record<string, number> = {};
   for (const w of workouts) {
-    if (w.status !== "done" && w.status !== "partial") continue;
+    if (w.status !== "done") continue;
     counts[w.sport] = (counts[w.sport] || 0) + 1;
   }
   for (const a of imports) {
@@ -104,7 +104,7 @@ export function computeSportSummaries(workouts: Workout[], imports: ImportedActi
   }
 
   for (const w of workouts) {
-    if (w.status !== "done" && w.status !== "partial") continue;
+    if (w.status !== "done") continue;
     const b = bucket(w.sport);
     b.count++;
     b.minutes += w.actual_duration_minutes ?? w.duration_minutes ?? 0;
@@ -163,7 +163,7 @@ export function computeAcwr(workouts: Workout[], imports: ImportedActivity[], to
   let chronic = 0;
 
   for (const w of workouts) {
-    if (w.status !== "done" && w.status !== "partial") continue;
+    if (w.status !== "done") continue;
     const age = daysAgo(w.date);
     if (age < 0 || age > 27) continue;
     const load = sessionLoad(w.actual_duration_minutes ?? w.duration_minutes, w.rpe);
@@ -201,7 +201,7 @@ export interface PeriodSummary {
 // la charge totale accumulée — au-delà des graphiques détaillés déjà présents.
 export function computePeriodSummary(workouts: Workout[], imports: ImportedActivity[], periodDays: number, today: string): PeriodSummary {
   const pastWorkouts = workouts.filter((w) => w.date <= today);
-  const completed = pastWorkouts.filter((w) => w.status === "done" || w.status === "partial");
+  const completed = pastWorkouts.filter((w) => w.status === "done");
   const adherenceRate = pastWorkouts.length > 0 ? Math.round((completed.length / pastWorkouts.length) * 100) : null;
 
   let totalMinutes = 0;

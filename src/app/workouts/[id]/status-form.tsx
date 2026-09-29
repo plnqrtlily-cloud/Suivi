@@ -6,9 +6,8 @@ import { updateWorkoutStatusAction, addCompletionPhotoAction } from "@/lib/actio
 import { Button, Field, TextAreaField } from "@/components/ui";
 import { todayISO } from "@/lib/dates";
 
-const STATUSES: { value: "done" | "not_done" | "partial" | "postponed"; label: string }[] = [
-  { value: "done", label: "Faite" },
-  { value: "partial", label: "Partielle" },
+const STATUSES: { value: "done" | "not_done" | "postponed"; label: string }[] = [
+  { value: "done", label: "Réalisée" },
   { value: "not_done", label: "Non réalisée" },
   { value: "postponed", label: "Reportée" },
 ];
@@ -30,10 +29,10 @@ export function StatusForm({
   asCoach?: boolean;
 }) {
   const router = useRouter();
-  const [status, setStatus] = useState(currentStatus === "planned" ? "done" : currentStatus);
+  const [status, setStatus] = useState(currentStatus === "planned" || currentStatus === "partial" ? "done" : currentStatus);
   const [rpe, setRpe] = useState(5);
   const [pending, setPending] = useState(false);
-  const showDone = status === "done" || status === "partial";
+  const showDone = status === "done";
   const isPostponed = status === "postponed";
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
