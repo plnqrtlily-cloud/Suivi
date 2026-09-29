@@ -10,7 +10,6 @@ import {
   getJournalForAthlete,
   getUserGender,
   getAthleteSports,
-  getCoachNotes,
   getUserAvatar,
   getUpcomingGoals,
   getImportedActivitiesForRange,
@@ -134,7 +133,6 @@ export default async function AthleteDetailPage({
     cycleSettings,
     athleteGender,
     athleteSports,
-    coachNotes,
     upcomingGoals,
     rangeImports,
     exerciseMaxes,
@@ -161,7 +159,6 @@ export default async function AthleteDetailPage({
     getCycleSettings(athleteId),
     getUserGender(athleteId),
     getAthleteSports(athleteId),
-    getCoachNotes(user.id, athleteId),
     getUpcomingGoals(athleteId),
     getImportedActivitiesForRange(athleteId, rangeFrom, addDays(rangeTo, 6)),
     getExerciseMaxes(athleteId),
@@ -494,8 +491,6 @@ export default async function AthleteDetailPage({
               notes: (
                 <NotesTab
                   athleteId={athleteId}
-                  firstName={firstName}
-                  notes={coachNotes ?? null}
                   entries={coachNoteEntries}
                   footer={
                     link && (

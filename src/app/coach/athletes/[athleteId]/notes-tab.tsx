@@ -2,22 +2,13 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { CoachNotes, CoachNoteEntry } from "@/lib/queries";
+import type { CoachNoteEntry } from "@/lib/queries";
 import {
-  upsertCoachNotesAction,
   addCoachNoteEntryAction,
   updateCoachNoteEntryAction,
   deleteCoachNoteEntryAction,
 } from "@/lib/actions";
 import { Panel, PanelTitle, Segmented, TabHeader, linkBtn, primaryBtn, fieldClass } from "./tab-ui";
-
-const PORTRAIT: { key: "context" | "objectives" | "constraints" | "strengths" | "weaknesses"; label: string; ph: string }[] = [
-  { key: "context", label: "Contexte", ph: "Âge, études ou travail, parcours sportif…" },
-  { key: "objectives", label: "Objectifs", ph: "Cette saison, à plus long terme…" },
-  { key: "constraints", label: "Contraintes", ph: "Disponibilités, matériel, examens…" },
-  { key: "strengths", label: "Ce qui marche", ph: "Types de séances, consignes qui fonctionnent…" },
-  { key: "weaknesses", label: "Points de vigilance", ph: "Blessures passées, sommeil, périodes difficiles…" },
-];
 
 const KINDS = [
   { value: "entretien", label: "Entretien", plural: "Entretiens" },
@@ -33,78 +24,6 @@ function shortDate(iso: string) {
 function grow(el: HTMLTextAreaElement) {
   el.style.height = "auto";
   el.style.height = `${el.scrollHeight}px`;
-}
-
-function Portrait({ athleteId, firstName, notes }: { athleteId: string; firstName: string; notes: CoachNotes | null }) {
-  const router = useRouter();
-  const [editing, setEditing] = useState(false);
-  const [pending, start] = useTransition();
-  const filled = PORTRAIT.filter((p) => notes?.[p.key]);
-
-  return (
-    <Panel>
-      <PanelTitle
-        title="Portrait"
-        right={
-          <button type="button" className={linkBtn} onClick={() => setEditing((v) => !v)}>
-            {editing ? "Annuler" : "Modifier"}
-          </button>
-        }
-      />
-      <p className="-mt-3 mb-3 text-[13px] text-slate">Ce qu&apos;il faut savoir sur {firstName}, mis à jour au fil de la saison</p>
-      {editing ? (
-        <form
-          className="flex flex-col gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const fd = new FormData(e.currentTarget);
-            fd.set("athleteId", athleteId);
-            start(async () => {
-              await upsertCoachNotesAction(fd);
-              setEditing(false);
-              router.refresh();
-            });
-          }}
-        >
-          {PORTRAIT.map((p) => (
-            <label key={p.key} className="flex flex-col gap-1">
-              <span className="text-sm font-semibold text-ink">{p.label}</span>
-              <textarea
-                name={p.key}
-                rows={2}
-                defaultValue={notes?.[p.key] ?? ""}
-                placeholder={p.ph}
-                onInput={(e) => grow(e.currentTarget)}
-                ref={(el) => {
-                  if (el) grow(el);
-                }}
-                className={`${fieldClass} resize-none overflow-hidden`}
-              />
-            </label>
-          ))}
-          <button type="submit" disabled={pending} className={`${primaryBtn} self-start`}>
-            Enregistrer
-          </button>
-        </form>
-      ) : filled.length === 0 ? (
-        <p className="text-sm text-slate">
-          Rien d&apos;écrit pour l&apos;instant.{" "}
-          <button type="button" className={linkBtn} onClick={() => setEditing(true)}>
-            Rédiger le portrait
-          </button>
-        </p>
-      ) : (
-        <div className="flex flex-col">
-          {filled.map((p) => (
-            <div key={p.key} className="border-t border-line py-3 first:border-t-0 first:pt-0">
-              <p className="text-sm font-semibold text-ink">{p.label}</p>
-              <p className="whitespace-pre-line text-sm leading-relaxed text-ink-soft">{notes?.[p.key]}</p>
-            </div>
-          ))}
-        </div>
-      )}
-    </Panel>
-  );
 }
 
 function Entry({ entry }: { entry: CoachNoteEntry }) {
@@ -282,24 +201,17 @@ function Journal({ athleteId, entries }: { athleteId: string; entries: CoachNote
 
 export function NotesTab({
   athleteId,
-  firstName,
-  notes,
   entries,
   footer,
 }: {
   athleteId: string;
-  firstName: string;
-  notes: CoachNotes | null;
   entries: CoachNoteEntry[];
   footer?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-6">
-      <TabHeader title="Notes" subtitle={`Portrait de ${firstName} et journal de suivi`} />
-      <div className="grid items-start gap-6 lg:grid-cols-[1fr_1.5fr]">
-        <Portrait athleteId={athleteId} firstName={firstName} notes={notes} />
-        <Journal athleteId={athleteId} entries={entries} />
-      </div>
+      <TabHeader title="Notes" />
+      <Journal athleteId={athleteId} entries={entries} />
       {footer}
     </div>
   );
