@@ -849,7 +849,7 @@ export interface CoachNotes {
 }
 
 // Rappels du coach, non terminés d'abord, échéance la plus proche en tête.
-export async function getCoachReminders(coachId: string, limit = 30) {
+export async function getCoachReminders(coachId: string, limit = 200) {
   return dbAll<any>(
     `SELECT r.*, u.first_name FROM coach_reminders r
      LEFT JOIN users u ON u.id = r.athlete_id

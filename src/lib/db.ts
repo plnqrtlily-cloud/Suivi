@@ -630,6 +630,11 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE coach_athlete_notes ADD COLUMN objectives TEXT`,
   `ALTER TABLE coach_athlete_notes ADD COLUMN constraints TEXT`,
   `ALTER TABLE coach_note_entries ADD COLUMN kind TEXT`,
+  // Rappels façon Apple : heure, notes, drapeau et priorité (0 à 3).
+  `ALTER TABLE coach_reminders ADD COLUMN due_time TEXT`,
+  `ALTER TABLE coach_reminders ADD COLUMN notes TEXT`,
+  `ALTER TABLE coach_reminders ADD COLUMN flagged INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE coach_reminders ADD COLUMN priority INTEGER NOT NULL DEFAULT 0`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER
