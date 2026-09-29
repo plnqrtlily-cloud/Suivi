@@ -130,7 +130,12 @@ export function periodColor(focus: string | null | undefined, custom?: string | 
 // lentement, 4:1 à l'athlète très entraîné. « plat » = aucune décharge
 // programmée (utile sur une période de compétition ou de transition).
 
-export type LoadPattern = "3:1" | "2:1" | "4:1" | "plat";
+/**
+ * Schéma de charge : un des modèles ("3:1", "2:1", "4:1", "plat"), un ratio
+ * libre ("5:2" = 5 semaines de charge puis 2 de décharge) ou un schéma saisi
+ * semaine par semaine ("perso:CCDCCCD", C = charge, D = décharge).
+ */
+export type LoadPattern = string;
 
 export const LOAD_PATTERNS: { value: LoadPattern; label: string; hint: string }[] = [
   { value: "3:1", label: "3:1", hint: "3 semaines de charge, 1 de décharge — le schéma le plus courant" },
@@ -139,12 +144,53 @@ export const LOAD_PATTERNS: { value: LoadPattern; label: string; hint: string }[
   { value: "plat", label: "Sans décharge", hint: "Charge régulière — compétition, transition" },
 ];
 
+/** Normalise un schéma saisi ; null s'il n'est pas reconnu. */
+export function normalizeLoadPattern(raw: string | null | undefined): LoadPattern | null {
+  const v = String(raw || "").trim();
+  if (!v) return null;
+  if (v === "plat") return v;
+  const perso = /^perso:([CD]{1,104})$/.exec(v);
+  if (perso) return v;
+  const r = /^(\d{1,2}):(\d)$/.exec(v);
+  if (r && Number(r[1]) >= 1 && Number(r[1]) <= 12 && Number(r[2]) >= 1 && Number(r[2]) <= 4) return `${Number(r[1])}:${Number(r[2])}`;
+  return null;
+}
+
+/** Libellé court d'un schéma (« 3:1 », « Sans décharge », « Personnalisé »). */
+export function loadPatternLabel(pattern: LoadPattern | null | undefined): string {
+  if (!pattern || pattern === "plat") return "Sans décharge";
+  if (pattern.startsWith("perso:")) return "Personnalisé";
+  return pattern;
+}
+
+/** Phrase d'explication d'un schéma pour une période de `weeks` semaines. */
+export function loadPatternHint(pattern: LoadPattern | null | undefined, weeks: number): string {
+  if (!pattern || pattern === "plat") return "charge régulière";
+  if (pattern.startsWith("perso:")) {
+    const d = deloadWeeks(pattern, weeks);
+    return d.length ? `décharge en semaine${d.length > 1 ? "s" : ""} ${d.join(", ").replace(/, (\d+)$/, " et $1")}` : "aucune semaine de décharge";
+  }
+  const [n, m] = pattern.split(":");
+  return `${n} semaine${Number(n) > 1 ? "s" : ""} de charge, ${m} de décharge`;
+}
+
 /** Rang (1-indexé) des semaines de décharge d'une période de `weeks` semaines. */
-export function deloadWeeks(pattern: LoadPattern, weeks: number): number[] {
-  if (pattern === "plat" || weeks < 2) return [];
-  const step = pattern === "2:1" ? 3 : pattern === "4:1" ? 5 : 4;
+export function deloadWeeks(pattern: LoadPattern | null | undefined, weeks: number): number[] {
+  if (!pattern || pattern === "plat" || weeks < 1) return [];
+  if (pattern.startsWith("perso:")) {
+    const out: number[] = [];
+    const seq = pattern.slice(6);
+    for (let i = 0; i < Math.min(seq.length, weeks); i++) if (seq[i] === "D") out.push(i + 1);
+    return out;
+  }
+  const r = /^(\d{1,2}):(\d)$/.exec(pattern);
+  if (!r || weeks < 2) return [];
+  const n = Number(r[1]);
+  const d = Number(r[2]);
   const out: number[] = [];
-  for (let w = step; w <= weeks; w += step) out.push(w);
+  for (let start = 0; start + n < weeks; start += n + d) {
+    for (let k = 1; k <= d && start + n + k <= weeks; k++) out.push(start + n + k);
+  }
   return out;
 }
 
@@ -210,8 +256,7 @@ export function weekPosition(
   if (dateISO < period.start_date || dateISO > period.end_date) return null;
   const week = Math.floor((periodDays(period.start_date, dateISO) - 1) / 7) + 1;
   const totalWeeks = periodWeeks(period.start_date, period.end_date);
-  const pattern = (period.load_pattern as LoadPattern) || "plat";
-  return { week, totalWeeks, isDeload: deloadWeeks(pattern, totalWeeks).includes(week) };
+  return { week, totalWeeks, isDeload: deloadWeeks(period.load_pattern, totalWeeks).includes(week) };
 }
 
 // --- Modèles de bloc -------------------------------------------------------

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { dbGet, dbRun, dbAll, dbBatch } from "./db";
 import { todayISO, toISODate } from "./dates";
-import { endDateForWeeks, focusLabel } from "./periodization";
+import { endDateForWeeks, focusLabel, normalizeLoadPattern } from "./periodization";
 import {
   createUser,
   findUserByEmail,
@@ -2414,7 +2414,7 @@ function readPeriodFields(formData: FormData) {
     focus: focus || null,
     startDate,
     endDate,
-    loadPattern: String(formData.get("loadPattern") || "").trim() || null,
+    loadPattern: normalizeLoadPattern(String(formData.get("loadPattern") || "")),
     volume: String(formData.get("volume") || "").trim() || null,
     intensity: String(formData.get("intensity") || "").trim() || null,
     objective: String(formData.get("objective") || "").trim() || null,

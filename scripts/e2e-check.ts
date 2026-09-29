@@ -31,6 +31,7 @@ import { computeGlobalScore, computeHooperIndex, scoreLabel } from "../src/lib/c
 import { computeBilanWindow, shiftBilanAnchor } from "../src/lib/dates";
 import {
   deloadWeeks,
+  normalizeLoadPattern,
   periodWeeks,
   periodDays,
   endDateForWeeks,
@@ -1045,6 +1046,9 @@ async function main() {
   assert(JSON.stringify(deloadWeeks("2:1", 9)) === "[3,6,9]", "Le schéma 2:1 place une décharge toutes les 3 semaines");
   assert(JSON.stringify(deloadWeeks("4:1", 10)) === "[5,10]", "Le schéma 4:1 place une décharge toutes les 5 semaines");
   assert(deloadWeeks("plat", 12).length === 0, "Le schéma sans décharge n'en programme aucune");
+  assert(JSON.stringify(deloadWeeks("5:2", 14)) === "[6,7,13,14]", "Un ratio libre 5:2 place 2 semaines de décharge toutes les 7");
+  assert(JSON.stringify(deloadWeeks("perso:CCDCD", 5)) === "[3,5]", "Un schéma semaine par semaine garde les décharges choisies");
+  assert(normalizeLoadPattern("perso:CXD") === null && normalizeLoadPattern("05:2") === "5:2", "Un schéma invalide est refusé, un ratio est normalisé");
 
   const tpl = blockTemplate("blocs-issurin")!;
   assert(templateWeeks(tpl) === 9, "Le modèle par blocs dure 9 semaines");

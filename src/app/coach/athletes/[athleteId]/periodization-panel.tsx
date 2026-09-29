@@ -13,6 +13,8 @@ import {
   periodWeeks,
   periodDays,
   deloadWeeks,
+  loadPatternLabel,
+  loadPatternHint,
   weekPosition,
   periodsOnDate,
   type LoadPattern,
@@ -41,6 +43,81 @@ function longDate(iso: string) {
   return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
 }
 const fmtN = (n: number) => Math.round(n).toLocaleString("fr-FR").replace(/ | /g, " ");
+
+/**
+ * Schéma de charge : un modèle (3:1…), un ratio libre (ex. 5:2) ou un choix
+ * semaine par semaine. La valeur part dans le champ caché « loadPattern ».
+ */
+function LoadPatternField({ initial, weeks }: { initial: string; weeks: number }) {
+  const [value, setValue] = useState(initial || "plat");
+  const mode = value.startsWith("perso:") ? "perso" : LOAD_PATTERNS.some((x) => x.value === value) ? "preset" : /^\d{1,2}:\d$/.test(value) ? "ratio" : "preset";
+  const [n, m] = mode === "ratio" ? value.split(":").map(Number) : [5, 2];
+  const seq = mode === "perso" ? value.slice(6) : "";
+  const [len, setLen] = useState(Math.max(1, seq.length || weeks || 4));
+  const toPerso = (pat: string, count: number) => {
+    const d = deloadWeeks(pat, count);
+    return "perso:" + Array.from({ length: count }, (_, i) => (d.includes(i + 1) ? "D" : "C")).join("");
+  };
+  const chip = (on: boolean) =>
+    `rounded-full border px-3 py-1.5 text-[13px] font-semibold transition-colors ${on ? "border-ink bg-ink text-white" : "border-line bg-white text-ink-soft hover:bg-paper"}`;
+  const num = "w-16 rounded-[10px] border border-line bg-white px-2 py-1.5 text-center text-sm text-ink";
+  return (
+    <div className="flex flex-col gap-2">
+      <label className={fieldLabel}>Schéma de charge</label>
+      <input type="hidden" name="loadPattern" value={value} />
+      <div className="flex flex-wrap gap-1.5">
+        {LOAD_PATTERNS.map((x) => (
+          <button key={x.value} type="button" title={x.hint} onClick={() => setValue(x.value)} className={chip(mode === "preset" && value === x.value)}>
+            {x.label}
+          </button>
+        ))}
+        <button type="button" onClick={() => mode !== "ratio" && setValue("5:2")} className={chip(mode === "ratio")}>
+          Ratio libre
+        </button>
+        <button type="button" onClick={() => mode !== "perso" && setValue(toPerso(value, len))} className={chip(mode === "perso")}>
+          Semaine par semaine
+        </button>
+      </div>
+      {mode === "ratio" && (
+        <div className="flex flex-wrap items-center gap-2 text-sm text-ink-soft animate-expand-in">
+          <input type="number" min={1} max={12} value={n} onChange={(e) => setValue(`${Math.max(1, Math.min(12, Number(e.target.value) || 1))}:${m}`)} className={num} />
+          semaine(s) de charge, puis
+          <input type="number" min={1} max={4} value={m} onChange={(e) => setValue(`${n}:${Math.max(1, Math.min(4, Number(e.target.value) || 1))}`)} className={num} />
+          de décharge — le motif se répète sur toute la période
+        </div>
+      )}
+      {mode === "perso" && (
+        <div className="flex flex-col gap-2 animate-expand-in">
+          <div className="flex flex-wrap gap-1.5">
+            {Array.from({ length: len }, (_, i) => {
+              const d = seq[i] === "D";
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => {
+                    const q = (seq + "C".repeat(len)).slice(0, len).split("");
+                    q[i] = d ? "C" : "D";
+                    setValue("perso:" + q.join(""));
+                  }}
+                  className={`flex min-w-[84px] flex-col items-start rounded-[10px] border-[1.5px] px-2.5 py-1.5 text-left ${d ? "border-dashed border-slate bg-white" : "border-transparent bg-paper"}`}
+                >
+                  <span className="text-[11.5px] text-slate">Semaine {i + 1}</span>
+                  <b className="text-[13px] text-ink">{d ? "Décharge" : "Charge"}</b>
+                </button>
+              );
+            })}
+            <button type="button" aria-label="Ajouter une semaine" onClick={() => { setLen(len + 1); setValue("perso:" + (seq + "C".repeat(len + 1)).slice(0, len + 1)); }} className="min-w-10 rounded-[10px] border border-dashed border-line px-3 text-lg text-slate hover:text-ink">+</button>
+            {len > 1 && (
+              <button type="button" aria-label="Retirer une semaine" onClick={() => { setLen(len - 1); setValue("perso:" + seq.slice(0, len - 1)); }} className="min-w-10 rounded-[10px] border border-dashed border-line px-3 text-lg text-slate hover:text-ink">−</button>
+            )}
+          </div>
+          <span className="text-xs text-slate">Cliquez sur une semaine pour la passer en charge ou en décharge.</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function PeriodFields({ period, defaults }: { period?: TrainingPeriod; defaults?: { start: string } }) {
   return (
@@ -86,17 +163,8 @@ function PeriodFields({ period, defaults }: { period?: TrainingPeriod; defaults?
           <input type="number" name="weeks" min={1} max={104} placeholder="4" className={fieldClass} />
         </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div>
-          <label className={fieldLabel}>Schéma de charge</label>
-          <select name="loadPattern" defaultValue={period?.load_pattern ?? "3:1"} className={fieldClass}>
-            {LOAD_PATTERNS.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </div>
+      <LoadPatternField initial={period?.load_pattern ?? "3:1"} weeks={period ? periodWeeks(period.start_date, period.end_date) : 4} />
+      <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className={fieldLabel}>Volume</label>
           <select name="volume" defaultValue={period?.volume ?? ""} className={fieldClass}>
@@ -383,9 +451,8 @@ function PeriodDetail({
   const preset = focusPreset(p.focus);
   const nWeeks = periodWeeks(p.start_date, p.end_date);
   const pos = weekPosition(p, today);
-  const pattern = (p.load_pattern as LoadPattern) || "plat";
+  const pattern: LoadPattern = p.load_pattern || "plat";
   const deloads = deloadWeeks(pattern, nWeeks);
-  const patternDef = LOAD_PATTERNS.find((x) => x.value === pattern);
 
   // Une carte par semaine de la période : le cycle qui l'occupe (pour un bloc
   // ou une saison) ou son statut de charge (pour un cycle), et la charge.
@@ -464,8 +531,8 @@ function PeriodDetail({
         </div>
         <div>
           <p className="text-[13px] text-slate">Schéma de charge</p>
-          <p className="text-[17px] font-bold text-ink">{patternDef?.label ?? "—"}</p>
-          <p className="text-xs text-slate">{pattern === "plat" ? "charge régulière" : "semaines de charge : décharge"}</p>
+          <p className="text-[17px] font-bold text-ink">{loadPatternLabel(pattern)}</p>
+          <p className="text-xs text-slate">{loadPatternHint(pattern, nWeeks)}</p>
         </div>
         <div>
           <p className="text-[13px] text-slate">Volume</p>
