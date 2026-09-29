@@ -8,7 +8,6 @@ import {
   PERIOD_LEVELS,
   FOCUS_PRESETS,
   LOAD_PATTERNS,
-  focusLabel,
   focusPreset,
   periodColor,
   periodWeeks,
@@ -190,13 +189,10 @@ export function PeriodizationPanel({
   }
 
   const block = active.find((p) => p.level === "bloc");
-  const subtitle = [
-    goal ? `Objectif : ${goal.title}, ${longDate(goal.date)}` : null,
-    block ? `bloc « ${block.name} »` : null,
-    finest && finest.level === "cycle" ? `cycle « ${finest.name} »` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  // L'objectif est déjà dans le compte à rebours : le sous-titre ne donne que
+  // la position dans la saison.
+  const now = [block ? `bloc « ${block.name} »` : null, finest && finest.level === "cycle" ? `cycle « ${finest.name} »` : null].filter(Boolean);
+  const subtitle = now.length ? `En cours : ${now.join(" · ")}` : "";
 
   return (
     <div className="flex flex-col gap-6">
@@ -208,7 +204,7 @@ export function PeriodizationPanel({
 
       <Panel>
         <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <h3 className="text-[17px] font-bold tracking-tight text-ink">{season?.name ?? "Frise"}</h3>
+          <h3 className="text-[17px] font-bold tracking-tight text-ink">Frise</h3>
           <span className="text-[13px] text-slate">
             {longDate(span.from)} → {longDate(span.to)} · {periodWeeks(span.from, span.to)} semaines
           </span>
@@ -422,7 +418,7 @@ function PeriodDetail({
         <span className="w-1 self-stretch rounded-full" style={{ background: color }} />
         <div className="min-w-0 flex-1">
           <p className="text-[13px] text-slate">
-            {LEVEL_ONE[p.level]} · {focusLabel(p.focus)}
+            {LEVEL_ONE[p.level]}
           </p>
           <h3 className="text-[22px] font-bold leading-tight tracking-tight text-ink">{p.name}</h3>
           <p className="text-sm text-ink-soft">
