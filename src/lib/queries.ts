@@ -1,3 +1,5 @@
+import { parseExtras } from "./effort-tests";
+import { estimateOneRm } from "./one-rm";
 import { dbGet, dbAll } from "./db";
 import type { Checkin } from "./checkin-types";
 import type { AvailabilitySlot } from "./time-of-day";
@@ -318,6 +320,8 @@ export interface AthleteMeasurement {
   recorded_at: string;
   note: string | null;
   device: string | null;
+  label?: string | null;
+  unit?: string | null;
 }
 
 export async function getMeasurementsForAthlete(athleteId: string): Promise<AthleteMeasurement[]> {
@@ -357,6 +361,8 @@ export interface ExerciseMax {
   value_type: "charge" | "temps" | "repetitions";
   tested_at: string;
   note: string | null;
+  /** Répétitions réalisées à cette charge : au-delà de 1, le 1RM est estimé (Epley). */
+  reps: number | null;
 }
 
 export async function getExerciseMaxes(athleteId: string): Promise<ExerciseMax[]> {
@@ -372,7 +378,7 @@ export async function getLatestExerciseMaxes(athleteId: string): Promise<Record<
     // Le calcul "% du max" (StrengthBuilder) n'a de sens que pour une charge en
     // kg — un max en temps ou en répétitions ne s'y prête pas.
     if (r.value_type !== "charge") continue;
-    if (!(r.exercise_name in latest)) latest[r.exercise_name] = r.value_kg;
+    if (!(r.exercise_name in latest)) latest[r.exercise_name] = estimateOneRm(r.value_kg, r.reps);
   }
   return latest;
 }
@@ -421,6 +427,8 @@ export interface EffortTestResultRow {
   attachment_name: string | null;
   batch_id: string | null;
   created_at: string;
+  protocol?: string | null;
+  extras_json?: string | null;
 }
 
 export async function getEffortTestResultsForAthlete(athleteId: string): Promise<EffortTestResultRow[]> {
@@ -443,6 +451,10 @@ export interface EffortTestBatch {
   attachmentName: string | null;
   ids: string[];
   metrics: { metric: string; value: number }[];
+  /** Données brutes saisies (champs du test). */
+  data: Record<string, number>;
+  protocol: string | null;
+  extras: { label: string; value: string; unit?: string }[];
 }
 
 /**
@@ -473,11 +485,14 @@ export async function getEffortTestBatchesForAthlete(athleteId: string): Promise
         attachmentName: r.attachment_name,
         ids: [],
         metrics: [],
+        data: (() => { try { return JSON.parse(r.data_json || "{}"); } catch { return {}; } })(),
+        protocol: r.protocol ?? null,
+        extras: parseExtras(r.extras_json),
       };
       batches.set(key, batch);
     }
     batch.ids.push(r.id);
-    batch.metrics.push({ metric: r.result_metric, value: r.result_value });
+    if (r.result_metric) batch.metrics.push({ metric: r.result_metric, value: r.result_value });
   }
   // getEffortTestResultsForAthlete trie déjà par date/création décroissante —
   // l'ordre d'apparition des lots (premier id rencontré) le respecte.
@@ -565,10 +580,10 @@ export interface PersonalRecord {
 // réellement effectuées — contrairement aux séries de musculation
 // planifiées par le coach, qui décrivent une charge prescrite et non ce que
 // l'athlète a réellement soulevé, aucun record fiable n'en est tiré ici).
-export async function getPersonalRecordsForAthlete(athleteId: string): Promise<PersonalRecord[]> {
+export async function getPersonalRecordsForAthlete(athleteId: string, since?: string): Promise<PersonalRecord[]> {
   const rows = await dbAll<{ sport: string; distance_km: number | null; duration_minutes: number | null; activity_date: string }>(
-    `SELECT sport, distance_km, duration_minutes, activity_date FROM imported_activities WHERE athlete_id = ?`,
-    [athleteId]
+    `SELECT sport, distance_km, duration_minutes, activity_date FROM imported_activities WHERE athlete_id = ?${since ? " AND activity_date >= ?" : ""}`,
+    since ? [athleteId, since] : [athleteId]
   );
 
   const bySport = new Map<string, typeof rows>();
@@ -984,4 +999,15 @@ export async function getCoachNoteEntries(coachId: string, athleteId: string): P
      ORDER BY entry_date DESC, created_at DESC`,
     [coachId, athleteId]
   );
+}
+
+export interface ZoneOverrides {
+  hr_json: string | null;
+  pw_json: string | null;
+  pace_json: string | null;
+  updated_at: string;
+}
+
+export async function getZoneOverrides(athleteId: string): Promise<ZoneOverrides | null> {
+  return (await dbGet<ZoneOverrides>(`SELECT hr_json, pw_json, pace_json, updated_at FROM athlete_zone_overrides WHERE athlete_id = ?`, [athleteId])) ?? null;
 }

@@ -7,27 +7,11 @@ import {
   createCustomEffortTestAction,
   deleteEffortTestBatchAction,
 } from "@/lib/actions";
-import { EFFORT_TEST_CATALOG, parseCustomFields, type EffortTestFieldDef } from "@/lib/effort-tests";
-import { PERFORMANCE_METRICS, MEASUREMENT_DEVICES, groupMetrics, METRIC_LABELS } from "@/lib/performance-metrics";
-import { sportIconPath } from "@/lib/sport-icons";
-import { sportLabelPlain } from "@/lib/sport-labels";
+import { EFFORT_TEST_CATALOG, ERGOMETERS, DEFAULT_PROTOCOLS, parseCustomFields, type EffortTestFieldDef } from "@/lib/effort-tests";
+import { PERFORMANCE_METRICS, groupMetrics, METRIC_LABELS } from "@/lib/performance-metrics";
 import { todayISO } from "@/lib/dates";
 import type { EffortTestBatch, CustomEffortTestRow } from "@/lib/queries";
 import { Button } from "@/components/ui";
-
-// Sports couverts par le référentiel de tests aujourd'hui (running/cycling/
-// swimming) + les 3 autres sports de l'app, pour rester cohérent même sans
-// test dédié pour l'instant — le coach retombe alors sur "Autre".
-const SPORT_TILES = ["running", "cycling", "swimming", "hiking", "climbing", "strength"] as const;
-const OTHER_SPORT = "__other__";
-
-function SportIcon({ sport, size = 20 }: { sport: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d={sportIconPath(sport)} />
-    </svg>
-  );
-}
 
 /** Regroupe les champs facultatifs d'un test par thème (cf. EffortTestFieldDef.group)
  * pour les afficher en sous-sections plutôt qu'en grille plate. */
@@ -60,19 +44,36 @@ export function EffortTestsPanel({
   athleteId,
   batches,
   customTests,
-  defaultSport,
+  editBatch,
+  onDone,
 }: {
   athleteId: string;
   batches: EffortTestBatch[];
   customTests: CustomEffortTestRow[];
   defaultSport?: string;
+  /** Test à modifier : le formulaire s'ouvre pré-rempli et remplace ce test. */
+  editBatch?: EffortTestBatch | null;
+  onDone?: () => void;
 }) {
   const router = useRouter();
-  const [selectedSport, setSelectedSport] = useState<string | null>(
-    defaultSport && (SPORT_TILES as readonly string[]).includes(defaultSport) ? defaultSport : null
+  const initialKey = editBatch
+    ? editBatch.testSlug
+      ? `builtin:${editBatch.testSlug}`
+      : editBatch.customTestId
+        ? `custom:${editBatch.customTestId}`
+        : "other"
+    : "";
+  const [ergo, setErgo] = useState<string>(editBatch?.device || (editBatch ? "autre" : ""));
+  const [selected, setSelected] = useState<string>(initialKey);
+  const [name, setName] = useState(editBatch?.customLabel ?? "");
+  const [protocol, setProtocol] = useState(
+    editBatch ? editBatch.protocol ?? (editBatch.testSlug ? DEFAULT_PROTOCOLS[editBatch.testSlug] ?? "" : "") : ""
   );
-  const [selected, setSelected] = useState<string>("");
+  const [extras, setExtras] = useState<{ label: string; value: string; unit: string }[]>(
+    (editBatch?.extras ?? []).map((e) => ({ label: e.label, value: e.value, unit: e.unit ?? "" }))
+  );
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
   const [deletingBatchId, setDeletingBatchId] = useState<string | null>(null);
   const [creatingCustom, setCreatingCustom] = useState(false);
   const [customFieldCount, setCustomFieldCount] = useState(1);
@@ -81,74 +82,70 @@ export function EffortTestsPanel({
   const builtin = selected.startsWith("builtin:") ? EFFORT_TEST_CATALOG[selected.slice(8)] : null;
   const custom = selected.startsWith("custom:") ? customTests.find((t) => t.id === selected.slice(7)) : null;
   const customFields = custom ? parseCustomFields(custom.fields_json) : [];
-  // "Autre" : un test ponctuel que le référentiel ne connaît pas et que le
-  // coach ne veut pas déclarer à l'avance (cf. "+ Créer un test personnalisé"
-  // plus bas, pour un test qu'il refera régulièrement) — juste un nom, un
-  // indicateur et une valeur, saisis une fois.
   const isOther = selected === "other";
 
-  // Tests personnalisés dont le sport (texte libre du coach) ne correspond à
-  // aucune des tuiles connues — rattachés à "Autre" pour ne jamais devenir
-  // inaccessibles, même si le coach a tapé un intitulé inhabituel.
-  const orphanCustomTests = customTests.filter(
-    (t) => !(SPORT_TILES as readonly string[]).includes(t.sport.trim().toLowerCase())
+  // Tests nommés déjà passés (« Autre test ») : proposés à nouveau pour être comparés.
+  const namedTests = Array.from(
+    new Map(
+      batches.filter((b) => b.customLabel && !b.testSlug && !b.customTestId).map((b) => [b.customLabel!.toLowerCase(), b])
+    ).values()
   );
+  const legacyErgo: Record<string, string[]> = { cycling: ["ergocycle", "terrain"], running: ["piste", "tapis"], swimming: ["piscine"] };
+  const ergoDef = ERGOMETERS.find((e) => e.value === ergo);
+  const testOptions: { value: string; label: string }[] = ergo
+    ? [
+        ...(ergoDef?.tests ?? []).map((slug) => ({ value: `builtin:${slug}`, label: EFFORT_TEST_CATALOG[slug]?.label ?? slug })),
+        ...customTests
+          .filter((t) => {
+            const sp = t.sport.trim().toLowerCase();
+            return sp === ergo || (legacyErgo[sp] ?? []).includes(ergo) || (ergo === "autre" && !legacyErgo[sp] && !ERGOMETERS.some((e) => e.value === sp));
+          })
+          .map((t) => ({ value: `custom:${t.id}`, label: `Mes tests · ${t.name}` })),
+        ...namedTests.filter((b) => !b.device || b.device === ergo || ergo === "autre").map((b) => ({ value: `named:${b.batchId}`, label: `Mes tests · ${b.customLabel}` })),
+        { value: "other", label: "Autre test… (à nommer)" },
+      ]
+    : [];
 
-  function testsForSport(sport: string) {
-    const builtinList = Object.values(EFFORT_TEST_CATALOG).filter((t) => t.sport === sport);
-    const customList = customTests.filter((t) => t.sport.trim().toLowerCase() === sport);
-    return [...builtinList, ...customList];
-  }
-
-  function selectSport(sport: string) {
-    setSelected("");
-    // Raccourci : "Autre" ne propose qu'une seule option la plupart du temps
-    // (aucun test personnalisé "orphelin") — autant sauter directement à sa
-    // saisie plutôt que d'afficher une liste à un seul élément.
-    if (sport === OTHER_SPORT && orphanCustomTests.length === 0) {
-      setSelectedSport(OTHER_SPORT);
+  function pickTest(v: string) {
+    setError("");
+    if (v.startsWith("named:")) {
+      const b = batches.find((x) => x.batchId === v.slice(6));
       setSelected("other");
-    } else {
-      setSelectedSport(sport);
+      setName(b?.customLabel ?? "");
+      setProtocol(b?.protocol ?? "");
+      setExtras((b?.extras ?? []).map((e) => ({ label: e.label, value: "", unit: e.unit ?? "" })));
+      return;
     }
+    setSelected(v);
+    setName("");
+    setProtocol(v.startsWith("builtin:") ? DEFAULT_PROTOCOLS[v.slice(8)] ?? "" : "");
+    setExtras(v === "other" ? [{ label: "", value: "", unit: "" }] : []);
   }
-
-  const cards: { value: string; label: string; description?: string }[] =
-    selectedSport === null
-      ? []
-      : selectedSport === OTHER_SPORT
-        ? [
-            ...orphanCustomTests.map((t) => ({ value: `custom:${t.id}`, label: t.name })),
-            { value: "other", label: "Autre (test non répertorié)", description: "Un test fait une seule fois, sans le déclarer à l'avance." },
-          ]
-        : [
-            ...testsForSport(selectedSport).map((t) =>
-              "slug" in t
-                ? { value: `builtin:${t.slug}`, label: t.label, description: t.description }
-                : { value: `custom:${t.id}`, label: t.name }
-            ),
-            { value: "other", label: "Autre (test non répertorié)", description: "Un test fait une seule fois, sans le déclarer à l'avance." },
-          ];
-
-  const selectedCard = cards.find((c) => c.value === selected);
+  const previousNamed = isOther && name.trim() ? namedTests.find((b) => b.customLabel!.trim().toLowerCase() === name.trim().toLowerCase() && b.batchId !== editBatch?.batchId) : undefined;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setPending(true);
+    setError("");
     const formData = new FormData(e.currentTarget);
     formData.set("athleteId", athleteId);
+    formData.set("device", ergo === "autre" ? "" : ergo);
+    formData.set("protocol", protocol);
+    formData.set("extras", JSON.stringify(extras.filter((x) => x.label.trim() && x.value.trim())));
     if (builtin) formData.set("testSlug", builtin.slug);
     if (custom) formData.set("customTestId", custom.id);
+    if (isOther) formData.set("customLabel", name);
+    if (editBatch) formData.set("replaceBatchId", editBatch.batchId);
     const result = await addEffortTestResultAction(formData);
     setPending(false);
     if ("error" in result) {
-      alert(result.error);
+      setError(result.error);
       return;
     }
     (e.target as HTMLFormElement).reset();
-    // Revient à la liste de tests du même sport plutôt qu'à la case départ —
-    // un coach enchaîne souvent plusieurs tests pour le même athlète.
     setSelected("");
+    setExtras([]);
+    onDone?.();
     router.refresh();
   }
 
@@ -159,7 +156,7 @@ export function EffortTestsPanel({
     const result = await createCustomEffortTestAction(formData);
     setPending(false);
     if ("error" in result) {
-      alert(result.error);
+      setError(result.error);
       return;
     }
     (e.target as HTMLFormElement).reset();
@@ -177,116 +174,80 @@ export function EffortTestsPanel({
   }
 
   const visibleBatches = showHistory ? batches : batches.slice(0, 5);
+  const val = (k: string) => (editBatch && editBatch.data[k] !== undefined ? String(editBatch.data[k]) : undefined);
 
   const requiredFields = builtin?.fields.filter((f) => !f.optional) ?? [];
   const optionalFields = builtin?.fields.filter((f) => f.optional) ?? [];
   const optionalGroupNames = Array.from(new Set(optionalFields.map((f) => f.group ?? "Autres détails")));
+  const hasTest = !!(builtin || custom || isOther);
 
   return (
     <div>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <div>
-          <span className={`mb-1.5 block text-sm ${fieldLabelClass}`}>Quel sport ?</span>
-          <div className="flex flex-wrap gap-2">
-            {SPORT_TILES.map((sport) => (
-              <button
-                key={sport}
-                type="button"
-                onClick={() => selectSport(sport)}
-                className={`flex flex-col items-center gap-1 rounded-2xl border px-3 py-2 text-[11px] font-semibold transition-colors ${
-                  selectedSport === sport ? "border-moss bg-moss/10 text-moss-dark" : "border-line text-ink-soft hover:border-moss/50"
-                }`}
-              >
-                <SportIcon sport={sport} />
-                {sportLabelPlain(sport)}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => selectSport(OTHER_SPORT)}
-              className={`flex flex-col items-center gap-1 rounded-2xl border px-3 py-2 text-[11px] font-semibold transition-colors ${
-                selectedSport === OTHER_SPORT ? "border-moss bg-moss/10 text-moss-dark" : "border-line text-ink-soft hover:border-moss/50"
-              }`}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className={fieldLabelClass}>Ergomètre</span>
+            <select
+              value={ergo}
+              onChange={(e) => {
+                setErgo(e.target.value);
+                setSelected("");
+              }}
+              className={inputClass}
             >
-              <SportIcon sport="other" />
-              Autre
-            </button>
-          </div>
+              <option value="">Choisir l’ergomètre…</option>
+              {ERGOMETERS.map((e) => (
+                <option key={e.value} value={e.value}>
+                  {e.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className={fieldLabelClass}>Test</span>
+            <select value={selected} onChange={(e) => pickTest(e.target.value)} disabled={!ergo} className={`${inputClass} disabled:opacity-50`}>
+              <option value="">{ergo ? "Choisir le test…" : "—"}</option>
+              {testOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
+        {builtin?.description && <p className="-mt-1 text-xs text-slate">{builtin.description}</p>}
 
-        {selectedSport !== null && !selected && (
-          <div className="animate-expand-in flex flex-col gap-1.5">
-            <span className={`text-sm ${fieldLabelClass}`}>Quel test ?</span>
-            {cards.map((c) => (
-              <button
-                key={c.value}
-                type="button"
-                onClick={() => setSelected(c.value)}
-                className="rounded-xl border border-line bg-white px-3 py-2 text-left hover:border-moss"
-              >
-                <p className="text-sm font-semibold text-ink">{c.label}</p>
-                {c.description && <p className="text-xs text-slate">{c.description}</p>}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {selected && selectedCard && (
-          <div className="flex items-center justify-between gap-2 rounded-xl bg-paper-dim px-3 py-2">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-ink">{selectedCard.label}</p>
-              {selectedCard.description && <p className="text-xs text-slate">{selectedCard.description}</p>}
-            </div>
-            <button type="button" onClick={() => setSelected("")} className="shrink-0 text-xs font-semibold text-moss-dark hover:underline">
-              Changer
-            </button>
-          </div>
-        )}
-
-        {(builtin || custom || isOther) && (
-          <div className="animate-expand-in grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {hasTest && (
+          <div key={selected} className="animate-expand-in grid grid-cols-1 gap-3 border-t border-line pt-3 sm:grid-cols-2">
+            {isOther && (
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className={fieldLabelClass}>Nom du test</span>
+                <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="ex. Test Conconi, 1000 m SkiErg…" className={inputClass} />
+              </label>
+            )}
             <label className="flex flex-col gap-1.5 text-sm">
               <span className={fieldLabelClass}>Date du test</span>
-              <input type="date" name="testDate" defaultValue={todayISO()} required className={inputClass} />
+              <input type="date" name="testDate" defaultValue={editBatch?.testDate.slice(0, 10) ?? todayISO()} required className={inputClass} />
             </label>
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className={fieldLabelClass}>Matériel utilisé</span>
-              <select name="device" className={inputClass}>
-                {MEASUREMENT_DEVICES.map((d) => (
-                  <option key={d.value} value={d.value}>
-                    {d.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {isOther && (
-              <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
-                <span className={fieldLabelClass}>Type de test</span>
-                <input
-                  name="customLabel"
-                  autoFocus
-                  required
-                  placeholder="ex. Test palier tapis, saut vertical…"
-                  className={inputClass}
-                />
-              </label>
+            {previousNamed && (
+              <p className="text-xs text-ink-soft sm:col-span-2">
+                Comparé à « {previousNamed.customLabel} » du {previousNamed.testDate.slice(0, 10)} :{" "}
+                {previousNamed.extras.map((x) => `${x.label} ${x.value}${x.unit ? ` ${x.unit}` : ""}`).join(" · ")}
+              </p>
             )}
 
             {requiredFields.map((f, i) => (
               <label key={f.key} className="flex flex-col gap-1.5 text-sm">
                 <span className={fieldLabelClass}>
-                  {f.label} {f.unit ? `(${f.unit})` : ""}
+                  {f.label} {f.unit ? `(${f.unit})` : ""} *
                 </span>
-                <input type="number" step="any" name={`field_${f.key}`} required autoFocus={i === 0} className={inputClass} />
+                <input type="number" step="any" name={`field_${f.key}`} defaultValue={val(f.key)} required autoFocus={i === 0 && !editBatch} className={inputClass} />
               </label>
             ))}
 
             {optionalFields.length > 0 && (
-              <details className="sm:col-span-2 rounded-xl border border-line bg-paper-dim/50 px-3 py-2">
-                <summary className="cursor-pointer text-xs font-semibold text-moss-dark">
-                  + Ajouter plus de détails ({optionalGroupNames.join(", ")})
-                </summary>
+              <details open={!!editBatch} className="sm:col-span-2 rounded-xl border border-line bg-paper-dim/50 px-3 py-2">
+                <summary className="cursor-pointer text-xs font-semibold text-moss-dark">+ Plus de données ({optionalGroupNames.join(", ")})</summary>
                 <div className="mt-3 flex flex-col gap-3">
                   {groupFields(optionalFields).map(({ group, fields }) => (
                     <div key={group}>
@@ -297,7 +258,7 @@ export function EffortTestsPanel({
                             <span className={fieldLabelClass}>
                               {f.label} {f.unit ? `(${f.unit})` : ""}
                             </span>
-                            <input type="number" step="any" name={`field_${f.key}`} className={inputClass} />
+                            <input type="number" step="any" name={`field_${f.key}`} defaultValue={val(f.key)} className={inputClass} />
                           </label>
                         ))}
                       </div>
@@ -312,15 +273,15 @@ export function EffortTestsPanel({
                 <span className={fieldLabelClass}>
                   {f.label} {f.unit ? `(${f.unit})` : ""}
                 </span>
-                <input type="number" step="any" name={`field_${f.key}`} required={i === 0} autoFocus={i === 0} className={inputClass} />
+                <input type="number" step="any" name={`field_${f.key}`} defaultValue={val(f.key)} required={i === 0} className={inputClass} />
               </label>
             ))}
 
-            {(custom || isOther) && (
+            {custom && (
               <>
                 <label className="flex flex-col gap-1.5 text-sm">
                   <span className={fieldLabelClass}>Indicateur obtenu</span>
-                  <select name="resultMetric" required className={inputClass}>
+                  <select name="resultMetric" required defaultValue={editBatch?.metrics[0]?.metric} className={inputClass}>
                     {groupMetrics(PERFORMANCE_METRICS).map(({ group, items }) => (
                       <optgroup key={group} label={group}>
                         {items.map((m) => (
@@ -334,14 +295,36 @@ export function EffortTestsPanel({
                 </label>
                 <label className="flex flex-col gap-1.5 text-sm">
                   <span className={fieldLabelClass}>Valeur obtenue</span>
-                  <input type="number" step="any" name="resultValue" required className={inputClass} />
+                  <input type="number" step="any" name="resultValue" required defaultValue={editBatch?.metrics[0]?.value} className={inputClass} />
                 </label>
               </>
             )}
 
             <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
+              <span className={fieldLabelClass}>Protocole</span>
+              <textarea value={protocol} onChange={(e) => setProtocol(e.target.value)} rows={2} placeholder="Déroulé du test, matériel, conditions…" className={`${inputClass} resize-y`} />
+            </label>
+
+            <div className="flex flex-col gap-2 sm:col-span-2">
+              <span className={`text-sm ${fieldLabelClass}`}>{isOther ? "Données du test" : "Résultats complémentaires"}</span>
+              {extras.map((x, i) => (
+                <div key={i} className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_90px_30px] items-center gap-2">
+                  <input value={x.label} onChange={(e) => setExtras(extras.map((y, j) => (j === i ? { ...y, label: e.target.value } : y)))} placeholder="Nom (ex. Lactate à 300 W)" className={inputClass} />
+                  <input value={x.value} onChange={(e) => setExtras(extras.map((y, j) => (j === i ? { ...y, value: e.target.value } : y)))} placeholder="Valeur" className={inputClass} />
+                  <input value={x.unit} onChange={(e) => setExtras(extras.map((y, j) => (j === i ? { ...y, unit: e.target.value } : y)))} placeholder="Unité" className={inputClass} />
+                  <button type="button" aria-label="Retirer" onClick={() => setExtras(extras.filter((_, j) => j !== i))} className="flex h-7 w-7 items-center justify-center rounded-full border border-line bg-white text-slate">
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setExtras([...extras, { label: "", value: "", unit: "" }])} className="self-start rounded-full border border-dashed border-line px-3 py-1.5 text-xs font-semibold text-moss-dark">
+                + Ajouter {isOther ? "une donnée" : "un résultat"}
+              </button>
+            </div>
+
+            <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
               <span className={fieldLabelClass}>Note (facultatif)</span>
-              <input name="note" placeholder="Conditions, sensations…" className={inputClass} />
+              <input name="note" defaultValue={editBatch?.note ?? ""} placeholder="Conditions, sensations…" className={inputClass} />
             </label>
 
             <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
@@ -352,18 +335,28 @@ export function EffortTestsPanel({
                 accept="image/*,video/*,application/pdf"
                 className={`${inputClass} file:mr-3 file:rounded file:border-0 file:bg-paper-dim file:px-2 file:py-1 file:text-xs file:font-medium`}
               />
-              <span className="text-xs text-slate">Photo de la feuille de test, capture d&apos;écran du tableur, vidéo, PDF…</span>
+              <span className="text-xs text-slate">
+                {editBatch?.attachmentName ? `Pièce jointe actuelle : ${editBatch.attachmentName} (conservée si vous n’en choisissez pas d’autre)` : "Photo de la feuille de test, capture d'écran, vidéo, PDF…"}
+              </span>
             </label>
 
-            <div className="sm:col-span-2">
+            <div className="flex items-center gap-3 sm:col-span-2">
               <Button type="submit" loading={pending}>
-                Enregistrer le résultat
+                {editBatch ? "Enregistrer les modifications" : "Enregistrer le test"}
               </Button>
+              {onDone && (
+                <button type="button" onClick={onDone} className="text-sm font-semibold text-slate hover:text-ink">
+                  Annuler
+                </button>
+              )}
+              {error && <span className="text-sm text-clay">{error}</span>}
             </div>
           </div>
         )}
       </form>
 
+      {editBatch ? null : (
+      <>
       {batches.length > 0 && (
         <div className="mt-5 border-t border-line pt-4">
           <p className="mb-2 text-sm font-semibold text-ink">Historique des tests</p>
@@ -495,6 +488,8 @@ export function EffortTestsPanel({
           </form>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

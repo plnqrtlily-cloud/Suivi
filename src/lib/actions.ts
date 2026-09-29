@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { dbGet, dbRun, dbAll, dbBatch } from "./db";
 import { todayISO, toISODate } from "./dates";
 import { endDateForWeeks, focusLabel, normalizeLoadPattern } from "./periodization";
+import { PERFORMANCE_METRICS, BODY_METRICS, normalizeMetricName, customMetricKey } from "./performance-metrics";
 import {
   createUser,
   findUserByEmail,
@@ -981,16 +982,39 @@ export async function addMeasurementAction(formData: FormData) {
   const isLinkedCoach = user.role === "coach" && (await isCoachLinkedToAthlete(user.id, targetAthleteId));
   if (!isSelf && !isLinkedCoach) throw new Error("Non autorisé.");
 
-  const metric = String(formData.get("metric") || "");
-  const value = Number(formData.get("value") || 0);
+  let metric = String(formData.get("metric") || "");
+  const value = Number(String(formData.get("value") || "").replace(",", "."));
   const recordedAt = String(formData.get("recordedAt") || "").trim();
   const note = String(formData.get("note") || "").trim();
   const device = String(formData.get("device") || "").trim();
-  if (!metric || Number.isNaN(value)) return;
+  let label: string | null = null;
+  let unit: string | null = null;
+  // « Autre… » : mesure nommée par le coach. Si ce nom existe déjà (mesure de
+  // la liste ou mesure nommée auparavant), la valeur rejoint cette série pour
+  // être comparée aux précédentes.
+  const customName = String(formData.get("customName") || "").trim().slice(0, 60);
+  if (metric === "custom" || customName) {
+    if (!customName) throw new Error("Donnez un nom à la mesure.");
+    const n = normalizeMetricName(customName);
+    const known =
+      BODY_METRICS.map((b) => ({ value: b.key, label: b.label })).find((m) => normalizeMetricName(m.label) === n) ??
+      PERFORMANCE_METRICS.find((m) => normalizeMetricName(m.label) === n);
+    if (known) metric = known.value;
+    else {
+      metric = customMetricKey(customName);
+      const prev = await dbGet<{ label: string | null; unit: string | null }>(
+        `SELECT label, unit FROM athlete_measurements WHERE athlete_id = ? AND metric = ? AND label IS NOT NULL ORDER BY recorded_at ASC LIMIT 1`,
+        [targetAthleteId, metric]
+      );
+      label = prev?.label || customName;
+      unit = prev ? prev.unit : String(formData.get("customUnit") || "").trim().slice(0, 16) || null;
+    }
+  }
+  if (!metric || metric === "custom" || !Number.isFinite(value)) throw new Error("Indiquez une mesure et une valeur.");
 
   await dbRun(
-    `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note, device) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [randomUUID(), targetAthleteId, metric, value, recordedAt || new Date().toISOString(), note || null, device || null]
+    `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note, device, label, unit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [randomUUID(), targetAthleteId, metric, value, recordedAt || new Date().toISOString(), note || null, device || null, label, unit]
   );
 
   revalidatePath("/athlete/profile");
@@ -1160,6 +1184,30 @@ export async function addEffortTestResultAction(formData: FormData): Promise<{ o
   const device = String(formData.get("device") || "").trim();
   const note = String(formData.get("note") || "").trim();
   if (!testDate) return { error: "La date du test est obligatoire." };
+  const protocol = String(formData.get("protocol") || "").trim().slice(0, 2000) || null;
+  let extrasJson: string | null = null;
+  try {
+    const ex = JSON.parse(String(formData.get("extras") || "[]"));
+    const clean = Array.isArray(ex)
+      ? ex
+          .filter((x) => x && String(x.label || "").trim() && String(x.value || "").trim())
+          .slice(0, 30)
+          .map((x) => ({ label: String(x.label).trim().slice(0, 80), value: String(x.value).trim().slice(0, 40), unit: String(x.unit || "").trim().slice(0, 16) || undefined }))
+      : [];
+    extrasJson = clean.length ? JSON.stringify(clean) : null;
+  } catch {
+    extrasJson = null;
+  }
+  // Modification d'un test : la nouvelle saisie remplace l'ancienne (même
+  // pièce jointe si aucune nouvelle n'est fournie).
+  const replaceBatchId = String(formData.get("replaceBatchId") || "").trim();
+  const old = replaceBatchId
+    ? await dbGet<{ attachment_path: string | null; attachment_mime_type: string | null; attachment_name: string | null }>(
+        `SELECT attachment_path, attachment_mime_type, attachment_name FROM effort_test_results WHERE batch_id = ? AND athlete_id = ? LIMIT 1`,
+        [replaceBatchId, athleteId]
+      )
+    : undefined;
+  if (replaceBatchId && !old) return { error: "Test introuvable." };
 
   // Pièce jointe (photo/vidéo/document) facultative, commune aux trois façons
   // d'enregistrer un résultat ci-dessous — un coach reçoit souvent le résultat
@@ -1180,7 +1228,17 @@ export async function addEffortTestResultAction(formData: FormData): Promise<{ o
     attachmentPath = saved.storedName;
     attachmentMimeType = attachmentFile.type;
     attachmentName = attachmentFile.name;
+  } else if (old?.attachment_path) {
+    attachmentPath = old.attachment_path;
+    attachmentMimeType = old.attachment_mime_type;
+    attachmentName = old.attachment_name;
   }
+  const finish = async () => {
+    if (replaceBatchId) await removeEffortTestBatch(replaceBatchId, athleteId, !!(attachmentFile && attachmentFile.size > 0));
+    revalidatePath("/athlete/profile");
+    revalidatePath(`/coach/athletes/${athleteId}`);
+    return { ok: true as const };
+  };
 
   // Commun aux lignes issues d'une même soumission — un test riche peut
   // produire plusieurs lignes (un indicateur calculé + plusieurs mesures
@@ -1217,8 +1275,8 @@ export async function addEffortTestResultAction(formData: FormData): Promise<{ o
     for (const r of results) {
       const resultId = randomUUID();
       statements.push({
-        sql: `INSERT INTO effort_test_results (id, athlete_id, test_slug, test_date, data_json, result_metric, result_value, device, note, attachment_path, attachment_mime_type, attachment_name, batch_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [resultId, athleteId, testSlug, testDate, JSON.stringify(rawData), r.metric, r.value, device || null, note || null, attachmentPath, attachmentMimeType, attachmentName, batchId],
+        sql: `INSERT INTO effort_test_results (id, athlete_id, test_slug, test_date, data_json, result_metric, result_value, device, note, attachment_path, attachment_mime_type, attachment_name, batch_id, protocol, extras_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [resultId, athleteId, testSlug, testDate, JSON.stringify(rawData), r.metric, r.value, device || null, note || null, attachmentPath, attachmentMimeType, attachmentName, batchId, protocol, extrasJson],
       });
       statements.push({
         sql: `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note, device) VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -1226,9 +1284,7 @@ export async function addEffortTestResultAction(formData: FormData): Promise<{ o
       });
     }
     await dbBatch(statements);
-    revalidatePath("/athlete/profile");
-    revalidatePath(`/coach/athletes/${athleteId}`);
-    return { ok: true };
+    return finish();
   }
 
   if (customTestId) {
@@ -1254,42 +1310,55 @@ export async function addEffortTestResultAction(formData: FormData): Promise<{ o
     const resultId = randomUUID();
     await dbBatch([
       {
-        sql: `INSERT INTO effort_test_results (id, athlete_id, custom_test_id, test_date, data_json, result_metric, result_value, device, note, attachment_path, attachment_mime_type, attachment_name, batch_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [resultId, athleteId, customTestId, testDate, JSON.stringify(rawData), resultMetric, resultValue, device || null, note || null, attachmentPath, attachmentMimeType, attachmentName, batchId],
+        sql: `INSERT INTO effort_test_results (id, athlete_id, custom_test_id, test_date, data_json, result_metric, result_value, device, note, attachment_path, attachment_mime_type, attachment_name, batch_id, protocol, extras_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [resultId, athleteId, customTestId, testDate, JSON.stringify(rawData), resultMetric, resultValue, device || null, note || null, attachmentPath, attachmentMimeType, attachmentName, batchId, protocol, extrasJson],
       },
       {
         sql: `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note, device) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [randomUUID(), athleteId, resultMetric, resultValue, testDate, `Test : ${custom.name}`, device || null],
       },
     ]);
-    revalidatePath("/athlete/profile");
-    revalidatePath(`/coach/athletes/${athleteId}`);
-    return { ok: true };
+    return finish();
   }
 
-  const customLabel = String(formData.get("customLabel") || "").trim();
+  let customLabel = String(formData.get("customLabel") || "").trim().slice(0, 80);
   if (customLabel) {
+    // Un test du même nom (majuscules, accents près) reprend son intitulé
+    // exact : les deux passages se comparent ensuite dans l'évolution.
+    const prevLabels = await dbAll<{ custom_label: string }>(
+      `SELECT DISTINCT custom_label FROM effort_test_results WHERE athlete_id = ? AND custom_label IS NOT NULL`,
+      [athleteId]
+    );
+    const same = prevLabels.find((r) => normalizeMetricName(r.custom_label) === normalizeMetricName(customLabel));
+    if (same) customLabel = same.custom_label;
     resultMetric = String(formData.get("resultMetric") || "").trim();
     const resultRaw = formData.get("resultValue");
     resultValue = resultRaw ? Number(resultRaw) : NaN;
+    if (!resultMetric && extrasJson) {
+      // Test nommé renseigné uniquement par ses données : rien à répliquer
+      // dans les mesures, le test garde ses données.
+      await dbRun(
+        `INSERT INTO effort_test_results (id, athlete_id, custom_label, test_date, data_json, result_metric, result_value, device, note, attachment_path, attachment_mime_type, attachment_name, batch_id, protocol, extras_json) VALUES (?, ?, ?, ?, ?, '', 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [randomUUID(), athleteId, customLabel, testDate, "{}", device || null, note || null, attachmentPath, attachmentMimeType, attachmentName, batchId, protocol, extrasJson]
+      );
+      return finish();
+    }
     if (!resultMetric || Number.isNaN(resultValue)) {
-      return { error: "Choisissez l'indicateur obtenu et sa valeur." };
+      return { error: "Ajoutez au moins une donnée (nom et valeur) ou choisissez l'indicateur obtenu." };
     }
 
     const resultId = randomUUID();
     await dbBatch([
       {
-        sql: `INSERT INTO effort_test_results (id, athlete_id, custom_label, test_date, data_json, result_metric, result_value, device, note, attachment_path, attachment_mime_type, attachment_name, batch_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [resultId, athleteId, customLabel, testDate, JSON.stringify(rawData), resultMetric, resultValue, device || null, note || null, attachmentPath, attachmentMimeType, attachmentName, batchId],
+        sql: `INSERT INTO effort_test_results (id, athlete_id, custom_label, test_date, data_json, result_metric, result_value, device, note, attachment_path, attachment_mime_type, attachment_name, batch_id, protocol, extras_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [resultId, athleteId, customLabel, testDate, JSON.stringify(rawData), resultMetric, resultValue, device || null, note || null, attachmentPath, attachmentMimeType, attachmentName, batchId, protocol, extrasJson],
       },
       {
         sql: `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note, device) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [randomUUID(), athleteId, resultMetric, resultValue, testDate, `Test : ${customLabel}`, device || null],
       },
     ]);
-    revalidatePath("/athlete/profile");
-    revalidatePath(`/coach/athletes/${athleteId}`);
-    return { ok: true };
+    return finish();
   }
 
   return { error: "Choisissez un test." };
@@ -1317,16 +1386,35 @@ export async function deleteEffortTestBatchAction(batchId: string, athleteId: st
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
   if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
 
-  const rows = await dbAll<{ attachment_path: string | null }>(
-    `SELECT attachment_path FROM effort_test_results WHERE batch_id = ? AND athlete_id = ?`,
-    [batchId, athleteId]
-  );
-  await dbRun(`DELETE FROM effort_test_results WHERE batch_id = ? AND athlete_id = ?`, [batchId, athleteId]);
-  const attachmentPath = rows.find((r) => r.attachment_path)?.attachment_path;
-  if (attachmentPath) await deleteUploadedFile(attachmentPath);
-
+  await removeEffortTestBatch(batchId, athleteId, true);
   revalidatePath(`/coach/athletes/${athleteId}`);
   return { ok: true };
+}
+
+/**
+ * Supprime un test (toutes ses lignes) et les mesures qu'il avait répliquées
+ * dans athlete_measurements (même date, même indicateur, note « Test : … »),
+ * pour que l'évolution ne garde pas une valeur dont le test n'existe plus.
+ */
+async function removeEffortTestBatch(batchId: string, athleteId: string, deleteFile: boolean) {
+  const rows = await dbAll<{ id: string; attachment_path: string | null; result_metric: string; result_value: number; test_date: string }>(
+    `SELECT id, attachment_path, result_metric, result_value, test_date FROM effort_test_results WHERE (batch_id = ? OR id = ?) AND athlete_id = ?`,
+    [batchId, batchId, athleteId]
+  );
+  if (!rows.length) return;
+  const stmts: { sql: string; args: unknown[] }[] = [
+    { sql: `DELETE FROM effort_test_results WHERE (batch_id = ? OR id = ?) AND athlete_id = ?`, args: [batchId, batchId, athleteId] },
+  ];
+  for (const r of rows) {
+    if (!r.result_metric) continue;
+    stmts.push({
+      sql: `DELETE FROM athlete_measurements WHERE id IN (SELECT id FROM athlete_measurements WHERE athlete_id = ? AND metric = ? AND value = ? AND substr(recorded_at, 1, 10) = substr(?, 1, 10) AND note LIKE 'Test : %' LIMIT 1)`,
+      args: [athleteId, r.result_metric, r.result_value, r.test_date],
+    });
+  }
+  await dbBatch(stmts);
+  const attachmentPath = rows.find((r) => r.attachment_path)?.attachment_path;
+  if (deleteFile && attachmentPath) await deleteUploadedFile(attachmentPath);
 }
 
 // ---------- CHARGES DE RÉFÉRENCE (1RM) ----------
@@ -1348,14 +1436,24 @@ export async function addExerciseMaxAction(athleteId: string, formData: FormData
   const value = Number(formData.get("value") || 0);
   const testedAt = String(formData.get("testedAt") || "");
   const note = String(formData.get("note") || "").trim();
+  const repsRaw = Math.round(Number(formData.get("reps") || 0));
+  const reps = valueType === "charge" && repsRaw > 1 ? Math.min(repsRaw, 30) : null;
+  const replaceId = String(formData.get("replaceId") || "");
   if (!exerciseName || !value || !testedAt || !allowedTypes.includes(valueType)) {
     throw new Error("Exercice, valeur et date requis.");
   }
 
-  await dbRun(
-    `INSERT INTO exercise_maxes (id, athlete_id, exercise_name, value_kg, value_type, tested_at, note) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [randomUUID(), athleteId, exerciseName, value, valueType, testedAt, note || null]
-  );
+  if (replaceId) {
+    await dbRun(
+      `UPDATE exercise_maxes SET exercise_name = ?, value_kg = ?, value_type = ?, tested_at = ?, note = ?, reps = ? WHERE id = ? AND athlete_id = ?`,
+      [exerciseName, value, valueType, testedAt, note || null, reps, replaceId, athleteId]
+    );
+  } else {
+    await dbRun(
+      `INSERT INTO exercise_maxes (id, athlete_id, exercise_name, value_kg, value_type, tested_at, note, reps) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [randomUUID(), athleteId, exerciseName, value, valueType, testedAt, note || null, reps]
+    );
+  }
   revalidatePath(`/coach/athletes/${athleteId}`);
   revalidatePath(`/coach/athletes/${athleteId}/new-workout`);
   revalidatePath("/athlete/profile");
@@ -2878,4 +2976,41 @@ export async function loadCoachCalendarWeeksAction(athleteId: string, from: stri
     today: todayISO(),
     cycleShared: await isCycleSharedWithCoach(athleteId),
   });
+}
+
+// Bornes de zones ajustées à la main. `null` pour une discipline = retour au
+// calcul automatique ; `reset` efface tous les ajustements.
+export async function saveZoneOverridesAction(
+  athleteId: string,
+  zones: { hr: number[] | null; pw: number[] | null; pace: number[] | null } | null
+): Promise<{ ok: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+
+  if (!zones) {
+    await dbRun(`DELETE FROM athlete_zone_overrides WHERE athlete_id = ?`, [athleteId]);
+  } else {
+    const enc = (c: number[] | null, label: string) => {
+      if (!c) return null;
+      if (c.length !== 4 || c.some((v) => !(v > 0))) throw new Error(label);
+      for (let i = 1; i < 4; i++) if (c[i] <= c[i - 1]) throw new Error(label);
+      return JSON.stringify(c);
+    };
+    let hr: string | null, pw: string | null, pace: string | null;
+    try {
+      hr = enc(zones.hr, "Les bornes de FC doivent être croissantes.");
+      pw = enc(zones.pw, "Les bornes de puissance doivent être croissantes.");
+      pace = enc(zones.pace, "Les allures doivent aller de la plus lente à la plus rapide.");
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+    await dbRun(
+      `INSERT INTO athlete_zone_overrides (athlete_id, hr_json, pw_json, pace_json, updated_at) VALUES (?, ?, ?, ?, datetime('now'))
+       ON CONFLICT(athlete_id) DO UPDATE SET hr_json = excluded.hr_json, pw_json = excluded.pw_json, pace_json = excluded.pace_json, updated_at = excluded.updated_at`,
+      [athleteId, hr, pw, pace]
+    );
+  }
+  revalidatePath(`/coach/athletes/${athleteId}`);
+  return { ok: true };
 }

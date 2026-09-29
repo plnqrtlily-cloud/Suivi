@@ -153,6 +153,16 @@ CREATE TABLE IF NOT EXISTS athlete_measurements (
   recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Bornes de zones ajustées à la main par le coach (cf. src/lib/training-zones.ts) :
+-- 4 bornes JSON par discipline, NULL = calcul automatique à partir des tests.
+CREATE TABLE IF NOT EXISTS athlete_zone_overrides (
+  athlete_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  hr_json TEXT,
+  pw_json TEXT,
+  pace_json TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Modèles de séance réutilisables par le coach (cf. prompt : gagner le temps
 -- perdu à recréer la même structure de séance semaine après semaine ou
 -- athlète après athlète). Les blocs de musculation sont stockés en JSON
@@ -646,6 +656,14 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE workouts ADD COLUMN coach_validated_at TEXT`,
   // Nom d'origine d'un document joint à un message (affiché et proposé au téléchargement).
   `ALTER TABLE messages ADD COLUMN media_name TEXT`,
+  // Mesures nommées par le coach (« Autre… ») : nom et unité propres à la mesure.
+  `ALTER TABLE athlete_measurements ADD COLUMN label TEXT`,
+  `ALTER TABLE athlete_measurements ADD COLUMN unit TEXT`,
+  // Tests à l'effort : protocole suivi et résultats complémentaires libres.
+  `ALTER TABLE effort_test_results ADD COLUMN protocol TEXT`,
+  `ALTER TABLE effort_test_results ADD COLUMN extras_json TEXT`,
+  // Charges de référence : répétitions réalisées, pour estimer le 1RM.
+  `ALTER TABLE exercise_maxes ADD COLUMN reps INTEGER`,
   `UPDATE workouts SET status = 'done' WHERE status = 'partial'`,
 ];
 

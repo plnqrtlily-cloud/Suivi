@@ -4,7 +4,7 @@
 // vingtaine d'indicateurs toutes disciplines confondues, un menu déroulant à
 // plat devient difficile à parcourir — les <optgroup> du formulaire d'ajout
 // s'appuient dessus.
-export const METRIC_GROUPS = ["Général", "Cardio", "Vélo", "Course à pied", "Natation", "Test en laboratoire"] as const;
+export const METRIC_GROUPS = ["Général", "Composition corporelle", "Mensurations", "Cardio", "Vélo", "Course à pied", "Natation", "Test en laboratoire"] as const;
 export type MetricGroup = (typeof METRIC_GROUPS)[number];
 
 export interface MetricDef {
@@ -20,7 +20,21 @@ export const PERFORMANCE_METRICS: MetricDef[] = [
   { value: "pma_vma", label: "PMA/VMA", group: "Général" },
   { value: "coeff_fatigue_pct", label: "Coefficient de fatigue", unit: "%", group: "Général" },
 
+  { value: "body_fat_pct", label: "Masse grasse", unit: "%", group: "Composition corporelle" },
+  { value: "muscle_mass_kg", label: "Masse musculaire", unit: "kg", group: "Composition corporelle" },
+  { value: "skinfolds_mm", label: "Somme des plis cutanés", unit: "mm", group: "Composition corporelle" },
+  { value: "hydration_pct", label: "Hydratation", unit: "%", group: "Composition corporelle" },
+
+  { value: "arm_span_cm", label: "Envergure", unit: "cm", group: "Mensurations" },
+  { value: "waist_cm", label: "Tour de taille", unit: "cm", group: "Mensurations" },
+  { value: "hips_cm", label: "Tour de hanches", unit: "cm", group: "Mensurations" },
+  { value: "chest_cm", label: "Tour de poitrine", unit: "cm", group: "Mensurations" },
+  { value: "arm_cm", label: "Tour de bras", unit: "cm", group: "Mensurations" },
+  { value: "thigh_cm", label: "Tour de cuisse", unit: "cm", group: "Mensurations" },
+  { value: "calf_cm", label: "Tour de mollet", unit: "cm", group: "Mensurations" },
+
   { value: "fc_repos", label: "FC repos", unit: "bpm", group: "Cardio" },
+  { value: "hrv_ms", label: "VFC (rMSSD)", unit: "ms", group: "Cardio" },
   { value: "fc_max", label: "FC max (MHR)", unit: "bpm", group: "Cardio" },
   { value: "fc_seuil", label: "FC de seuil (FCS)", unit: "bpm", group: "Cardio" },
   // Seuil lactique : intensité au-delà de laquelle le lactate s'accumule plus
@@ -154,4 +168,35 @@ export function computeDerivedMetrics(valuesOnDate: Record<string, number>): Der
   }
 
   return derived;
+}
+
+// --- Mesures corporelles (carte « Mesures corporelles » de la fiche) ---
+
+/** Mesures proposées dans la liste « + Mesure », les essentielles en tête. */
+export const BODY_METRICS: { key: string; label: string; unit: string; group: string; hint?: string }[] = [
+  { key: "weight_kg", label: "Poids", unit: "kg", group: "Essentielles" },
+  { key: "height_cm", label: "Taille", unit: "cm", group: "Essentielles" },
+  { key: "fc_repos", label: "FC de repos", unit: "bpm", group: "Essentielles", hint: "Au réveil, allongé, avant de se lever" },
+  { key: "hrv_ms", label: "VFC (rMSSD)", unit: "ms", group: "Essentielles", hint: "Variabilité de la fréquence cardiaque, le matin" },
+  { key: "body_fat_pct", label: "Masse grasse", unit: "%", group: "Composition" },
+  { key: "muscle_mass_kg", label: "Masse musculaire", unit: "kg", group: "Composition" },
+  { key: "skinfolds_mm", label: "Somme des plis cutanés", unit: "mm", group: "Composition", hint: "7 sites (pince Harpenden)" },
+  { key: "hydration_pct", label: "Hydratation", unit: "%", group: "Composition" },
+  { key: "arm_span_cm", label: "Envergure", unit: "cm", group: "Mensurations" },
+  { key: "waist_cm", label: "Tour de taille", unit: "cm", group: "Mensurations", hint: "Au niveau du nombril, en fin d’expiration" },
+  { key: "hips_cm", label: "Tour de hanches", unit: "cm", group: "Mensurations" },
+  { key: "chest_cm", label: "Tour de poitrine", unit: "cm", group: "Mensurations" },
+  { key: "arm_cm", label: "Tour de bras", unit: "cm", group: "Mensurations", hint: "Bras détendu, à mi-hauteur" },
+  { key: "thigh_cm", label: "Tour de cuisse", unit: "cm", group: "Mensurations", hint: "15 cm au-dessus de la rotule" },
+  { key: "calf_cm", label: "Tour de mollet", unit: "cm", group: "Mensurations" },
+];
+
+/** Nom normalisé (minuscules, sans accents) : deux saisies « Gainage » et « gainage » désignent la même mesure. */
+export function normalizeMetricName(name: string): string {
+  return name.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+}
+
+/** Clé d'une mesure nommée par le coach. */
+export function customMetricKey(name: string): string {
+  return "custom:" + normalizeMetricName(name).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
