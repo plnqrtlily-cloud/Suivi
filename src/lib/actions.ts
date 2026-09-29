@@ -21,7 +21,7 @@ import {
   updateUserPassword,
   Role,
 } from "./auth";
-import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES } from "./storage";
+import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MESSAGE_DOC_TYPES } from "./storage";
 import { parseGpx, simplifyRoute } from "./gpx";
 import { getResourceById, getBlocksForWorkout, getAthletesForCoach, getCoachPlanStatus, getTeamWithMembers, getTeamCountForCoach } from "./queries";
 import { FREE_PLAN_ATHLETE_LIMIT, FREE_PLAN_TEAM_LIMIT, ADMIN_EMAIL } from "./billing";
@@ -2327,24 +2327,33 @@ export async function sendMessageAction(formData: FormData) {
 
   let mediaPath: string | null = null;
   let mediaType: string | null = null;
+  let mediaName: string | null = null;
   if (file && file.size > 0) {
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) throw new Error("Format de fichier non supporté.");
+    // Le type d'un document dépend du navigateur (CSV vu comme Excel sous Windows,
+    // type vide sur certains systèmes) : on se fie à l'extension, jamais au seul type.
+    const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+    const isDoc =
+      [".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".csv"].includes(ext) &&
+      (MESSAGE_DOC_TYPES.includes(file.type) || ["", "application/octet-stream", "application/vnd.ms-excel"].includes(file.type));
+    if (!isDoc && (!ALLOWED_MIME_TYPES.includes(file.type) || file.type === "application/pdf")) throw new Error("Format de fichier non supporté.");
     if (file.size > MAX_FILE_SIZE_BYTES) throw new Error("Fichier trop volumineux (50 Mo max).");
     const saved = await saveUploadedFile(file);
     mediaPath = saved.storedName;
-    mediaType = file.type.startsWith("video/") ? "video" : "image";
+    mediaType = isDoc ? "document" : file.type.startsWith("video/") ? "video" : "image";
+    mediaName = file.name.slice(0, 120);
   }
 
-  const finalBody = body || (mediaType === "video" ? "Vidéo jointe" : "Photo jointe");
+  const finalBody = body || (mediaType === "video" ? "Vidéo jointe" : mediaType === "document" ? `Document : ${mediaName}` : "Photo jointe");
 
-  await dbRun(`INSERT INTO messages (id, coach_id, athlete_id, sender_id, body, media_path, media_type) VALUES (?, ?, ?, ?, ?, ?, ?)`, [
+  await dbRun(`INSERT INTO messages (id, coach_id, athlete_id, sender_id, body, media_path, media_type, media_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [
     randomUUID(),
     coachId,
     athleteId,
     user.id,
-    finalBody,
+    body,
     mediaPath,
     mediaType,
+    mediaName,
   ]);
 
   const recipientId = user.id === coachId ? athleteId : coachId;

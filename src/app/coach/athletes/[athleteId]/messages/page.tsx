@@ -33,10 +33,7 @@ export default async function CoachMessagesPage({
           <Nav user={user} />
         </div>
       <main className="mx-auto max-w-2xl px-4 sm:px-6 py-10">
-        <h1 className="mb-1 font-display text-3xl text-ink">
-          Discussion avec {athlete.first_name} {athlete.last_name}
-        </h1>
-        <p className="mb-6 text-slate">Message direct, hors du fil d&apos;une séance précise.</p>
+        <h1 className="mb-4 text-2xl font-bold tracking-tight text-ink">Messages</h1>
         <ConversationThread
           coachId={user.id}
           athleteId={athleteId}
@@ -45,6 +42,7 @@ export default async function CoachMessagesPage({
           otherPartyName={athlete.first_name}
           otherPartyAvatarUserId={athleteId}
           otherPartyHasAvatar={!!athleteAvatar?.avatar_path}
+          profileHref={`/coach/athletes/${athleteId}`}
         />
       </main>
       </div>

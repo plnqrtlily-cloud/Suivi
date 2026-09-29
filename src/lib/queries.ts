@@ -734,10 +734,13 @@ export async function getUserAvatar(
 
 export async function getMessages(coachId: string, athleteId: string, limit = 100) {
   return dbAll(
-    `SELECT m.*, u.first_name, u.last_name FROM messages m
-     JOIN users u ON u.id = m.sender_id
-     WHERE m.coach_id = ? AND m.athlete_id = ?
-     ORDER BY m.created_at ASC LIMIT ?`,
+    // Les `limit` derniers messages, remis dans l'ordre chronologique.
+    `SELECT * FROM (
+       SELECT m.*, u.first_name, u.last_name FROM messages m
+       JOIN users u ON u.id = m.sender_id
+       WHERE m.coach_id = ? AND m.athlete_id = ?
+       ORDER BY m.created_at DESC LIMIT ?
+     ) ORDER BY created_at ASC`,
     [coachId, athleteId, limit]
   );
 }

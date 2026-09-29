@@ -28,6 +28,18 @@ export const ALLOWED_MIME_TYPES = [
 
 export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 Mo
 
+// Documents acceptés en plus dans la messagerie : formats bureautiques SANS
+// macros (docx, xlsx, pptx — les variantes à macros ont d'autres types), texte
+// et CSV. Toujours servis en téléchargement, jamais affichés dans la page.
+export const MESSAGE_DOC_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+  "text/csv",
+];
+
 function ensureUploadsDir(): void {
   if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }

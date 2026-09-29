@@ -2,6 +2,7 @@
 // quelques points qui méritent l'attention du coach. Calculs purs (aucune
 // requête) pour rester testables ; le composant client ne fait qu'afficher.
 
+import { messagePreview } from "./message-preview";
 import type { Workout, ImportedActivity, TrainingPeriod } from "./queries";
 import type { Checkin } from "./checkin-types";
 import { computeGlobalScore } from "./checkin-types";
@@ -354,7 +355,7 @@ export function buildAttention(params: {
     items.push({
       tone: "info",
       title: unread.count > 1 ? `${unread.count} messages de ${firstName} sans réponse` : `Un message de ${firstName} sans réponse`,
-      text: last ? `« ${last.body.slice(0, 90)}${last.body.length > 90 ? "…" : ""} » · ${when}` : "",
+      text: last ? `« ${messagePreview(last).slice(0, 90)}${messagePreview(last).length > 90 ? "…" : ""} » · ${when}` : "",
       action: { label: "Répondre", href: `${base}/messages` },
     });
   }

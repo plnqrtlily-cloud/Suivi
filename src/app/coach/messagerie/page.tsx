@@ -1,3 +1,4 @@
+import { messagePreview } from "@/lib/message-preview";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
@@ -93,7 +94,7 @@ export default async function CoachMessageriePage() {
                       {c.last ? (
                         <>
                           {c.last.sender_id === user.id && "Vous : "}
-                          {c.last.body}
+                          {messagePreview(c.last)}
                         </>
                       ) : (
                         <span className="text-xs">Aucun message échangé</span>

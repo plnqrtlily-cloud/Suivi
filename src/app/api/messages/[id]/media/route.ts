@@ -12,6 +12,12 @@ const EXT_MIME: Record<string, string> = {
   ".mp4": "video/mp4",
   ".webm": "video/webm",
   ".mov": "video/quicktime",
+  ".pdf": "application/pdf",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ".txt": "text/plain",
+  ".csv": "text/csv",
 };
 
 // Sert la photo ou vidéo jointe à un message — accessible uniquement aux deux
@@ -21,8 +27,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
 
   const { id } = await params;
-  const message = await dbGet<{ media_path: string | null; coach_id: string; athlete_id: string }>(
-    `SELECT media_path, coach_id, athlete_id FROM messages WHERE id = ?`,
+  const message = await dbGet<{ media_path: string | null; media_type: string | null; media_name: string | null; coach_id: string; athlete_id: string }>(
+    `SELECT media_path, media_type, media_name, coach_id, athlete_id FROM messages WHERE id = ?`,
     [id]
   );
   if (!message || !message.media_path) return NextResponse.json({ error: "Fichier introuvable." }, { status: 404 });
@@ -39,6 +45,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     headers: {
       "Content-Type": EXT_MIME[ext] || "application/octet-stream",
       "Cache-Control": "private, max-age=3600",
+      "X-Content-Type-Options": "nosniff",
+      // Un document est toujours téléchargé, jamais interprété par le navigateur.
+      ...(message.media_type === "document"
+        ? { "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(message.media_name || `document${ext}`)}` }
+        : {}),
     },
   });
 }

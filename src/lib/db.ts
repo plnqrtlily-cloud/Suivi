@@ -644,6 +644,8 @@ const MIGRATIONS: string[] = [
   // réalisée, la durée réelle et le retour disent le reste) ; le coach valide
   // désormais le retour de l'athlète (coach_validated_at).
   `ALTER TABLE workouts ADD COLUMN coach_validated_at TEXT`,
+  // Nom d'origine d'un document joint à un message (affiché et proposé au téléchargement).
+  `ALTER TABLE messages ADD COLUMN media_name TEXT`,
   `UPDATE workouts SET status = 'done' WHERE status = 'partial'`,
 ];
 
