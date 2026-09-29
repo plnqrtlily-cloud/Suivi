@@ -705,6 +705,9 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE injuries ADD COLUMN return_date TEXT`,
   `ALTER TABLE injuries ADD COLUMN advice TEXT`,
   `ALTER TABLE injuries ADD COLUMN impact_json TEXT`,
+  // Auto-évaluation du profil de performance : demande du coach et dernière saisie de l'athlète.
+  `ALTER TABLE performance_profile_meta ADD COLUMN self_requested_at TEXT`,
+  `ALTER TABLE performance_profile_meta ADD COLUMN self_eval_date TEXT`,
   `UPDATE workouts SET status = 'done' WHERE status = 'partial'`,
 ];
 

@@ -8,6 +8,7 @@ import {
   updatePerformanceQualityAction,
   deletePerformanceQualityAction,
   newPerformanceEvaluationAction,
+  requestSelfEvaluationAction,
 } from "@/lib/actions";
 import type { PerformanceQuality } from "@/lib/queries";
 import { PROFILE_DOMAINS, QUALITY_LIBRARY, LEVEL_LABELS, IMPORTANCE_LABELS, ZONE_INFO, qualityZone, type ProfileDomain } from "@/lib/performance-profile";
@@ -276,12 +277,16 @@ export function PerformanceProfile({
   qualities,
   evalDate,
   prevEvalDate,
+  selfRequestedAt,
+  selfEvalDate,
 }: {
   athleteId: string;
   firstName: string;
   qualities: PerformanceQuality[];
   evalDate: string | null;
   prevEvalDate: string | null;
+  selfRequestedAt: string | null;
+  selfEvalDate: string | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -296,6 +301,8 @@ export function PerformanceProfile({
     .map((x) => x.id);
   const order = { work: 0, todo: 1, keep: 2, ent: 3, sec: 4 };
   const toggleDom = (d: ProfileDomain) => setDom((cur) => (cur === d ? null : d));
+  // Demande en attente : envoyée et pas de saisie de l'athlète depuis.
+  const waiting = !!selfRequestedAt && (!selfEvalDate || selfEvalDate < selfRequestedAt);
 
   if (qs.length === 0) {
     return (
@@ -350,7 +357,22 @@ export function PerformanceProfile({
               {prevEvalDate ? ` · comparée au ${frd(prevEvalDate)}` : ""}
             </span>
           )}
+          {selfEvalDate && <span className="text-[13px] text-slate">· auto-évaluation de {firstName} du {frd(selfEvalDate)}</span>}
           <span className="flex-1" />
+          <button
+            type="button"
+            disabled={pending || waiting}
+            className={ghostBtn}
+            title={`${firstName} reçoit une notification et se note sur chaque qualité depuis son profil`}
+            onClick={() =>
+              start(async () => {
+                await requestSelfEvaluationAction(athleteId);
+                router.refresh();
+              })
+            }
+          >
+            {waiting ? `Demande envoyée le ${frd(selfRequestedAt!)}` : `Demander son auto-évaluation à ${firstName}`}
+          </button>
           <button
             type="button"
             disabled={pending}
@@ -372,12 +394,12 @@ export function PerformanceProfile({
           <div className="flex flex-col gap-2">
             <p className="text-[11.5px] font-bold uppercase tracking-wide text-slate">Afficher</p>
             <span className="flex items-center gap-2 px-2.5 py-1.5 text-[13px] font-semibold text-ink">
-              <i className="inline-block w-5 border-t-[3px] border-solid border-[#1b4b4f]" />
+              <span style={{ display: "inline-block", width: 20, borderTop: "3px solid #1b4b4f" }} />
               Votre évaluation
             </span>
             {[
-              { on: showAth, set: setShowAth, l: firstName, style: "border-solid border-[#6f95b8]" },
-              { on: showPrev, set: setShowPrev, l: prevEvalDate ? `Évaluation du ${frd(prevEvalDate)}` : "Évaluation précédente", style: "border-dashed border-[#b4bcb9]" },
+              { on: showAth, set: setShowAth, l: firstName, style: "3px solid #6f95b8" },
+              { on: showPrev, set: setShowPrev, l: prevEvalDate ? `Évaluation du ${frd(prevEvalDate)}` : "Évaluation précédente", style: "3px dashed #b4bcb9" },
             ].map((t) => (
               <button
                 key={t.l}
@@ -385,7 +407,7 @@ export function PerformanceProfile({
                 onClick={() => t.set(!t.on)}
                 className={`flex items-center gap-2 rounded-xl border border-line px-2.5 py-1.5 text-left text-[13px] font-semibold text-ink ${t.on ? "bg-white" : "opacity-45"}`}
               >
-                <i className={`inline-block w-5 border-t-[3px] ${t.style}`} />
+                <span style={{ display: "inline-block", width: 20, borderTop: t.style }} />
                 {t.l}
               </button>
             ))}

@@ -507,6 +507,8 @@ export default async function AthleteDetailPage({
                       qualities={perfProfile.qualities}
                       evalDate={perfProfile.evalDate}
                       prevEvalDate={perfProfile.prevEvalDate}
+                      selfRequestedAt={perfProfile.selfRequestedAt}
+                      selfEvalDate={perfProfile.selfEvalDate}
                     />
                   }
                   footer={

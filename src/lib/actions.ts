@@ -3217,3 +3217,34 @@ export async function newPerformanceEvaluationAction(athleteId: string) {
   ]);
   revalidatePath(`/coach/athletes/${athleteId}`);
 }
+
+
+/** Le coach invite l'athlète à s'auto-évaluer sur les qualités de son profil. */
+export async function requestSelfEvaluationAction(athleteId: string) {
+  const user = await coachForAthlete(athleteId);
+  await ensureProfileMeta(athleteId);
+  await dbRun(`UPDATE performance_profile_meta SET self_requested_at = ? WHERE athlete_id = ?`, [todayISO(), athleteId]);
+  await createNotification({
+    userId: athleteId,
+    type: "message",
+    title: `${user.first_name} te propose de faire ton auto-évaluation`,
+    body: "Note-toi sur chaque qualité de ton profil de performance : ça prend deux minutes.",
+    link: "/athlete/auto-evaluation",
+  });
+  revalidatePath(`/coach/athletes/${athleteId}`);
+  revalidatePath("/athlete/auto-evaluation");
+}
+
+/** L'athlète note une qualité de son propre profil (1 à 5). */
+export async function setSelfEvaluationAction(qualityId: string, level: number) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+  const row = await dbGet<{ athlete_id: string }>(`SELECT athlete_id FROM performance_qualities WHERE id = ?`, [qualityId]);
+  if (!row || row.athlete_id !== user.id) throw new Error("Non autorisé.");
+  await dbBatch([
+    { sql: `UPDATE performance_qualities SET athlete_level = ? WHERE id = ?`, args: [Math.max(1, Math.min(5, Math.round(level))), qualityId] },
+    { sql: `INSERT INTO performance_profile_meta (athlete_id, self_eval_date) VALUES (?, ?) ON CONFLICT(athlete_id) DO UPDATE SET self_eval_date = excluded.self_eval_date`, args: [user.id, todayISO()] },
+  ]);
+  revalidatePath("/athlete/auto-evaluation");
+  revalidatePath(`/coach/athletes/${user.id}`);
+}

@@ -430,15 +430,30 @@ export interface PerformanceQuality {
   plan: string | null;
 }
 
-export async function getPerformanceProfile(athleteId: string): Promise<{ qualities: PerformanceQuality[]; evalDate: string | null; prevEvalDate: string | null }> {
+export async function getPerformanceProfile(athleteId: string): Promise<{
+  qualities: PerformanceQuality[];
+  evalDate: string | null;
+  prevEvalDate: string | null;
+  selfRequestedAt: string | null;
+  selfEvalDate: string | null;
+}> {
   const [qualities, meta] = await Promise.all([
     dbAll<PerformanceQuality>(
       `SELECT id, domain, name, level, athlete_level, importance, prev_level, plan FROM performance_qualities WHERE athlete_id = ? ORDER BY created_at, name`,
       [athleteId]
     ),
-    dbGet<{ eval_date: string | null; prev_eval_date: string | null }>(`SELECT eval_date, prev_eval_date FROM performance_profile_meta WHERE athlete_id = ?`, [athleteId]),
+    dbGet<{ eval_date: string | null; prev_eval_date: string | null; self_requested_at: string | null; self_eval_date: string | null }>(
+      `SELECT eval_date, prev_eval_date, self_requested_at, self_eval_date FROM performance_profile_meta WHERE athlete_id = ?`,
+      [athleteId]
+    ),
   ]);
-  return { qualities, evalDate: meta?.eval_date ?? null, prevEvalDate: meta?.prev_eval_date ?? null };
+  return {
+    qualities,
+    evalDate: meta?.eval_date ?? null,
+    prevEvalDate: meta?.prev_eval_date ?? null,
+    selfRequestedAt: meta?.self_requested_at ?? null,
+    selfEvalDate: meta?.self_eval_date ?? null,
+  };
 }
 
 export interface CustomEffortTestRow {
