@@ -391,10 +391,54 @@ export interface Injury {
   date_start: string;
   date_end: string | null;
   created_at: string;
+  body_part?: string | null;
+  side?: string | null;
+  injury_type?: string | null;
+  pain?: number | null;
+  return_date?: string | null;
+  advice?: string | null;
+  impact_json?: string | null;
 }
 
 export async function getInjuriesForAthlete(athleteId: string): Promise<Injury[]> {
   return dbAll(`SELECT * FROM injuries WHERE athlete_id = ? ORDER BY date_start DESC`, [athleteId]);
+}
+
+export interface InjuryFollowup {
+  id: string;
+  injury_id: string;
+  follow_date: string;
+  pain: number;
+  note: string | null;
+}
+
+export async function getInjuryFollowupsForAthlete(athleteId: string): Promise<InjuryFollowup[]> {
+  return dbAll(
+    `SELECT f.id, f.injury_id, f.follow_date, f.pain, f.note FROM injury_followups f JOIN injuries i ON i.id = f.injury_id WHERE i.athlete_id = ? ORDER BY f.follow_date, f.created_at`,
+    [athleteId]
+  );
+}
+
+export interface PerformanceQuality {
+  id: string;
+  domain: string;
+  name: string;
+  level: number;
+  athlete_level: number | null;
+  importance: number;
+  prev_level: number | null;
+  plan: string | null;
+}
+
+export async function getPerformanceProfile(athleteId: string): Promise<{ qualities: PerformanceQuality[]; evalDate: string | null; prevEvalDate: string | null }> {
+  const [qualities, meta] = await Promise.all([
+    dbAll<PerformanceQuality>(
+      `SELECT id, domain, name, level, athlete_level, importance, prev_level, plan FROM performance_qualities WHERE athlete_id = ? ORDER BY created_at, name`,
+      [athleteId]
+    ),
+    dbGet<{ eval_date: string | null; prev_eval_date: string | null }>(`SELECT eval_date, prev_eval_date FROM performance_profile_meta WHERE athlete_id = ?`, [athleteId]),
+  ]);
+  return { qualities, evalDate: meta?.eval_date ?? null, prevEvalDate: meta?.prev_eval_date ?? null };
 }
 
 export interface CustomEffortTestRow {

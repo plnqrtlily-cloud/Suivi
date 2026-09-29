@@ -155,6 +155,38 @@ CREATE TABLE IF NOT EXISTS athlete_measurements (
 
 -- Bornes de zones ajustées à la main par le coach (cf. src/lib/training-zones.ts) :
 -- 4 bornes JSON par discipline, NULL = calcul automatique à partir des tests.
+-- Suivi d'une blessure (point de suivi daté : douleur 0-10 et note).
+CREATE TABLE IF NOT EXISTS injury_followups (
+  id TEXT PRIMARY KEY,
+  injury_id TEXT NOT NULL REFERENCES injuries(id) ON DELETE CASCADE,
+  follow_date TEXT NOT NULL,
+  pain INTEGER NOT NULL,
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Profil de performance (onglet Notes) : qualités évaluées par le coach dans
+-- 6 domaines, avec leur importance pour l'objectif ; prev_level garde le niveau
+-- de l'évaluation précédente pour montrer l'évolution.
+CREATE TABLE IF NOT EXISTS performance_qualities (
+  id TEXT PRIMARY KEY,
+  athlete_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  domain TEXT NOT NULL,
+  name TEXT NOT NULL,
+  level INTEGER NOT NULL,
+  athlete_level INTEGER,
+  importance INTEGER NOT NULL DEFAULT 2,
+  prev_level INTEGER,
+  plan TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS performance_profile_meta (
+  athlete_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  eval_date TEXT,
+  prev_eval_date TEXT
+);
+
 CREATE TABLE IF NOT EXISTS athlete_zone_overrides (
   athlete_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   hr_json TEXT,
@@ -664,6 +696,15 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE effort_test_results ADD COLUMN extras_json TEXT`,
   // Charges de référence : répétitions réalisées, pour estimer le 1RM.
   `ALTER TABLE exercise_maxes ADD COLUMN reps INTEGER`,
+  // Blessures détaillées : partie du corps + côté (le libellé reste dans zone),
+  // type, douleur 0-10, retour prévu, consignes et impact par sport (JSON).
+  `ALTER TABLE injuries ADD COLUMN body_part TEXT`,
+  `ALTER TABLE injuries ADD COLUMN side TEXT`,
+  `ALTER TABLE injuries ADD COLUMN injury_type TEXT`,
+  `ALTER TABLE injuries ADD COLUMN pain INTEGER`,
+  `ALTER TABLE injuries ADD COLUMN return_date TEXT`,
+  `ALTER TABLE injuries ADD COLUMN advice TEXT`,
+  `ALTER TABLE injuries ADD COLUMN impact_json TEXT`,
   `UPDATE workouts SET status = 'done' WHERE status = 'partial'`,
 ];
 

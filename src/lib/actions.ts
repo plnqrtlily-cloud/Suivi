@@ -32,6 +32,8 @@ import { isStripeConfigured, createCheckoutSession, createBillingPortalSession }
 import { saveSubscription, removeSubscription } from "./push";
 import { isTeamSport, isValidPosition } from "./team-sports";
 import { EFFORT_TEST_CATALOG } from "./effort-tests";
+import { BODY_PARTS, INJURY_TYPES, injuryLabel } from "./injury-catalog";
+import { PROFILE_DOMAINS, QUALITY_BASE } from "./performance-profile";
 
 // ---------- AUTH ----------
 
@@ -3013,4 +3015,205 @@ export async function saveZoneOverridesAction(
   }
   revalidatePath(`/coach/athletes/${athleteId}`);
   return { ok: true };
+}
+
+
+// ---------- SANTÉ : blessures détaillées (coach) ----------
+
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+async function coachInjuryAthlete(injuryId: string): Promise<string> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  const row = await dbGet<{ athlete_id: string }>(`SELECT athlete_id FROM injuries WHERE id = ?`, [injuryId]);
+  if (!row || !(await isCoachLinkedToAthlete(user.id, row.athlete_id))) throw new Error("Non autorisé.");
+  return row.athlete_id;
+}
+
+function revalidateInjury(athleteId: string) {
+  revalidatePath("/athlete/profile");
+  revalidatePath(`/coach/athletes/${athleteId}`);
+}
+
+/** Crée ou modifie une blessure (id présent = modification). */
+export async function saveInjuryForAthleteAction(formData: FormData): Promise<{ ok: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  const id = String(formData.get("id") || "");
+  const athleteId = id ? await coachInjuryAthlete(id) : String(formData.get("athleteId") || "");
+  if (!id && !(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+
+  const part = String(formData.get("bodyPart") || "");
+  const other = String(formData.get("otherPart") || "").trim();
+  const side = String(formData.get("side") || "");
+  const bodyPart = part === "__autre" ? other : part;
+  if (!bodyPart) return { error: "Indiquez la zone." };
+  if (part !== "__autre" && !(BODY_PARTS as readonly string[]).includes(part)) return { error: "Zone inconnue." };
+  const type = String(formData.get("type") || "");
+  const pain = Math.max(0, Math.min(10, Math.round(Number(formData.get("pain") || 0))));
+  const dateStart = String(formData.get("dateStart") || "");
+  const dateEnd = String(formData.get("dateEnd") || "");
+  const returnDate = String(formData.get("returnDate") || "");
+  if (!ISO.test(dateStart)) return { error: "Indiquez la date de début." };
+  if (dateEnd && (!ISO.test(dateEnd) || dateEnd < dateStart)) return { error: "La guérison ne peut pas précéder le début." };
+  if (returnDate && (!ISO.test(returnDate) || returnDate < dateStart)) return { error: "Le retour prévu doit suivre le début." };
+  const description = String(formData.get("description") || "").trim();
+  const advice = String(formData.get("advice") || "").trim();
+  let impact = "{}";
+  try {
+    const v = JSON.parse(String(formData.get("impact") || "{}"));
+    const clean: Record<string, string> = {};
+    for (const [k, val] of Object.entries(v)) if (["ok", "adapte", "arret"].includes(String(val))) clean[k.slice(0, 40)] = String(val);
+    impact = JSON.stringify(clean);
+  } catch {
+    /* impact ignoré */
+  }
+  const fields = [
+    injuryLabel(bodyPart, side),
+    bodyPart,
+    ["gauche", "droit", "deux"].includes(side) ? side : null,
+    INJURY_TYPES.includes(type) ? type : null,
+    pain,
+    dateStart,
+    dateEnd || null,
+    returnDate || null,
+    description || null,
+    advice || null,
+    impact,
+  ];
+  if (id) {
+    await dbRun(
+      `UPDATE injuries SET zone = ?, body_part = ?, side = ?, injury_type = ?, pain = ?, date_start = ?, date_end = ?, return_date = ?, description = ?, advice = ?, impact_json = ? WHERE id = ?`,
+      [...fields, id]
+    );
+  } else {
+    await dbRun(
+      `INSERT INTO injuries (zone, body_part, side, injury_type, pain, date_start, date_end, return_date, description, advice, impact_json, id, athlete_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [...fields, randomUUID(), athleteId]
+    );
+  }
+  revalidateInjury(athleteId);
+  return { ok: true };
+}
+
+export async function setInjuryImpactAction(injuryId: string, impact: Record<string, string>) {
+  const athleteId = await coachInjuryAthlete(injuryId);
+  const clean: Record<string, string> = {};
+  for (const [k, v] of Object.entries(impact)) if (["ok", "adapte", "arret"].includes(v)) clean[k.slice(0, 40)] = v;
+  await dbRun(`UPDATE injuries SET impact_json = ? WHERE id = ?`, [JSON.stringify(clean), injuryId]);
+  revalidateInjury(athleteId);
+}
+
+export async function addInjuryFollowupAction(injuryId: string, date: string, pain: number, note: string): Promise<{ ok: true } | { error: string }> {
+  const athleteId = await coachInjuryAthlete(injuryId);
+  const inj = await dbGet<{ date_start: string }>(`SELECT date_start FROM injuries WHERE id = ?`, [injuryId]);
+  if (!ISO.test(date) || (inj && date < inj.date_start)) return { error: "Date invalide." };
+  await dbRun(`INSERT INTO injury_followups (id, injury_id, follow_date, pain, note) VALUES (?, ?, ?, ?, ?)`, [
+    randomUUID(),
+    injuryId,
+    date,
+    Math.max(0, Math.min(10, Math.round(pain))),
+    note.trim() || null,
+  ]);
+  revalidateInjury(athleteId);
+  return { ok: true };
+}
+
+export async function healInjuryAction(injuryId: string, date: string, note: string): Promise<{ ok: true } | { error: string }> {
+  const athleteId = await coachInjuryAthlete(injuryId);
+  const inj = await dbGet<{ date_start: string }>(`SELECT date_start FROM injuries WHERE id = ?`, [injuryId]);
+  if (!ISO.test(date) || (inj && date < inj.date_start)) return { error: "La date doit suivre le début de la blessure." };
+  await dbBatch([
+    { sql: `UPDATE injuries SET date_end = ? WHERE id = ?`, args: [date, injuryId] },
+    { sql: `INSERT INTO injury_followups (id, injury_id, follow_date, pain, note) VALUES (?, ?, ?, 0, ?)`, args: [randomUUID(), injuryId, date, note.trim() || "Guérie."] },
+  ]);
+  revalidateInjury(athleteId);
+  return { ok: true };
+}
+
+export async function deleteInjuryForAthleteAction(injuryId: string) {
+  const athleteId = await coachInjuryAthlete(injuryId);
+  await dbBatch([
+    { sql: `DELETE FROM injury_followups WHERE injury_id = ?`, args: [injuryId] },
+    { sql: `DELETE FROM injuries WHERE id = ?`, args: [injuryId] },
+  ]);
+  revalidateInjury(athleteId);
+}
+
+// ---------- NOTES : profil de performance (coach) ----------
+
+async function coachForAthlete(athleteId: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+  return user;
+}
+
+async function ensureProfileMeta(athleteId: string) {
+  await dbRun(`INSERT OR IGNORE INTO performance_profile_meta (athlete_id, eval_date) VALUES (?, ?)`, [athleteId, todayISO()]);
+}
+
+export async function addPerformanceQualityAction(athleteId: string, domain: string, name: string, level: number, importance: number): Promise<{ id: string } | { error: string }> {
+  await coachForAthlete(athleteId);
+  const n = name.trim().slice(0, 80);
+  if (!n) return { error: "Nommez la qualité." };
+  if (!PROFILE_DOMAINS.some((d) => d.key === domain)) return { error: "Domaine inconnu." };
+  const exists = await dbGet(`SELECT id FROM performance_qualities WHERE athlete_id = ? AND domain = ? AND lower(name) = lower(?)`, [athleteId, domain, n]);
+  if (exists) return { error: "Cette qualité est déjà dans le profil." };
+  const id = randomUUID();
+  const lv = Math.max(0, Math.min(5, Math.round(level)));
+  await ensureProfileMeta(athleteId);
+  await dbRun(`INSERT INTO performance_qualities (id, athlete_id, domain, name, level, importance, prev_level) VALUES (?, ?, ?, ?, ?, ?, ?)`, [
+    id,
+    athleteId,
+    domain,
+    n,
+    lv,
+    Math.max(1, Math.min(3, Math.round(importance))),
+    lv || null,
+  ]);
+  revalidatePath(`/coach/athletes/${athleteId}`);
+  return { id };
+}
+
+export async function seedPerformanceProfileAction(athleteId: string) {
+  await coachForAthlete(athleteId);
+  const existing = await dbAll<{ domain: string; name: string }>(`SELECT domain, name FROM performance_qualities WHERE athlete_id = ?`, [athleteId]);
+  const has = new Set(existing.map((e) => `${e.domain}|${e.name.toLowerCase()}`));
+  await ensureProfileMeta(athleteId);
+  const stmts = QUALITY_BASE.filter(([d, n]) => !has.has(`${d}|${n.toLowerCase()}`)).map(([d, n]) => ({
+    sql: `INSERT INTO performance_qualities (id, athlete_id, domain, name, level, importance) VALUES (?, ?, ?, ?, 0, 2)`,
+    args: [randomUUID(), athleteId, d, n],
+  }));
+  if (stmts.length) await dbBatch(stmts);
+  revalidatePath(`/coach/athletes/${athleteId}`);
+}
+
+export async function updatePerformanceQualityAction(id: string, patch: { level?: number; importance?: number; plan?: string }) {
+  const row = await dbGet<{ athlete_id: string }>(`SELECT athlete_id FROM performance_qualities WHERE id = ?`, [id]);
+  if (!row) throw new Error("Qualité introuvable.");
+  await coachForAthlete(row.athlete_id);
+  if (patch.level !== undefined) await dbRun(`UPDATE performance_qualities SET level = ?, updated_at = datetime('now') WHERE id = ?`, [Math.max(0, Math.min(5, Math.round(patch.level))), id]);
+  if (patch.importance !== undefined) await dbRun(`UPDATE performance_qualities SET importance = ?, updated_at = datetime('now') WHERE id = ?`, [Math.max(1, Math.min(3, Math.round(patch.importance))), id]);
+  if (patch.plan !== undefined) await dbRun(`UPDATE performance_qualities SET plan = ?, updated_at = datetime('now') WHERE id = ?`, [patch.plan.trim().slice(0, 1000) || null, id]);
+  revalidatePath(`/coach/athletes/${row.athlete_id}`);
+}
+
+export async function deletePerformanceQualityAction(id: string) {
+  const row = await dbGet<{ athlete_id: string }>(`SELECT athlete_id FROM performance_qualities WHERE id = ?`, [id]);
+  if (!row) return;
+  await coachForAthlete(row.athlete_id);
+  await dbRun(`DELETE FROM performance_qualities WHERE id = ?`, [id]);
+  revalidatePath(`/coach/athletes/${row.athlete_id}`);
+}
+
+/** Clôt l'évaluation en cours : les niveaux actuels deviennent la référence de comparaison. */
+export async function newPerformanceEvaluationAction(athleteId: string) {
+  await coachForAthlete(athleteId);
+  await ensureProfileMeta(athleteId);
+  await dbBatch([
+    { sql: `UPDATE performance_qualities SET prev_level = CASE WHEN level > 0 THEN level ELSE prev_level END WHERE athlete_id = ?`, args: [athleteId] },
+    { sql: `UPDATE performance_profile_meta SET prev_eval_date = eval_date, eval_date = ? WHERE athlete_id = ?`, args: [todayISO(), athleteId] },
+  ]);
+  revalidatePath(`/coach/athletes/${athleteId}`);
 }

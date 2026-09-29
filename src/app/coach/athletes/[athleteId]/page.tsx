@@ -24,6 +24,8 @@ import {
   getTeamsForAthlete,
   getCustomEffortTestsForCoach,
   getZoneOverrides,
+  getInjuryFollowupsForAthlete,
+  getPerformanceProfile,
   getEffortTestBatchesForAthlete,
 } from "@/lib/queries";
 import { positionLabel, type TeamSport } from "@/lib/team-sports";
@@ -49,6 +51,7 @@ import {
   buildAttention,
   seasonSpan,
   cycleSummary,
+  cycleRing,
 } from "@/lib/athlete-overview";
 import { loadCoachCalendar } from "@/lib/coach-calendar";
 import { AthleteTabs } from "./athlete-tabs";
@@ -59,6 +62,8 @@ import { MeasuresTab, type MetricSeries } from "./measures-tab";
 import { ZonesPanel, type ZoneActivity } from "./zones-panel";
 import { autoZones, frDay, parseCuts } from "@/lib/training-zones";
 import { ChargesList } from "./charges-list";
+import { PerformanceProfile } from "./performance-profile";
+import { parseImpact } from "@/lib/injury-catalog";
 import { BodyMeasures } from "./body-measures";
 import { HealthTab, type InjuryView } from "./health-tab";
 import { NotesTab } from "./notes-tab";
@@ -85,9 +90,6 @@ function metricDef(key: string) {
 function fmtMetric(value: number, unit?: string) {
   const v = Number.isInteger(value) ? String(value) : value.toFixed(1).replace(".", ",");
   return unit ? `${v} ${unit}` : v;
-}
-function monthYear(iso: string) {
-  return `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
 }
 
 export default async function AthleteDetailPage({
@@ -147,6 +149,8 @@ export default async function AthleteDetailPage({
     effortTestBatches,
     periodStarts,
     zoneOverrides,
+    injuryFollowups,
+    perfProfile,
   ] = await Promise.all([
     findUserById(athleteId),
     getUserAvatar(athleteId),
@@ -173,6 +177,8 @@ export default async function AthleteDetailPage({
     getEffortTestBatchesForAthlete(athleteId),
     getPeriodStarts(athleteId),
     getZoneOverrides(athleteId),
+    getInjuryFollowupsForAthlete(athleteId),
+    getPerformanceProfile(athleteId),
   ]);
   if (!athlete) notFound();
   const trainingPeriods = trainingPeriodsEarly;
@@ -352,23 +358,23 @@ export default async function AthleteDetailPage({
   }));
 
   // ---------- Santé ----------
-  const injuryViews: InjuryView[] = injuries.map((i) => {
-    const days = i.date_end
-      ? Math.round((new Date(`${i.date_end}T00:00:00`).getTime() - new Date(`${i.date_start}T00:00:00`).getTime()) / 86400000)
-      : null;
-    return {
-      id: i.id,
-      zone: i.zone,
-      description: i.description,
-      active: !i.date_end,
-      dateLabel: i.date_end
-        ? i.date_start.slice(0, 7) === i.date_end.slice(0, 7)
-          ? monthYear(i.date_start)
-          : `${shortDate(i.date_start)} → ${shortDate(i.date_end)} ${i.date_end.slice(0, 4)}`
-        : `depuis le ${shortDate(i.date_start)}`,
-      duration: days !== null && days >= 7 ? `${Math.round(days / 7)} semaine${Math.round(days / 7) > 1 ? "s" : ""}` : days !== null ? `${days} jour${days > 1 ? "s" : ""}` : null,
-    };
-  });
+  const injuryViews: InjuryView[] = injuries.map((i) => ({
+    id: i.id,
+    label: i.zone,
+    bodyPart: i.body_part ?? null,
+    side: i.side ?? null,
+    type: i.injury_type ?? null,
+    pain: i.pain ?? null,
+    dateStart: i.date_start,
+    dateEnd: i.date_end,
+    returnDate: i.return_date ?? null,
+    description: i.description,
+    advice: i.advice ?? null,
+    impact: parseImpact(i.impact_json),
+    followups: injuryFollowups.filter((f) => f.injury_id === i.id).map((f) => ({ id: f.id, date: f.follow_date, pain: f.pain, note: f.note })),
+  }));
+  const healthSports = athleteSports.length ? athleteSports.map((sp: string) => ({ key: sp, label: sportLabel(sp) })) : [{ key: "general", label: "Entraînement" }];
+  const ring = cycleShared ? cycleRing({ periodStarts, settings: cycleSettings, checkins: rangeCheckins, today, firstName }) : null;
   const cycle = cycleShared
     ? cycleSummary({ periodStarts, settings: cycleSettings, checkins: rangeCheckins, today, firstName })
     : null;
@@ -483,6 +489,8 @@ export default async function AthleteDetailPage({
                   athleteId={athleteId}
                   firstName={firstName}
                   injuries={injuryViews}
+                  sports={healthSports}
+                  ring={ring}
                   cycle={cycle}
                   cycleShared={cycleShared}
                   today={today}
@@ -492,6 +500,15 @@ export default async function AthleteDetailPage({
                 <NotesTab
                   athleteId={athleteId}
                   entries={coachNoteEntries}
+                  profile={
+                    <PerformanceProfile
+                      athleteId={athleteId}
+                      firstName={firstName}
+                      qualities={perfProfile.qualities}
+                      evalDate={perfProfile.evalDate}
+                      prevEvalDate={perfProfile.prevEvalDate}
+                    />
+                  }
                   footer={
                     link && (
                       <div className="flex items-center justify-end gap-3 pt-2 text-[13px] text-slate">

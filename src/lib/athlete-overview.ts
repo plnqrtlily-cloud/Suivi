@@ -458,3 +458,119 @@ export function cycleSummary(params: {
   }
   return { rows, current: cur?.text ?? null, insight };
 }
+
+export interface CyclePhaseView {
+  key: "regles" | "foll" | "ovu" | "lut";
+  label: string;
+  color: string;
+  from: number;
+  to: number;
+  dates: string;
+  forme: number | null;
+  physique: number | null;
+  sommeil: number | null;
+  n: number;
+  compare: string | null;
+  tip: string;
+}
+
+export interface CycleRingView {
+  len: number;
+  day: number;
+  phaseNow: CyclePhaseView["key"];
+  nextIn: number;
+  phases: CyclePhaseView[];
+  history: { from: string; to: string | null; len: number | null }[];
+}
+
+/**
+ * Données de l'anneau du cycle (onglet Santé) : phases du cycle en cours avec
+ * leurs dates, et pour chacune la moyenne des check-ins de l'athlète sur les
+ * derniers cycles (forme globale, forme physique, sommeil).
+ */
+export function cycleRing(params: {
+  periodStarts: string[];
+  settings: { average_cycle_length_days: number; average_period_length_days: number };
+  checkins: Checkin[];
+  today: string;
+  firstName: string;
+}): CycleRingView | null {
+  const { periodStarts, settings, checkins, today, firstName } = params;
+  const starts = [...periodStarts].filter((d) => d <= today).sort();
+  if (!starts.length) return null;
+  const gaps: number[] = [];
+  for (let i = Math.max(1, starts.length - 6); i < starts.length; i++) {
+    const g = Math.round((parse(starts[i]).getTime() - parse(starts[i - 1]).getTime()) / 86400000);
+    if (g >= 18 && g <= 45) gaps.push(g);
+  }
+  const len = gaps.length ? Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length) : settings.average_cycle_length_days || 28;
+  const periodLen = settings.average_period_length_days || 5;
+  const conf = { average_cycle_length_days: len, average_period_length_days: periodLen };
+  const cur = cycleDayForDate(starts, conf, today);
+  const day = cur?.day ?? 1;
+  const anchor = addDays(today, -(day - 1));
+  const range = (key: CyclePhaseView["key"]): [number, number] => {
+    let a = 0;
+    let b = 0;
+    for (let j = 1; j <= len; j++) {
+      const idx = j - 1;
+      const k = idx < periodLen ? "regles" : idx < len / 2 - 2 ? "foll" : idx < len / 2 + 2 ? "ovu" : "lut";
+      if (k === key) {
+        if (!a) a = j;
+        b = j;
+      }
+    }
+    return [a, b];
+  };
+  // Check-ins des 3 derniers cycles, rangés par phase.
+  const since = starts.length >= 4 ? starts[starts.length - 4] : addDays(today, -3 * len);
+  const byPhase: Record<string, Checkin[]> = { regles: [], foll: [], ovu: [], lut: [] };
+  for (const c of checkins) {
+    if (c.check_date < since || c.check_date > today) continue;
+    const d = cycleDayForDate(starts, conf, c.check_date);
+    if (d) byPhase[d.key].push(c);
+  }
+  const mean = (xs: number[]) => (xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10 : null);
+  const allForme = Object.values(byPhase).flat();
+  const names = { regles: "Règles", foll: "Folliculaire", ovu: "Ovulation", lut: "Lutéale" } as const;
+  const colors = { regles: "#c98aa2", foll: "#8fb3a0", ovu: "#e3b75c", lut: "#b8a1cc" } as const;
+  const phases: CyclePhaseView[] = (["regles", "foll", "ovu", "lut"] as const).map((key) => {
+    const [a, b] = range(key);
+    const xs = byPhase[key];
+    const forme = mean(xs.map((c) => computeGlobalScore(c)));
+    const rest = allForme.filter((c) => !xs.includes(c));
+    const restForme = mean(rest.map((c) => computeGlobalScore(c)));
+    const diff = forme !== null && restForme !== null ? Math.round((forme - restForme) * 10) / 10 : null;
+    const enough = xs.length >= 3 && rest.length >= 3;
+    const tip = !enough
+      ? `Pas encore assez de check-ins de ${firstName} sur cette phase pour en tirer une tendance.`
+      : diff !== null && diff >= 0.3
+        ? `${firstName} se sent plutôt mieux sur cette phase : bon créneau pour placer les séances clés.`
+        : diff !== null && diff <= -0.3
+          ? `Forme plus basse sur cette phase dans ses retours : garder de la marge sur les séances intenses et se fier au check-in du matin.`
+          : `Forme stable sur cette phase dans ses retours.`;
+    return {
+      key,
+      label: names[key],
+      color: colors[key],
+      from: a,
+      to: b,
+      dates: a === b ? shortDate(addDays(anchor, a - 1)) : `${shortDate(addDays(anchor, a - 1))} → ${shortDate(addDays(anchor, b - 1))}`,
+      forme,
+      physique: mean(xs.map((c) => c.physical_level)),
+      sommeil: mean(xs.map((c) => c.sleep_quality)),
+      n: xs.length,
+      compare: enough && diff !== null ? `Forme moyenne ${diff >= 0 ? "+" : "−"}${fmtScore(Math.abs(diff))} par rapport au reste du cycle.` : null,
+      tip,
+    };
+  });
+  const history = starts
+    .slice(-4)
+    .reverse()
+    .map((s, i, arr) => {
+      const next = i === 0 ? null : arr[i - 1];
+      const l = next ? Math.round((parse(next).getTime() - parse(s).getTime()) / 86400000) : null;
+      return { from: s, to: next ? addDays(next, -1) : null, len: l };
+    });
+  return { len, day, phaseNow: cur?.key ?? "regles", nextIn: Math.max(0, len - day + 1), phases, history };
+}
