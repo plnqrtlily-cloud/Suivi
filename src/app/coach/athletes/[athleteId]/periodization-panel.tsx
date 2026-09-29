@@ -23,7 +23,7 @@ import {
   deleteTrainingPeriodAction,
   duplicateTrainingPeriodAction,
 } from "@/lib/actions";
-import { Panel, TabHeader, GoalCountdown, Reveal, ghostBtn, primaryBtn, fieldClass, fieldLabel } from "./tab-ui";
+import { Panel, TabHeader, Reveal, ghostBtn, primaryBtn, fieldClass, fieldLabel } from "./tab-ui";
 
 const LEVEL_LABEL: Record<string, string> = { saison: "Saison", bloc: "Blocs", cycle: "Cycles" };
 const LEVEL_ONE: Record<string, string> = { saison: "Saison", bloc: "Bloc", cycle: "Cycle" };
@@ -199,7 +199,6 @@ export function PeriodizationPanel({
       <TabHeader
         title={season?.name ?? "Périodisation"}
         subtitle={subtitle || "Découpez la saison en blocs et en cycles pour donner une direction à la programmation."}
-        right={<GoalCountdown goal={goal} />}
       />
 
       <Panel>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { AttentionItem, LoadWeek, OverviewStat } from "@/lib/athlete-overview";
-import { Panel, PanelTitle, Segmented, TabHeader, GoalCountdown, ghostBtn, linkBtn } from "./tab-ui";
+import { Panel, PanelTitle, Segmented, TabHeader, ghostBtn, linkBtn } from "./tab-ui";
 
 const TONE: Record<AttentionItem["tone"], string> = {
   alert: "#a4492a",
@@ -193,7 +193,6 @@ export function OverviewTab({
   firstName,
   title,
   subtitle,
-  goal,
   attention,
   weeks,
   stats,
@@ -203,7 +202,6 @@ export function OverviewTab({
   firstName: string;
   title: string;
   subtitle: string;
-  goal: { title: string; dateLabel: string; days: number } | null;
   attention: AttentionItem[];
   weeks: LoadWeek[];
   stats: OverviewStat[];
@@ -215,7 +213,7 @@ export function OverviewTab({
 
   return (
     <div className="flex flex-col gap-6">
-      <TabHeader title={title} subtitle={subtitle} right={<GoalCountdown goal={goal} />} />
+      <TabHeader title={title} subtitle={subtitle} />
       <Attention items={attention} />
       <LoadChart weeks={weeks} stats={stats} />
       <div className="grid gap-6 lg:grid-cols-[1.35fr_1fr]">

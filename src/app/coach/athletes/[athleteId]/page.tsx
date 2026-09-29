@@ -430,7 +430,6 @@ export default async function AthleteDetailPage({
                   firstName={firstName}
                   title={overviewTitle}
                   subtitle={overviewSubtitle}
-                  goal={calendarData.goal}
                   attention={attention}
                   weeks={overviewWeeks}
                   stats={overviewStats(overviewWeeks, acwr)}

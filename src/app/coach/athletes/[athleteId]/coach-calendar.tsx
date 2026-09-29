@@ -371,14 +371,6 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
           <p className="min-h-5 text-sm text-slate">{head.subtitle}</p>
         </div>
         <span className="flex-1" />
-        {data.goal && data.goal.days >= 0 && (
-          <div className="flex flex-col items-end gap-1 border-r border-line pr-6">
-            <span className="text-[28px] font-bold leading-tight tracking-tight text-[#a4492a]">J-{data.goal.days}</span>
-            <span className="text-sm text-slate">
-              {data.goal.title} · {data.goal.dateLabel}
-            </span>
-          </div>
-        )}
         <div className="flex items-center">
           <button type="button" onClick={() => step(-1)} aria-label={view === "week" ? "Semaine précédente" : "Mois précédent"} className={arrow}>
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.5 4.5 7 10l5.5 5.5" /></svg>

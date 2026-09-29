@@ -31,18 +31,6 @@ export function TabHeader({
   );
 }
 
-export function GoalCountdown({ goal }: { goal: { title: string; dateLabel: string; days: number } | null }) {
-  if (!goal || goal.days < 0) return null;
-  return (
-    <div className="flex flex-col items-start gap-1 sm:items-end">
-      <span className="text-[28px] font-bold leading-tight tracking-tight text-[#a4492a]">J-{goal.days}</span>
-      <span className="text-sm text-slate">
-        {goal.title} · {goal.dateLabel}
-      </span>
-    </div>
-  );
-}
-
 export function Panel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <section className={`rounded-3xl bg-white p-5 sm:p-6 ${className}`}>{children}</section>;
 }
