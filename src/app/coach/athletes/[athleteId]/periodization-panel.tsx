@@ -188,17 +188,12 @@ export function PeriodizationPanel({
     });
   }
 
-  const block = active.find((p) => p.level === "bloc");
-  // L'objectif est déjà dans le compte à rebours : le sous-titre ne donne que
-  // la position dans la saison.
-  const now = [block ? `bloc « ${block.name} »` : null, finest && finest.level === "cycle" ? `cycle « ${finest.name} »` : null].filter(Boolean);
-  const subtitle = now.length ? `En cours : ${now.join(" · ")}` : "";
 
   return (
     <div className="flex flex-col gap-6">
       <TabHeader
         title={season?.name ?? "Périodisation"}
-        subtitle={subtitle || "Découpez la saison en blocs et en cycles pour donner une direction à la programmation."}
+        subtitle={periods.length ? "" : "Découpez la saison en blocs et en cycles pour donner une direction à la programmation."}
       />
 
       <Panel>
@@ -495,7 +490,6 @@ function PeriodDetail({
           >
             <p className={`text-xs ${c.current ? "text-white/80" : "text-slate"}`}>
               Semaine {c.wk?.number ?? c.i + 1}
-              {c.current ? " · en cours" : ""}
             </p>
             <p className={`truncate text-sm font-semibold ${c.current ? "text-white" : "text-ink"}`}>
               {c.child?.name ?? (c.deload ? "Décharge" : "Charge")}
