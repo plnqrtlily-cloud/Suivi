@@ -6,7 +6,15 @@ import { Field, Button, ErrorText } from "@/components/ui";
 
 type State = { error?: string } | undefined;
 
-export function RegisterForm({ defaultInviteToken }: { defaultInviteToken?: string }) {
+export function RegisterForm({
+  defaultInviteToken,
+  defaultFirstName,
+  defaultEmail,
+}: {
+  defaultInviteToken?: string;
+  defaultFirstName?: string;
+  defaultEmail?: string;
+}) {
   const [role, setRole] = useState<"athlete" | "coach">(defaultInviteToken ? "athlete" : "coach");
   const [state, formAction, pending] = useActionState<State, FormData>(
     async (_prev, formData) => {
@@ -37,10 +45,10 @@ export function RegisterForm({ defaultInviteToken }: { defaultInviteToken?: stri
       <input type="hidden" name="role" value={role} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="Prénom" name="firstName" required />
+        <Field label="Prénom" name="firstName" required defaultValue={defaultFirstName} />
         <Field label="Nom" name="lastName" required />
       </div>
-      <Field label="Email" type="email" name="email" required autoComplete="email" />
+      <Field label="Email" type="email" name="email" required autoComplete="email" defaultValue={defaultEmail} />
       <Field
         label="Mot de passe (8 caractères minimum)"
         type="password"

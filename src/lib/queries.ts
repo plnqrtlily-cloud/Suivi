@@ -23,12 +23,15 @@ export interface AthleteLink {
   status: string;
   invite_token: string | null;
   invite_email: string | null;
+  invite_first_name?: string | null;
+  invite_sent_at?: string | null;
+  created_at?: string;
   avatar_path: string | null;
 }
 
 export async function getAthletesForCoach(coachId: string): Promise<AthleteLink[]> {
   return dbAll(
-    `SELECT l.id as link_id, l.athlete_id, u.first_name, u.last_name, u.email, l.status, l.invite_token, l.invite_email, u.avatar_path
+    `SELECT l.id as link_id, l.athlete_id, u.first_name, u.last_name, u.email, l.status, l.invite_token, l.invite_email, l.invite_first_name, l.invite_sent_at, l.created_at, u.avatar_path
      FROM coach_athlete_links l
      LEFT JOIN users u ON u.id = l.athlete_id
      WHERE l.coach_id = ? AND l.status != 'revoked'

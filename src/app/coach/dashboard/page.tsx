@@ -19,8 +19,8 @@ import { CoachSidebar } from "@/components/coach-sidebar";
 import { Avatar } from "@/components/avatar";
 import { Card } from "@/components/ui";
 import { CoachReminders } from "./coach-reminders";
-import { InviteForm } from "../invite-form";
-import { RevokeButton } from "../revoke-button";
+import { InviteForm, InviteButton, type PendingInvite } from "../invite-form";
+import { isEmailConfigured } from "@/lib/email";
 import { sportIconPath } from "@/lib/sport-icons";
 
 
@@ -163,6 +163,15 @@ export default async function CoachDashboardPage({
   // Invitations envoyées mais pas encore acceptées — sinon le coach n'a aucun
   // moyen de savoir qu'elles sont en attente, ni de les annuler.
   const pendingInvites = links.filter((l) => l.status === "pending");
+  const pendingList: PendingInvite[] = pendingInvites.map((l) => ({
+    id: l.link_id,
+    email: l.invite_email,
+    firstName: l.invite_first_name ?? null,
+    token: l.invite_token,
+    sentAt: l.invite_sent_at ?? null,
+    createdAt: l.created_at ?? null,
+  }));
+  const emailReady = isEmailConfigured();
 
   // Tout l'effectif chargé en une poignée de requêtes plutôt que huit par
   // athlète : à 30 athlètes, l'ancienne version faisait 240 allers-retours.
@@ -221,7 +230,10 @@ export default async function CoachDashboardPage({
           <Nav user={user} />
         </div>
         <main className="mx-auto max-w-5xl px-4 sm:px-6 py-8">
-          <h1 className="mb-1 font-display text-3xl text-ink">Mes athlètes</h1>
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+            <h1 className="font-display text-3xl text-ink">Mes athlètes</h1>
+            {activeAthletes.length > 0 && <InviteButton key={planStatus.isPro ? "pro" : "free"} pending={pendingList} emailReady={emailReady} />}
+          </div>
           <p className={planStatus.plan === "pro" ? "mb-6 text-slate" : "mb-1 text-slate"}>
             {activeAthletes.length} athlète{activeAthletes.length > 1 ? "s" : ""} suivi{activeAthletes.length > 1 ? "s" : ""}
             {" · "}
@@ -291,7 +303,7 @@ export default async function CoachDashboardPage({
                 Générez un lien d&apos;invitation et transmettez-le. Dès qu&apos;il crée son compte, vous pourrez lui
                 programmer des séances et suivre sa forme au jour le jour.
               </p>
-              <InviteForm key={planStatus.isPro ? "pro" : "free"} />
+              <InviteForm key={planStatus.isPro ? "pro" : "free"} pending={pendingList} emailReady={emailReady} />
               <p className="mt-3 text-xs text-slate">
                 Un sport collectif à suivre ?{" "}
                 <Link href="/coach/equipes" className="font-medium text-moss-dark hover:underline">
@@ -299,18 +311,6 @@ export default async function CoachDashboardPage({
                 </Link>{" "}
                 pour visualiser tout l&apos;effectif sur un terrain.
               </p>
-              {pendingInvites.length > 0 && (
-                <div className="mt-4 flex flex-col gap-2 border-t border-line pt-4">
-                  {pendingInvites.map((link) => (
-                    <div key={link.link_id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                      <span className="text-ink-soft">
-                        En attente — {link.invite_email || "lien partagé sans email précisé"}
-                      </span>
-                      <RevokeButton linkId={link.link_id} label="Annuler" />
-                    </div>
-                  ))}
-                </div>
-              )}
             </Card>
           ) : (
             <>
@@ -336,29 +336,6 @@ export default async function CoachDashboardPage({
                 </div>
               )}
 
-              {/* Invitation : accessible depuis la page d'accueil du coach, la
-                  liste « Mes athlètes » ayant été retirée de la navigation. */}
-              {pendingInvites.length > 0 && (
-                <div className="mt-4 flex flex-col gap-2">
-                  {pendingInvites.map((link) => (
-                    <div
-                      key={link.link_id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-paper-dim px-4 py-3"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-ink-soft">Invitation en attente</p>
-                        <p className="text-xs text-slate">{link.invite_email || "Lien partagé sans email précisé"}</p>
-                      </div>
-                      <RevokeButton linkId={link.link_id} label="Annuler" />
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <Card className="mt-4 rounded-3xl">
-                <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Inviter un athlète</h2>
-                <InviteForm key={planStatus.isPro ? "pro" : "free"} />
-              </Card>
             </>
           )}
         </main>

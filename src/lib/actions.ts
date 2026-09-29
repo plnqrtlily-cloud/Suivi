@@ -95,7 +95,9 @@ export async function logoutAction() {
 
 // ---------- INVITATIONS (cf. prompt : "Flux d'invitation/liaison") ----------
 
-export async function createInviteAction(formData: FormData): Promise<{ token: string } | { error: string }> {
+export async function createInviteAction(
+  formData: FormData
+): Promise<{ token: string; linkId: string; emailed: boolean; reused?: boolean } | { error: string }> {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
 
@@ -118,17 +120,72 @@ export async function createInviteAction(formData: FormData): Promise<{ token: s
     }
   }
 
-  const email = String(formData.get("email") || "").trim();
-  const token = randomUUID().slice(0, 8);
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  const firstName = String(formData.get("firstName") || "").trim();
+  const message = String(formData.get("message") || "").trim();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "Cette adresse e-mail ne semble pas valide." };
 
+  // Une invitation déjà en attente pour la même adresse est réutilisée : on
+  // renvoie le même lien plutôt que d'empiler des doublons.
+  if (email) {
+    const existing = await dbGet<{ id: string; invite_token: string }>(
+      `SELECT id, invite_token FROM coach_athlete_links WHERE coach_id = ? AND lower(invite_email) = ? AND status = 'pending'`,
+      [user.id, email]
+    );
+    if (existing) {
+      await dbRun(`UPDATE coach_athlete_links SET invite_first_name = COALESCE(?, invite_first_name), invite_message = COALESCE(?, invite_message) WHERE id = ?`, [firstName || null, message || null, existing.id]);
+      const emailed = await sendInviteEmail(user, email, existing.invite_token, firstName, message, existing.id);
+      revalidatePath("/coach");
+      return { token: existing.invite_token, linkId: existing.id, emailed, reused: true };
+    }
+  }
+
+  const token = randomUUID().slice(0, 8);
+  const linkId = randomUUID();
   await dbRun(
-    `INSERT INTO coach_athlete_links (id, coach_id, invite_email, invite_token, status)
-     VALUES (?, ?, ?, ?, 'pending')`,
-    [randomUUID(), user.id, email || null, token]
+    `INSERT INTO coach_athlete_links (id, coach_id, invite_email, invite_token, status, invite_first_name, invite_message)
+     VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
+    [linkId, user.id, email || null, token, firstName || null, message || null]
   );
+  const emailed = email ? await sendInviteEmail(user, email, token, firstName, message, linkId) : false;
 
   revalidatePath("/coach");
-  return { token };
+  return { token, linkId, emailed };
+}
+
+async function sendInviteEmail(
+  coach: { first_name?: string; last_name?: string },
+  to: string,
+  token: string,
+  firstName: string,
+  message: string,
+  linkId: string
+): Promise<boolean> {
+  if (!isEmailConfigured()) return false;
+  const coachName = [coach.first_name, coach.last_name].filter(Boolean).join(" ") || "Votre coach";
+  const url = `${appBaseUrl()}/invite/${token}`;
+  const ok = await sendEmail({
+    to,
+    subject: `${coachName} vous invite à rejoindre Rythme`,
+    text:
+      `Bonjour${firstName ? ` ${firstName}` : ""},\n\n` +
+      `${coachName} vous invite à le rejoindre sur Rythme pour suivre vos entraînements.\n\n` +
+      (message ? `${message}\n\n` : "") +
+      `Pour accepter, ouvrez ce lien :\n${url}\n\nÀ bientôt sur Rythme.`,
+  });
+  if (ok) await dbRun(`UPDATE coach_athlete_links SET invite_sent_at = datetime('now') WHERE id = ?`, [linkId]);
+  return ok;
+}
+
+/** Renvoie l'e-mail d'une invitation en attente. */
+export async function resendInviteAction(linkId: string): Promise<{ emailed: boolean }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  const link = await dbGet<any>(`SELECT * FROM coach_athlete_links WHERE id = ?`, [linkId]);
+  if (!link || link.coach_id !== user.id || link.status !== "pending" || !link.invite_email) throw new Error("Non autorisé.");
+  const emailed = await sendInviteEmail(user, link.invite_email, link.invite_token, link.invite_first_name || "", link.invite_message || "", link.id);
+  revalidatePath("/coach");
+  return { emailed };
 }
 
 export async function setCoachPlanAction(coachId: string, plan: "free" | "pro") {
