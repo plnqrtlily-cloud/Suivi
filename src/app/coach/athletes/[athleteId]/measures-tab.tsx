@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { addMeasurementAction, createCustomMetricAction, deleteCustomMetricAction } from "@/lib/actions";
-import { METRIC_GROUPS, customMetricKey } from "@/lib/performance-metrics";
-import { Panel, PanelTitle, Row, Segmented, TabHeader, Reveal, ghostBtn, linkBtn, primaryBtn, fieldClass, fieldLabel } from "./tab-ui";
+import { useState } from "react";
+import type { CustomEffortTestRow, EffortTestBatch } from "@/lib/queries";
+import { EffortTestsPanel } from "./effort-tests-panel";
+import { TestBubble, batchLabel, metricText } from "./effort-test-detail";
+import { Panel, PanelTitle, Row, Segmented, TabHeader, Reveal, ghostBtn, linkBtn } from "./tab-ui";
 
 export interface MetricSeries {
   key: string;
@@ -13,12 +13,6 @@ export interface MetricSeries {
   points: { date: string; value: number }[];
 }
 
-export interface ZoneColumn {
-  title: string;
-  rows: { zone: number; label: string; range: string }[];
-}
-
-const ZONE_COLORS = ["#c5dcda", "#9fc2c1", "#5d8c8f", "#1d4a4f", "#e8896a"];
 const MONTHS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 
 function fmtVal(v: number, unit: string) {
@@ -26,7 +20,17 @@ function fmtVal(v: number, unit: string) {
   return unit ? `${s} ${unit}` : s;
 }
 
-function Evolution({ series }: { series: MetricSeries[] }) {
+function Evolution({
+  series,
+  isSelected,
+  canPick,
+  onPick,
+}: {
+  series: MetricSeries[];
+  isSelected: (key: string, date: string, value: number) => boolean;
+  canPick: (key: string, date: string, value: number) => boolean;
+  onPick: (key: string, date: string, value: number) => void;
+}) {
   const [key, setKey] = useState(series[0]?.key ?? "");
   const s = series.find((x) => x.key === key) ?? series[0];
   if (!s) return null;
@@ -38,6 +42,10 @@ function Evolution({ series }: { series: MetricSeries[] }) {
   const last = pts[pts.length - 1];
   const delta = last.value - first.value;
   const monthOf = (d: string) => MONTHS[Number(d.slice(5, 7)) - 1];
+  const sameMonth = new Set(pts.map((p) => p.date.slice(0, 7))).size < pts.length;
+  const tick = (d: string) => (sameMonth ? `${Number(d.slice(8, 10))} ${monthOf(d).slice(0, 4).toLowerCase()}${monthOf(d).length > 4 ? "." : ""}` : monthOf(d));
+  const selIdx = pts.findIndex((p) => isSelected(s.key, p.date, p.value));
+  const dark = selIdx >= 0 ? selIdx : pts.length - 1;
 
   return (
     <div className="mt-5 border-t border-line pt-4">
@@ -49,23 +57,31 @@ function Evolution({ series }: { series: MetricSeries[] }) {
       </div>
       <div className="flex h-40 items-end gap-4 border-b border-line px-2 sm:gap-8">
         {pts.map((p, i) => {
-          const isLast = i === pts.length - 1;
+          const isOn = i === dark;
           const h = max > floor ? ((p.value - floor) / (max - floor)) * 100 : 100;
+          const pickable = canPick(s.key, p.date, p.value);
           return (
-            <div key={p.date + i} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
-              <span className="text-xs font-semibold text-ink">{fmtVal(p.value, s.unit)}</span>
+            <button
+              type="button"
+              key={p.date + i}
+              disabled={!pickable}
+              onClick={() => onPick(s.key, p.date, p.value)}
+              title={pickable ? "Voir le détail du test" : "Mesure saisie hors test"}
+              className="group flex h-full flex-1 flex-col items-center justify-end gap-1 enabled:cursor-pointer"
+            >
+              <span className={`text-xs font-semibold ${isOn ? "text-ink" : "text-ink-soft"}`}>{fmtVal(p.value, s.unit)}</span>
               <span
-                className={`w-full max-w-[90px] rounded-t-lg transition-[height] duration-500 ${isLast ? "bg-[#1d4a4f]" : "bg-[#9fc2c1]"}`}
+                className={`w-full max-w-[90px] rounded-t-lg transition-[height,background-color] duration-500 ${isOn ? "bg-[#1d4a4f]" : "bg-[#9fc2c1] group-enabled:group-hover:bg-[#5d8c8f]"}`}
                 style={{ height: `${Math.max(8, h * 0.8)}%` }}
               />
-            </div>
+            </button>
           );
         })}
       </div>
       <div className="mt-2 flex gap-4 px-2 sm:gap-8">
         {pts.map((p, i) => (
           <span key={p.date + i} className="flex-1 text-center text-xs text-ink-soft">
-            {monthOf(p.date)}
+            {tick(p.date)}
           </span>
         ))}
       </div>
@@ -80,239 +96,62 @@ function Evolution({ series }: { series: MetricSeries[] }) {
   );
 }
 
-export interface OwnCustomMetric {
-  id: string;
-  label: string;
-  group: string;
-}
-
-// Création d'un indicateur propre au coach : nom et unité libres, mais thème
-// imposé parmi ceux de la liste prédéfinie, pour qu'il se range avec les autres.
-function CustomMetricCreator({ onCreated, onCancel }: { onCreated: (key: string) => void; onCancel: () => void }) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  // Champs lus par référence : ce bloc s'affiche à l'intérieur du formulaire
-  // d'ajout de mesure, et un <form> ne peut pas en contenir un autre.
-  const labelRef = useRef<HTMLInputElement>(null);
-  const unitRef = useRef<HTMLInputElement>(null);
-  const groupRef = useRef<HTMLSelectElement>(null);
-  return (
-    <div className="col-span-2 grid grid-cols-2 gap-3 rounded-xl border border-line bg-white p-3">
-      <p className="col-span-2 text-[13px] font-semibold text-ink">Nouvel indicateur</p>
-      <div className="col-span-2">
-        <label className={fieldLabel}>Nom</label>
-        <input ref={labelRef} autoFocus maxLength={60} placeholder="Ex. Puissance 5 min" className={fieldClass} />
-      </div>
-      <div>
-        <label className={fieldLabel}>Unité (facultatif)</label>
-        <input ref={unitRef} maxLength={20} placeholder="W, s, cm…" className={fieldClass} />
-      </div>
-      <div>
-        <label className={fieldLabel}>Thème</label>
-        <select ref={groupRef} defaultValue={METRIC_GROUPS[0]} className={fieldClass}>
-          {METRIC_GROUPS.map((g) => (
-            <option key={g} value={g}>
-              {g}
-            </option>
-          ))}
-        </select>
-      </div>
-      {error && <p className="col-span-2 text-[13px] text-clay">{error}</p>}
-      <div className="col-span-2 flex items-center gap-2">
-        <button
-          type="button"
-          disabled={pending}
-          className={primaryBtn}
-          onClick={() => {
-            const fd = new FormData();
-            fd.set("label", labelRef.current?.value ?? "");
-            fd.set("unit", unitRef.current?.value ?? "");
-            fd.set("group", groupRef.current?.value ?? "");
-            setError(null);
-            start(async () => {
-              const res = await createCustomMetricAction(fd);
-              if ("error" in res) {
-                setError(res.error);
-                return;
-              }
-              onCreated(customMetricKey(res.id));
-              router.refresh();
-            });
-          }}
-        >
-          Créer
-        </button>
-        <button type="button" className={linkBtn} onClick={onCancel}>
-          Annuler
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function CustomMetricList({ items }: { items: OwnCustomMetric[] }) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  if (items.length === 0) return null;
-  return (
-    <div className="col-span-2">
-      <p className={fieldLabel}>Vos indicateurs</p>
-      <ul className="flex flex-wrap gap-1.5">
-        {items.map((m) => (
-          <li key={m.id} className="flex items-center gap-1 rounded-full border border-line bg-white py-0.5 pl-2.5 pr-1 text-xs text-ink">
-            <span>{m.label}</span>
-            <span className="text-slate">· {m.group}</span>
-            <button
-              type="button"
-              disabled={pending}
-              aria-label={`Supprimer l'indicateur ${m.label}`}
-              onClick={() => {
-                if (!window.confirm(`Supprimer « ${m.label} » ? Les mesures déjà saisies pour cet indicateur seront supprimées, pour tous vos athlètes.`)) return;
-                start(async () => {
-                  await deleteCustomMetricAction(m.id);
-                  router.refresh();
-                });
-              }}
-              className="flex h-5 w-5 items-center justify-center rounded-full text-sm leading-none text-slate hover:bg-paper-dim hover:text-clay"
-            >
-              ×
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function MeasureForm({
-  athleteId,
-  metrics,
-  customMetrics,
-  onDone,
-}: {
-  athleteId: string;
-  metrics: { value: string; label: string; group: string }[];
-  customMetrics: OwnCustomMetric[];
-  onDone: () => void;
-}) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [metric, setMetric] = useState("weight_kg");
-  const [creating, setCreating] = useState(false);
-  // Ordre des thèmes identique à la liste prédéfinie, indicateurs créés compris.
-  const groups = METRIC_GROUPS.filter((g) => metrics.some((m) => m.group === g));
-  return (
-    <form
-      className="mb-4 grid grid-cols-2 gap-3 rounded-2xl bg-paper p-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const form = e.currentTarget;
-        const fd = new FormData(form);
-        fd.set("athleteId", athleteId);
-        start(async () => {
-          await addMeasurementAction(fd);
-          form.reset();
-          setMetric("weight_kg");
-          onDone();
-          router.refresh();
-        });
-      }}
-    >
-      <div className="col-span-2">
-        <label className={fieldLabel}>Indicateur</label>
-        <select name="metric" required value={metric} onChange={(e) => setMetric(e.target.value)} className={fieldClass}>
-          {groups.map((g) => (
-            <optgroup key={g} label={g}>
-              {metrics
-                .filter((m) => m.group === g)
-                .map((m) => (
-                  <option key={m.value} value={m.value}>
-                    {m.label}
-                  </option>
-                ))}
-            </optgroup>
-          ))}
-        </select>
-        {!creating && (
-          <button type="button" className={`${linkBtn} mt-1.5`} onClick={() => setCreating(true)}>
-            + Créer un indicateur
-          </button>
-        )}
-      </div>
-      {creating && (
-        <CustomMetricCreator
-          onCreated={(key) => {
-            setMetric(key);
-            setCreating(false);
-          }}
-          onCancel={() => setCreating(false)}
-        />
-      )}
-      <div>
-        <label className={fieldLabel}>Valeur</label>
-        <input type="number" step="0.1" name="value" required className={fieldClass} />
-      </div>
-      <div>
-        <label className={fieldLabel}>Date</label>
-        <input type="date" name="recordedAt" defaultValue={new Date().toISOString().slice(0, 10)} className={fieldClass} />
-      </div>
-      <div className="col-span-2">
-        <button type="submit" disabled={pending} className={primaryBtn}>
-          Ajouter
-        </button>
-      </div>
-      <CustomMetricList items={customMetrics} />
-    </form>
-  );
-}
-
 export function MeasuresTab({
-  athleteId,
   latestTest,
   series,
-  body,
-  weightSeries,
-  zones,
-  zonesHint,
-  maxes,
+  bodyPanel,
+  zonesPanel,
+  maxesList,
   records,
-  metrics,
-  customMetrics,
-  effortPanel,
   maxesPanel,
   historyPanel,
+  athleteId,
+  batches,
+  customTests,
+  weight,
 }: {
   athleteId: string;
+  batches: EffortTestBatch[];
+  customTests: CustomEffortTestRow[];
+  weight?: number;
   latestTest: { label: string; date: string; items: { label: string; value: string; hint?: string }[] } | null;
   series: MetricSeries[];
-  body: { label: string; value: string; hint?: string }[];
-  weightSeries: { date: string; value: number }[];
-  zones: ZoneColumn[];
-  zonesHint: string;
-  maxes: { name: string; value: string; hint: string }[];
-  records: { label: string; value: string; hint: string }[];
-  metrics: { value: string; label: string; group: string }[];
-  customMetrics: OwnCustomMetric[];
-  effortPanel: React.ReactNode;
+  bodyPanel: React.ReactNode;
+  zonesPanel: React.ReactNode;
+  maxesList: React.ReactNode;
+  records: { season: { label: string; value: string; hint: string }[]; all: { label: string; value: string; hint: string }[]; seasonFrom: string };
   maxesPanel: React.ReactNode;
   historyPanel: React.ReactNode;
 }) {
   const [open, setOpen] = useState<"test" | "mesure" | "charges" | "historique" | null>(null);
-  const toggle = (k: typeof open) => setOpen((o) => (o === k ? null : k));
-  const w = weightSeries;
-  const wLast = w[w.length - 1];
-  const wFirst = w[0];
+  const [recScope, setRecScope] = useState<"saison" | "tout">("saison");
+  const shownRecords = recScope === "saison" ? records.season : records.all;
+  const [selId, setSelId] = useState<string | null>(null);
+  const [detail, setDetail] = useState(false);
+  const [editing, setEditing] = useState<EffortTestBatch | null>(null);
+  const toggle = (k: typeof open) => {
+    setEditing(null);
+    setOpen((o) => (o === k ? null : k));
+  };
+  const sel = batches.find((b) => b.batchId === selId) ?? batches[0] ?? null;
+  const batchAt = (key: string, date: string, value: number) => {
+    const sameDay = batches.filter((b) => b.testDate.slice(0, 10) === date && b.metrics.some((m) => m.metric === key));
+    return sameDay.find((b) => b.metrics.some((m) => m.metric === key && Math.abs(m.value - value) < 1e-6)) ?? sameDay[0];
+  };
+  const shortDate = (iso: string) => {
+    const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
+    return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 4).toLowerCase()}${MONTHS[d.getMonth()].length > 4 ? "." : ""} ${d.getFullYear()}`;
+  };
 
   return (
     <div className="flex flex-col gap-6">
-      <TabHeader title="Mesures" subtitle="Tests, zones, charges de référence et records" />
+      <TabHeader title="Mesures" />
 
       <div className="grid gap-6 lg:grid-cols-[1.45fr_1fr]">
         <Panel>
           <PanelTitle
             title="Tests à l'effort"
-            hint={latestTest ? `${latestTest.label} · ${latestTest.date}` : undefined}
+            hint={sel ? `${batchLabel(sel, customTests)} · ${shortDate(sel.testDate)}` : latestTest ? `${latestTest.label} · ${latestTest.date}` : undefined}
             right={
               <button type="button" className={ghostBtn} onClick={() => toggle("test")}>
                 {open === "test" ? "Fermer" : "+ Nouveau test"}
@@ -320,9 +159,76 @@ export function MeasuresTab({
             }
           />
           <Reveal open={open === "test"}>
-            <div className="mb-5 rounded-2xl bg-paper p-4">{effortPanel}</div>
+            <div className="mb-5 rounded-2xl bg-paper p-4">
+              {editing && <p className="mb-3 text-sm font-semibold text-ink">Modifier · {batchLabel(editing, customTests)}</p>}
+              <EffortTestsPanel
+                key={editing?.batchId ?? "new"}
+                athleteId={athleteId}
+                batches={batches}
+                customTests={customTests}
+                editBatch={editing}
+                onDone={
+                  editing
+                    ? () => {
+                        setEditing(null);
+                        setOpen(null);
+                      }
+                    : undefined
+                }
+              />
+            </div>
           </Reveal>
-          {latestTest ? (
+          {sel ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setDetail((d) => !d)}
+                title="Voir le détail du test"
+                className={`-mx-2 grid w-[calc(100%+1rem)] grid-cols-2 gap-4 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-paper-dim sm:grid-cols-3 lg:grid-cols-5 ${detail ? "bg-paper-dim" : ""}`}
+              >
+                {(sel.metrics.length ? sel.metrics : []).slice(0, 5).map((m) => {
+                  const t = metricText(m.metric, m.value);
+                  return (
+                    <div key={m.metric}>
+                      <p className="text-[13px] text-ink-soft">{t.label}</p>
+                      <p className="text-[20px] font-bold leading-tight tracking-tight text-ink">{t.value}</p>
+                      {t.unit === "W" && weight ? <p className="text-xs text-slate">{(m.value / weight).toFixed(1).replace(".", ",")} W/kg</p> : null}
+                    </div>
+                  );
+                })}
+                {sel.metrics.length === 0 &&
+                  sel.extras.slice(0, 5).map((x, i) => (
+                    <div key={x.label + i}>
+                      <p className="text-[13px] text-ink-soft">{x.label}</p>
+                      <p className="text-[20px] font-bold leading-tight tracking-tight text-ink">
+                        {x.value}
+                        {x.unit ? ` ${x.unit}` : ""}
+                      </p>
+                    </div>
+                  ))}
+              </button>
+              {!detail && <p className="mt-1 text-xs text-slate">Cliquez sur le test ou une barre de l’évolution pour voir le détail.</p>}
+              {detail && (
+                <TestBubble
+                  key={sel.batchId}
+                  batch={sel}
+                  customTests={customTests}
+                  athleteId={athleteId}
+                  weight={weight}
+                  onClose={() => setDetail(false)}
+                  onEdit={() => {
+                    setEditing(sel);
+                    setDetail(false);
+                    setOpen("test");
+                  }}
+                  onDeleted={() => {
+                    setDetail(false);
+                    setSelId(null);
+                  }}
+                />
+              )}
+            </>
+          ) : latestTest ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
               {latestTest.items.map((t) => (
                 <div key={t.label}>
@@ -335,73 +241,29 @@ export function MeasuresTab({
           ) : (
             <p className="text-sm text-slate">Aucun test pour l&apos;instant.</p>
           )}
-          <Evolution series={series} />
-        </Panel>
-
-        <Panel>
-          <PanelTitle
-            title="Mesures corporelles"
-            right={
-              <button type="button" className={linkBtn} onClick={() => toggle("mesure")}>
-                {open === "mesure" ? "Fermer" : "+ Mesure"}
-              </button>
-            }
+          <Evolution
+            series={series}
+            isSelected={(k, d, v) => !!sel && batchAt(k, d, v)?.batchId === sel.batchId}
+            canPick={(k, d, v) => !!batchAt(k, d, v)}
+            onPick={(k, d, v) => {
+              const b = batchAt(k, d, v);
+              if (!b) return;
+              setSelId(b.batchId);
+              setDetail(true);
+            }}
           />
-          <Reveal open={open === "mesure"}>
-            <MeasureForm athleteId={athleteId} metrics={metrics} customMetrics={customMetrics} onDone={() => setOpen(null)} />
-          </Reveal>
-          {wLast && (
-            <div className="mb-3 flex items-end gap-4">
-              <div>
-                <p className="text-[13px] text-ink-soft">Poids</p>
-                <p className="text-[26px] font-bold leading-tight tracking-tight text-ink">{fmtVal(wLast.value, "kg")}</p>
-                {w.length > 1 && (
-                  <p className="text-xs text-slate">
-                    {wLast.value - wFirst.value >= 0 ? "+" : "−"}
-                    {fmtVal(Math.abs(Math.round((wLast.value - wFirst.value) * 10) / 10), "kg")} depuis {MONTHS[Number(wFirst.date.slice(5, 7)) - 1].toLowerCase()}
-                  </p>
-                )}
-              </div>
-              {w.length > 1 && <Sparkline points={w.map((p) => p.value)} />}
-            </div>
-          )}
-          <div className="flex flex-col">
-            {body.map((b) => (
-              <Row key={b.label} label={b.label} value={b.value} hint={b.hint} />
-            ))}
-          </div>
-          {!wLast && body.length === 0 && <p className="text-sm text-slate">Aucune mesure renseignée.</p>}
-          <button type="button" className={`${linkBtn} mt-3`} onClick={() => toggle("historique")}>
-            {open === "historique" ? "Masquer l'historique" : "Historique des mesures"}
+          <button type="button" className={`${linkBtn} mt-4`} onClick={() => toggle("historique")}>
+            {open === "historique" ? "Masquer les mesures enregistrées" : "Toutes les mesures enregistrées"}
           </button>
           <Reveal open={open === "historique"}>
             <div className="mt-3">{historyPanel}</div>
           </Reveal>
         </Panel>
+
+        {bodyPanel}
       </div>
 
-      {zones.length > 0 && (
-        <Panel>
-          <PanelTitle title="Zones d'entraînement" hint={zonesHint} />
-          <div className="grid gap-8 md:grid-cols-3">
-            {zones.map((col) => (
-              <div key={col.title}>
-                <p className="mb-2 text-sm font-semibold text-ink">{col.title}</p>
-                <ul className="flex flex-col">
-                  {col.rows.map((r) => (
-                    <li key={r.zone} className="grid grid-cols-[6px_28px_1fr_auto] items-center gap-2.5 py-2 text-sm">
-                      <span className="h-5 rounded-sm" style={{ background: ZONE_COLORS[r.zone - 1] ?? "#c5dcda" }} />
-                      <b className="font-semibold text-ink">Z{r.zone}</b>
-                      <span className="text-ink-soft">{r.label}</span>
-                      <b className="font-semibold text-ink">{r.range}</b>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      )}
+      {zonesPanel}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel>
@@ -417,24 +279,30 @@ export function MeasuresTab({
           <Reveal open={open === "charges"}>
             <div className="mb-4 rounded-2xl bg-paper p-4">{maxesPanel}</div>
           </Reveal>
-          {maxes.length === 0 ? (
-            <p className="text-sm text-slate">Aucune charge renseignée.</p>
-          ) : (
-            <div className="flex flex-col">
-              {maxes.map((m) => (
-                <Row key={m.name} label={m.name} value={m.value} hint={m.hint} />
-              ))}
-            </div>
-          )}
+          {maxesList}
         </Panel>
         <Panel>
-          <PanelTitle title="Records" />
-          <p className="-mt-2 mb-3 text-[13px] text-ink-soft">Relevés automatiquement dans les activités importées</p>
-          {records.length === 0 ? (
-            <p className="text-sm text-slate">Aucune activité importée pour l&apos;instant.</p>
+          <PanelTitle
+            title="Records"
+            right={
+              <Segmented
+                value={recScope}
+                onChange={(v) => setRecScope(v as "saison" | "tout")}
+                options={[
+                  { value: "saison", label: "Cette saison" },
+                  { value: "tout", label: "Tout" },
+                ]}
+              />
+            }
+          />
+          <p className="-mt-2 mb-3 text-[13px] text-ink-soft">
+            Relevés automatiquement dans les activités importées{recScope === "saison" ? ` depuis le ${records.seasonFrom}` : ""}
+          </p>
+          {shownRecords.length === 0 ? (
+            <p className="text-sm text-slate">{recScope === "saison" ? "Aucune activité importée cette saison." : "Aucune activité importée pour l'instant."}</p>
           ) : (
             <div className="flex flex-col">
-              {records.map((r) => (
+              {shownRecords.map((r) => (
                 <Row key={r.label} label={r.label} value={r.value} hint={r.hint} />
               ))}
             </div>
@@ -442,18 +310,5 @@ export function MeasuresTab({
         </Panel>
       </div>
     </div>
-  );
-}
-
-function Sparkline({ points }: { points: number[] }) {
-  const max = Math.max(...points);
-  const min = Math.min(...points);
-  const pts = points
-    .map((v, i) => `${(i / (points.length - 1)) * 100},${max === min ? 20 : 36 - ((v - min) / (max - min)) * 32}`)
-    .join(" ");
-  return (
-    <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="mb-3 h-10 flex-1">
-      <polyline points={pts} fill="none" stroke="#1d4a4f" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-    </svg>
   );
 }

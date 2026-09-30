@@ -1,102 +1,135 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
-import { getAthletesForCoach, getTrainingPeriodsForAthletes } from "@/lib/queries";
+import { dbAll } from "@/lib/db";
+import { getAthletesForCoach } from "@/lib/queries";
 import { loadWorkoutsForAthletes } from "@/lib/dashboard-batch";
-import { getWeekDates, todayISO, getMonthGrid, monthLabel } from "@/lib/dates";
+import { todayISO } from "@/lib/dates";
+import { sportLabelPlain } from "@/lib/sport-labels";
 import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
-import { Avatar } from "@/components/avatar";
-import { Card } from "@/components/ui";
-import { sportIconPath } from "@/lib/sport-icons";
-import { buildAthleteColorMap } from "@/lib/athlete-colors";
-import { sportLabelPlain } from "@/lib/sport-labels";
-import { PeriodBadge } from "@/components/period-badge";
-import { periodsOnDate, periodColor } from "@/lib/periodization";
+import { PlanningBoard, type PlanAthlete, type PlanItem, type PlanBlock, type PlanStatus } from "./planning-board";
 
-const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+// Planification : tous les athlètes sur une frise qui défile jour par jour
+// (vue semaine) ou semaine par semaine (vue mois). Fenêtre chargée : 4 semaines
+// avant la semaine en cours, 12 après.
+const WEEKS_BEFORE = 4;
+const WEEKS_TOTAL = 16;
 
-// Drapeau : un objectif ou un événement n'est pas une séance d'entraînement,
-// il mérite son propre pictogramme plutôt qu'une icône de sport.
-const GOAL_ICON_PATH = "M5 17V3m0 0l9 3-9 3";
-
-const PRIORITY_STYLES: Record<string, { label: string; className: string }> = {
-  A: { label: "Principal", className: "bg-gold-light text-white" },
-  B: { label: "Secondaire", className: "bg-clay text-white" },
-  C: { label: "Préparatoire", className: "bg-slate text-white" },
-};
-
-function buildQuery(params: { vue?: string; semaine?: string; mois?: string; athlete?: string }) {
-  const q = new URLSearchParams();
-  if (params.vue) q.set("vue", params.vue);
-  if (params.semaine) q.set("semaine", params.semaine);
-  if (params.mois) q.set("mois", params.mois);
-  if (params.athlete) q.set("athlete", params.athlete);
-  const s = q.toString();
-  return s ? `/coach/planification?${s}` : "/coach/planification";
+function parse(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+function iso(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function addDays(s: string, n: number): string {
+  const d = parse(s);
+  d.setDate(d.getDate() + n);
+  return iso(d);
+}
+function mondayOf(s: string): string {
+  const d = parse(s);
+  return addDays(s, -((d.getDay() + 6) % 7));
 }
 
-// Vue de planification : le calendrier de tous les athlètes au même endroit,
-// filtrable — le point d'entrée unique pour construire la programmation.
-export default async function PlanificationPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ vue?: string; semaine?: string; mois?: string; athlete?: string }>;
-}) {
+function planStatus(status: string, date: string, today: string): PlanStatus {
+  switch (status) {
+    case "done":
+      return "done";
+    case "partial":
+      return "part";
+    case "not_done":
+    case "postponed":
+      return "miss";
+    default:
+      return date < today ? "miss" : "todo";
+  }
+}
+
+const TIME_OF_DAY: Record<string, string> = {
+  morning: "matin",
+  midday: "midi",
+  afternoon: "après-midi",
+  evening: "soir",
+  full_day: "",
+};
+
+export default async function PlanificationPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "coach") redirect("/athlete");
 
-  const sp = await searchParams;
-  // Vue mois par défaut : la planification se pense sur le cycle, pas sur la semaine.
-  const vue = sp.vue === "semaine" ? "semaine" : "mois";
-  const weekOffset = sp.semaine ? Number(sp.semaine) : 0;
   const today = todayISO();
+  const start = addDays(mondayOf(today), -7 * WEEKS_BEFORE);
+  const end = addDays(start, 7 * WEEKS_TOTAL - 1);
 
   const links = await getAthletesForCoach(user.id);
-  const activeAthletes = links.filter((l) => l.status === "active" && l.athlete_id);
-  // Couleur stable par athlète : c'est elle qui identifie l'athlète sur le
-  // calendrier, à la place de son nom répété dans chaque case.
-  const athleteColors = buildAthleteColorMap(activeAthletes.map((a) => a.athlete_id as string));
-  const selectedAthleteId = sp.athlete && activeAthletes.some((a) => a.athlete_id === sp.athlete) ? sp.athlete : null;
-  const shownAthletes = selectedAthleteId
-    ? activeAthletes.filter((a) => a.athlete_id === selectedAthleteId)
-    : activeAthletes;
+  const active = links.filter((l) => l.status === "active" && l.athlete_id);
+  const ids = active.map((l) => l.athlete_id as string);
 
-  // Bornes de la période affichée
-  const weekDates = getWeekDates(weekOffset);
-  const now = new Date();
-  const [yearStr, monthStr] = (sp.mois || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`).split("-");
-  const year = Number(yearStr);
-  const monthNum = Number(monthStr);
-  // getMonthGrid et monthLabel attendent un mois en base 1 (ils appliquent le
-  // -1 en interne) : passer monthNum - 1 affichait le mois précédent.
-  const monthGrid = getMonthGrid(year, monthNum);
-  const rangeFrom = vue === "semaine" ? weekDates[0] : monthGrid[0].date;
-  const rangeTo = vue === "semaine" ? weekDates[6] : monthGrid[monthGrid.length - 1].date;
+  const [workoutsMap, sportsRows, blockRows] = await Promise.all([
+    loadWorkoutsForAthletes(ids, start, end),
+    ids.length
+      ? dbAll<{ id: string; sports_json: string | null }>(`SELECT id, sports_json FROM users WHERE id IN (${ids.map(() => "?").join(",")})`, ids)
+      : Promise.resolve([]),
+    ids.length
+      ? dbAll<{ id: string; athlete_id: string; date: string; time_of_day: string; reason: string | null }>(
+          `SELECT id, athlete_id, date, time_of_day, reason FROM availability_blocks WHERE athlete_id IN (${ids.map(() => "?").join(",")}) AND date BETWEEN ? AND ? ORDER BY date ASC`,
+          [...ids, start, end]
+        )
+      : Promise.resolve([]),
+  ]);
 
-  // Une seule requête pour tous les athlètes affichés (brouillons inclus :
-  // c'est la vue du coach).
-  const workoutsMap = await loadWorkoutsForAthletes(
-    shownAthletes.map((l) => l.athlete_id as string),
-    rangeFrom,
-    rangeTo
-  );
-  // Périodisation de la fenêtre affichée : c'est elle qui donne son sens à la
-  // suite de séances, un coach planifie « dans un cycle » et pas dans le vide.
-  const periodsMap = await getTrainingPeriodsForAthletes(
-    shownAthletes.map((l) => l.athlete_id as string),
-    rangeFrom,
-    rangeTo
-  );
-  const workoutsByAthlete = shownAthletes.map((l) => workoutsMap.get(l.athlete_id as string) ?? []);
-  const allWorkouts = workoutsByAthlete.flat();
-  const goals = allWorkouts
-    .filter((w) => w.category === "objectif" || w.category === "evenement")
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const sportsOf = new Map<string, string[]>();
+  for (const r of sportsRows) {
+    try {
+      sportsOf.set(r.id, r.sports_json ? JSON.parse(r.sports_json) : []);
+    } catch {
+      sportsOf.set(r.id, []);
+    }
+  }
 
-  const prevMonth = monthNum === 1 ? `${year - 1}-12` : `${year}-${String(monthNum - 1).padStart(2, "0")}`;
-  const nextMonth = monthNum === 12 ? `${year + 1}-01` : `${year}-${String(monthNum + 1).padStart(2, "0")}`;
+  const items: PlanItem[] = [];
+  for (const id of ids) {
+    for (const w of workoutsMap.get(id) ?? []) {
+      const isGoal = w.category === "objectif" || w.category === "evenement";
+      items.push({
+        id: w.id,
+        athleteId: id,
+        date: w.date,
+        title: w.title,
+        sport: w.sport,
+        sportLabel: sportLabelPlain(w.sport),
+        minutes: isGoal ? 0 : w.duration_minutes ?? 0,
+        doneMinutes: w.status === "done" || w.status === "partial" ? w.actual_duration_minutes ?? w.duration_minutes ?? 0 : 0,
+        status: isGoal ? "goal" : planStatus(w.status, w.date, today),
+        isGoal,
+        isDraft: !!w.is_draft,
+        mine: w.coach_id === user.id,
+      });
+    }
+  }
+
+  const athletes: PlanAthlete[] = active.map((l) => {
+    const id = l.athlete_id as string;
+    const sports = new Set(sportsOf.get(id) ?? []);
+    for (const w of workoutsMap.get(id) ?? []) if (w.category === "entrainement") sports.add(w.sport);
+    return {
+      id,
+      name: l.first_name || l.invite_first_name || "Athlète",
+      fullName: [l.first_name, l.last_name].filter(Boolean).join(" ") || l.invite_first_name || "Athlète",
+      avatarPath: l.avatar_path ?? null,
+      sports: Array.from(sports),
+    };
+  });
+  athletes.sort((a, b) => a.name.localeCompare(b.name, "fr"));
+
+  const blocks: PlanBlock[] = blockRows.map((b) => ({
+    id: b.id,
+    athleteId: b.athlete_id,
+    date: b.date,
+    label: ["Indispo", TIME_OF_DAY[b.time_of_day], b.reason].filter(Boolean).join(" · "),
+  }));
 
   return (
     <div className="flex min-h-screen bg-paper">
@@ -105,320 +138,8 @@ export default async function PlanificationPage({
         <div className="lg:hidden">
           <Nav user={user} />
         </div>
-        <main className="mx-auto max-w-5xl px-4 sm:px-6 py-8">
-          <h1 className="mb-1 font-display text-3xl text-ink">Planification</h1>
-          <p className="mb-5 text-slate">Construisez la programmation de vos athlètes sur la période de votre choix.</p>
-
-          {/* Filtres : période et athlète */}
-          <div className="mb-5 flex flex-wrap items-center gap-3">
-            <div className="flex rounded-2xl bg-paper-dim p-1">
-              {[
-                { value: "semaine", label: "Semaine" },
-                { value: "mois", label: "Mois" },
-              ].map((v) => (
-                <Link
-                  key={v.value}
-                  href={buildQuery({ vue: v.value, athlete: selectedAthleteId || undefined })}
-                  scroll={false}
-                  className={`rounded-xl px-3.5 py-1.5 text-sm font-semibold transition-colors ${
-                    vue === v.value ? "bg-white text-ink shadow-sm" : "text-slate"
-                  }`}
-                >
-                  {v.label}
-                </Link>
-              ))}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Link
-                href={buildQuery({ vue, semaine: vue === "semaine" ? "0" : undefined })}
-                scroll={false}
-                className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  !selectedAthleteId ? "bg-moss text-white" : "border border-line text-slate"
-                }`}
-              >
-                Tous
-              </Link>
-              {activeAthletes.map((a) => (
-                <Link
-                  key={a.link_id}
-                  href={buildQuery({ vue, athlete: a.athlete_id as string })}
-                  scroll={false}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                    selectedAthleteId === a.athlete_id ? "bg-moss text-white" : "border border-line text-slate"
-                  }`}
-                >
-                  {a.first_name}
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          {/* Légende : sans elle, le code couleur ne se lit pas. */}
-          {activeAthletes.length > 0 && (
-            <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-paper-dim px-3 py-2 text-xs">
-              {activeAthletes.map((a) => (
-                <span key={a.link_id} className="flex items-center gap-1.5 text-ink-soft">
-                  <span className="h-3 w-3 rounded" style={{ backgroundColor: athleteColors[a.athlete_id as string] }} />
-                  {a.first_name} {a.last_name}
-                </span>
-              ))}
-              <span className="ml-auto flex items-center gap-1.5 text-slate">
-                <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d={GOAL_ICON_PATH} />
-                </svg>
-                objectif · pictogramme = type de séance
-              </span>
-            </div>
-          )}
-
-          {/* Où en est chaque athlète dans sa périodisation aujourd'hui */}
-          {shownAthletes.some((a) => (periodsMap.get(a.athlete_id as string) ?? []).length > 0) && (
-            <Card className="mb-5 rounded-3xl">
-              <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Périodisation en cours</h2>
-              <ul className="flex flex-col gap-2">
-                {shownAthletes.map((a) => {
-                  const periods = periodsMap.get(a.athlete_id as string) ?? [];
-                  if (periodsOnDate(periods, today).length === 0) return null;
-                  return (
-                    <li key={a.link_id} className="flex flex-wrap items-center gap-2">
-                      <Link
-                        href={`/coach/athletes/${a.athlete_id}`}
-                        className="flex items-center gap-1.5 text-sm text-ink hover:underline"
-                      >
-                        <span className="h-3 w-3 rounded" style={{ backgroundColor: athleteColors[a.athlete_id as string] }} />
-                        {a.first_name}
-                      </Link>
-                      <PeriodBadge periods={periods} date={today} />
-                    </li>
-                  );
-                })}
-              </ul>
-            </Card>
-          )}
-
-          {/* Objectifs et événements de la période */}
-          {goals.length > 0 && (
-            <Card className="mb-5 rounded-3xl">
-              <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">
-                Objectifs et événements de la période
-              </h2>
-              <ul className="flex flex-col gap-2">
-                {goals.map((g) => {
-                  const athlete = activeAthletes.find((a) => a.athlete_id === g.athlete_id);
-                  const prio = g.priority ? PRIORITY_STYLES[g.priority] : null;
-                  return (
-                    <li key={g.id}>
-                      <Link href={`/workouts/${g.id}`} className="flex flex-wrap items-center gap-2 text-sm hover:underline">
-                        {athlete && (
-                          <Avatar userId={g.athlete_id} firstName={athlete.first_name || "?"} hasAvatar={!!athlete.avatar_path} size="sm" />
-                        )}
-                        <span className="text-ink">{g.title}</span>
-                        {prio && (
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${prio.className}`}>{prio.label}</span>
-                        )}
-                        <span className="ml-auto text-xs text-slate">{g.date}</span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </Card>
-          )}
-
-          {activeAthletes.length === 0 ? (
-            <Card className="rounded-3xl">
-              <p className="text-slate">
-                Aucun athlète actif pour l&apos;instant —{" "}
-                <Link href="/coach/dashboard" className="font-medium text-moss-dark hover:underline">
-                  invitez-en un d&apos;abord
-                </Link>
-                .
-              </p>
-            </Card>
-          ) : vue === "semaine" ? (
-            <>
-              <div className="mb-3 flex items-center justify-center gap-3">
-                <Link href={buildQuery({ vue, semaine: String(weekOffset - 1), athlete: selectedAthleteId || undefined })} scroll={false} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
-                  ‹
-                </Link>
-                <p className="text-sm font-semibold text-ink-soft">
-                  Semaine du {weekDates[0].slice(8, 10)}/{weekDates[0].slice(5, 7)} au {weekDates[6].slice(8, 10)}/
-                  {weekDates[6].slice(5, 7)}
-                </p>
-                <Link href={buildQuery({ vue, semaine: String(weekOffset + 1), athlete: selectedAthleteId || undefined })} scroll={false} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
-                  ›
-                </Link>
-              </div>
-
-              {/* Le tableau garde sept colonnes quelle que soit la largeur : on
-                  le fait défiler horizontalement plutôt que de le comprimer
-                  jusqu'à l'illisible, et on le dit sur petit écran. */}
-              <p className="mb-2 text-center text-[11px] text-slate sm:hidden">
-                Faites glisser le tableau horizontalement pour voir toute la semaine.
-              </p>
-              <div className="overflow-x-auto rounded-3xl border border-line bg-white">
-                <table className="w-full min-w-[620px] border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-line">
-                      <th className="w-32 p-2 text-left sm:w-44 sm:p-3 text-[11px] font-bold uppercase tracking-wider text-slate">Athlète</th>
-                      {weekDates.map((date, i) => (
-                        <th key={date} className={`p-2 text-center text-[11px] font-bold uppercase tracking-wider ${date === today ? "text-gold-light" : "text-slate"}`}>
-                          {DAY_LABELS[i]} {date.slice(8, 10)}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {shownAthletes.map((link, idx) => {
-                      const workouts = workoutsByAthlete[idx];
-                      return (
-                        <tr key={link.link_id} className="border-b border-line last:border-0">
-                          <td className="p-3">
-                            <Link href={`/coach/athletes/${link.athlete_id}`} className="flex items-center gap-2 hover:underline">
-                              <Avatar userId={link.athlete_id!} firstName={link.first_name || "?"} hasAvatar={!!link.avatar_path} size="sm" />
-                              <span className="truncate font-medium text-ink">{link.first_name}</span>
-                            </Link>
-                          </td>
-                          {weekDates.map((date) => {
-                            const dayWorkouts = workouts.filter((w) => w.date === date);
-                            return (
-                              <td key={date} className={`p-1.5 text-center align-top ${date === today ? "bg-gold-light/5" : ""}`}>
-                                {dayWorkouts.length > 0 ? (
-                                  <Link href={`/coach/athletes/${link.athlete_id}/day/${date}`} className="flex flex-col items-center gap-1 rounded-lg py-1 hover:bg-paper-dim">
-                                    {dayWorkouts.slice(0, 2).map((w) => {
-                                      const color = athleteColors[w.athlete_id] || "#5B6660";
-                                      const isGoal = w.category === "objectif" || w.category === "evenement";
-                                      return (
-                                        <span
-                                          key={w.id}
-                                          title={`${w.title} (${sportLabelPlain(w.sport)})${w.is_draft ? " · brouillon" : ""}`}
-                                          className={`flex h-5 w-5 items-center justify-center rounded ${w.is_draft ? "opacity-50" : ""}`}
-                                          style={isGoal ? { boxShadow: `inset 0 0 0 1.5px ${color}` } : { backgroundColor: color }}
-                                        >
-                                          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke={isGoal ? color : "#fff"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d={isGoal ? GOAL_ICON_PATH : sportIconPath(w.sport)} />
-                                          </svg>
-                                        </span>
-                                      );
-                                    })}
-                                    {dayWorkouts.length > 2 && <span className="text-[9px] text-slate">+{dayWorkouts.length - 2}</span>}
-                                  </Link>
-                                ) : (
-                                  <Link
-                                    href={`/coach/athletes/${link.athlete_id}/new-workout`}
-                                    className="block rounded-lg py-1.5 text-line hover:bg-paper-dim hover:text-moss"
-                                    title="Programmer une séance ce jour-là"
-                                  >
-                                    +
-                                  </Link>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="mb-3 flex items-center justify-center gap-3">
-                <Link href={buildQuery({ vue, mois: prevMonth, athlete: selectedAthleteId || undefined })} scroll={false} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
-                  ‹
-                </Link>
-                <p className="text-sm font-semibold text-ink-soft">{monthLabel(year, monthNum)}</p>
-                <Link href={buildQuery({ vue, mois: nextMonth, athlete: selectedAthleteId || undefined })} scroll={false} className="flex h-8 w-8 items-center justify-center rounded-full text-slate hover:bg-paper-dim hover:text-ink">
-                  ›
-                </Link>
-              </div>
-
-              <Card className="rounded-3xl">
-                <div className="mb-2 grid grid-cols-7 px-1">
-                  {DAY_LABELS.map((d) => (
-                    <span key={d} className="text-center text-[11px] font-medium text-slate">
-                      {d}
-                    </span>
-                  ))}
-                </div>
-                <div className="grid grid-cols-7 gap-1">
-                  {monthGrid.map((cell) => {
-                    const dayWorkouts = allWorkouts.filter((w) => w.date === cell.date);
-                    const isToday = cell.date === today;
-                    // Liseré supérieur = cycle en cours ce jour-là. Réservé à la
-                    // vue d'un seul athlète : superposées, plusieurs
-                    // périodisations ne se liraient plus.
-                    const cellPeriod = selectedAthleteId
-                      ? periodsOnDate(periodsMap.get(selectedAthleteId) ?? [], cell.date).slice(-1)[0]
-                      : undefined;
-                    return (
-                      <div
-                        key={cell.date}
-                        className={`min-h-[80px] rounded-lg border p-1 ${
-                          isToday ? "border-gold-light bg-gold-light/5" : "border-line"
-                        } ${cell.inMonth ? "" : "opacity-40"}`}
-                        style={
-                          cellPeriod
-                            ? { borderTopColor: periodColor(cellPeriod.focus, cellPeriod.color), borderTopWidth: 3 }
-                            : undefined
-                        }
-                        title={cellPeriod ? `${cellPeriod.name}` : undefined}
-                      >
-                        <span className="text-[11px] font-semibold text-ink-soft">{cell.day}</span>
-                        {/* La couleur identifie l'athlète, le pictogramme le type
-                            de séance — le nom n'a plus besoin d'apparaître. Les
-                            objectifs et événements sont encadrés pour se
-                            distinguer d'une séance ordinaire. */}
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {dayWorkouts.slice(0, 6).map((w) => {
-                            const athlete = activeAthletes.find((a) => a.athlete_id === w.athlete_id);
-                            const color = athleteColors[w.athlete_id] || "#5B6660";
-                            const isGoal = w.category === "objectif" || w.category === "evenement";
-                            const prio = w.priority ? PRIORITY_STYLES[w.priority]?.label : null;
-                            return (
-                              <Link
-                                key={w.id}
-                                href={`/workouts/${w.id}`}
-                                title={`${athlete?.first_name ?? ""} — ${w.title} (${sportLabelPlain(w.sport)})${
-                                  isGoal ? ` · ${prio ?? "Objectif"}` : ""
-                                }${w.is_draft ? " · brouillon" : ""}`}
-                                className={`flex h-5 w-5 items-center justify-center rounded ${
-                                  isGoal ? "ring-[1.5px] ring-offset-1" : ""
-                                } ${w.is_draft ? "opacity-50" : ""}`}
-                                style={
-                                  isGoal
-                                    ? { backgroundColor: `${color}22`, color, boxShadow: `inset 0 0 0 1.5px ${color}` }
-                                    : { backgroundColor: color }
-                                }
-                              >
-                                <svg
-                                  width="12"
-                                  height="12"
-                                  viewBox="0 0 20 20"
-                                  fill="none"
-                                  stroke={isGoal ? color : "#fff"}
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d={isGoal ? GOAL_ICON_PATH : sportIconPath(w.sport)} />
-                                </svg>
-                              </Link>
-                            );
-                          })}
-                          {dayWorkouts.length > 6 && (
-                            <span className="self-center text-[9px] text-slate">+{dayWorkouts.length - 6}</span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-            </>
-          )}
+        <main className="mx-auto max-w-[1360px] px-4 py-8 sm:px-6">
+          <PlanningBoard athletes={athletes} items={items} blocks={blocks} start={start} days={7 * WEEKS_TOTAL} today={today} />
         </main>
       </div>
     </div>

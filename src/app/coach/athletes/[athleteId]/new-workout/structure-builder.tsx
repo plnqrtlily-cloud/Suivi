@@ -46,7 +46,7 @@ const STEP_LABEL: Record<StepType, string> = { warmup: "Échauffement", work: "E
 const STEP_COLOR: Record<StepType, string> = { warmup: "#9fc3c4", work: "#1b4b4f", recovery: "#c9dcdc", rest: "#e6eae9", cooldown: "#9fc3c4" };
 const ZONE_COLOR = ["#dde3e2", "#c9dcdc", "#9fc3c4", "#5b8a8c", "#1b4b4f", "#e8896a"];
 const TARGET_LABEL: Record<TargetKind, string> = { pace_zone: "Zone d'allure", hr_zone: "Zone de FC", power_zone: "Zone de puissance", free: "Cible libre", none: "Aucune cible" };
-const UNIT_LABEL: Record<UnitKind, string> = { min: "min", km: "km", m: "m", libre: "libre" };
+const UNIT_LABEL: Record<UnitKind, string> = { min: "temps", km: "km", m: "m", libre: "libre" };
 const STROKES = ["Crawl", "Dos", "Brasse", "Papillon", "4 nages", "Éducatifs", "Jambes", "Bras (pull)"];
 
 const uid = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Math.random()).slice(2));
@@ -113,22 +113,6 @@ export function adaptStructure(items: BlocItem[], act: ActivityDef): BlocItem[] 
 
 // --- Durées : saisie libre ↔ format stocké ---------------------------------
 
-/** « 12 » → 12:00 ; « 1:30 » ou « 1 min 30 » → 01:30 ; « 45 s » → 00:45. */
-function parseTime(raw: string): string | null {
-  const t = raw.trim().toLowerCase().replace(",", ".");
-  let m: RegExpMatchArray | null;
-  if ((m = t.match(/^(\d+):(\d{1,2})$/))) return `${m[1].padStart(2, "0")}:${m[2].padStart(2, "0")}`;
-  if ((m = t.match(/^(\d+)\s*s(ec)?$/))) {
-    const s = Number(m[1]);
-    return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-  }
-  if ((m = t.match(/^(\d+)\s*(min|')?\s*(\d{1,2})?\s*(s)?$/))) return `${m[1].padStart(2, "0")}:${(m[3] ?? "0").padStart(2, "0")}`;
-  if ((m = t.match(/^(\d+(?:\.\d+)?)$/))) {
-    const total = Math.round(Number(m[1]) * 60);
-    return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-  }
-  return null;
-}
 function timeToMin(v: string): number {
   const m = v.match(/^(\d+):(\d{1,2})$/);
   return m ? Number(m[1]) + Number(m[2]) / 60 : 0;
@@ -187,6 +171,50 @@ function fmtMin(m: number): string {
   return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`;
 }
 
+// --- Saisie d'une durée : minutes et secondes séparées ------------------------
+
+function TimeFields({ value, onChange, className }: { value: string; onChange: (v: string) => void; className: string }) {
+  const m = value.match(/^(\d+):(\d{1,2})$/);
+  const [mm, ss] = m ? [Number(m[1]), Number(m[2])] : [0, 0];
+  const emit = (a: number, b: number) => {
+    const total = Math.max(0, a) * 60 + Math.max(0, b);
+    onChange(total ? `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}` : "");
+  };
+  const num = (v: string) => (v === "" ? 0 : Math.floor(Number(v) || 0));
+  return (
+    <span className="inline-flex items-center gap-1">
+      <input
+        aria-label="Minutes"
+        type="number"
+        inputMode="numeric"
+        min={0}
+        value={m && mm ? mm : ""}
+        placeholder="0"
+        onChange={(e) => emit(num(e.target.value), ss)}
+        className={`${className} w-[58px] text-right`}
+      />
+      <span className="text-[13px] text-slate">min</span>
+      <input
+        aria-label="Secondes"
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={59}
+        step={5}
+        value={m && ss ? ss : ""}
+        placeholder="00"
+        onChange={(e) => {
+          const v = num(e.target.value);
+          // 75 s tapées dans le champ secondes : on reporte la minute plutôt que de tronquer.
+          emit(mm + Math.floor(v / 60), v % 60);
+        }}
+        className={`${className} w-[54px] text-right`}
+      />
+      <span className="text-[13px] text-slate">s</span>
+    </span>
+  );
+}
+
 // --- Composant ----------------------------------------------------------------
 
 export function StructureBuilder({
@@ -226,20 +254,22 @@ export function StructureBuilder({
         <select aria-label="Type d'étape" value={s.stepType} onChange={(e) => set({ stepType: e.target.value as StepType })} className={`${input} w-[150px]`}>
           {(Object.keys(STEP_LABEL) as StepType[]).map((k) => <option key={k} value={k}>{STEP_LABEL[k]}</option>)}
         </select>
-        {unit !== "libre" && (
+        {unit === "min" && (
+          <TimeFields
+            value={s.durationValue}
+            className={input}
+            onChange={(v) => set({ raw: "", durationType: "time", durationValue: v })}
+          />
+        )}
+        {unit !== "libre" && unit !== "min" && (
           <input
-            aria-label="Durée ou distance"
+            aria-label="Distance"
             value={displayValue(s)}
-            placeholder={unit === "min" ? "15" : unit === "km" ? "5" : "400"}
+            placeholder={unit === "km" ? "5" : "400"}
             onChange={(e) => {
               const raw = e.target.value;
-              if (unit === "min") {
-                const v = parseTime(raw);
-                set({ raw, durationType: "time", durationValue: v ?? "" });
-              } else {
-                const n = Number(raw.replace(",", ".").replace(/\s/g, ""));
-                set({ raw, durationType: "distance", unit, durationValue: raw && !Number.isNaN(n) ? String(Math.round(unit === "km" ? n * 1000 : n)) : "" });
-              }
+              const n = Number(raw.replace(",", ".").replace(/\s/g, ""));
+              set({ raw, durationType: "distance", unit, durationValue: raw && !Number.isNaN(n) ? String(Math.round(unit === "km" ? n * 1000 : n)) : "" });
             }}
             className={`${input} w-[76px]`}
           />
@@ -251,7 +281,7 @@ export function StructureBuilder({
             const u = e.target.value as UnitKind;
             set(u === "libre" ? { durationType: "manual", durationValue: "", raw: "", unit: u } : { durationType: u === "min" ? "time" : "distance", durationValue: "", raw: "", unit: u });
           }}
-          className={`${input} w-[80px]`}
+          className={`${input} w-[92px]`}
         >
           {activity.units.map((u) => <option key={u} value={u}>{UNIT_LABEL[u]}</option>)}
         </select>

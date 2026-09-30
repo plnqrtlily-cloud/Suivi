@@ -222,9 +222,10 @@ export async function loadCalendarWeeks(params: {
       timeLabel: formatWorkoutTime(w.time) || null,
       description: w.description,
       content,
+      structure: w.sport !== "strength" && w.intervals_json ? w.intervals_json : null,
       feedback: w.athlete_feedback,
       reportedByCoach: w.reported_by === "coach",
-      createdByMe: false,
+      createdByMe: w.coach_id === coachId,
       comments: (comments as CommentRow[]).filter((c) => c.workout_id === w.id).map(toComment),
     };
   };
@@ -250,6 +251,7 @@ export async function loadCalendarWeeks(params: {
     timeLabel: a.activity_time || null,
     description: a.notes,
     content: [],
+    structure: null,
     plan: [],
     feedback: null,
     reportedByCoach: a.created_by === coachId,

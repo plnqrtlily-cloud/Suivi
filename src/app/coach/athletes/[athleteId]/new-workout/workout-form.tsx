@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createWorkoutAction, updateWorkoutAction, saveWorkoutTemplateAction, createWorkoutBulkAction } from "@/lib/actions";
+import { createWorkoutAction, updateWorkoutAction, saveWorkoutTemplateAction, createWorkoutBulkAction, publishWorkoutAction } from "@/lib/actions";
 import { Button, ErrorText } from "@/components/ui";
 import { DateRangePicker, dateRangeToList } from "@/components/date-range-picker";
 import { StrengthBuilder, BlockRow, LibraryResource, sortBlocksByGroupOrder } from "./strength-builder";
@@ -65,6 +65,8 @@ export interface WorkoutFormInitial {
   links: { label: string; url: string }[];
   plannedRpe?: number | null;
   planJson?: string | null;
+  /** Séance encore en brouillon : l'édition propose alors de la publier. */
+  isDraft?: boolean;
 }
 
 export interface OtherAthleteOption {
@@ -228,6 +230,7 @@ export function WorkoutForm({
           planJson: planJson(),
           linksJson: JSON.stringify(links.filter((l) => l.label && l.url)),
         });
+        if (initial.isDraft && !draftRef.current) await publishWorkoutAction(initial.workoutId);
         router.push(`/coach/athletes/${athleteId}`);
       } catch (err: any) {
         setError(err.message || "Une erreur est survenue.");
@@ -495,8 +498,13 @@ export function WorkoutForm({
       <ErrorText>{error}</ErrorText>
       <div className="flex flex-wrap gap-3">
         <Button type="submit" disabled={pending} onClick={() => { draftRef.current = false; }}>
-          {pending ? (initial ? "Enregistrement…" : "Envoi…") : initial ? "Enregistrer les modifications" : "Programmer la séance"}
+          {pending ? (initial ? "Enregistrement…" : "Envoi…") : initial?.isDraft ? "Enregistrer et publier" : initial ? "Enregistrer les modifications" : "Programmer la séance"}
         </Button>
+        {initial?.isDraft && (
+          <Button type="submit" variant="secondary" disabled={pending} onClick={() => { draftRef.current = true; }}>
+            Garder en brouillon
+          </Button>
+        )}
         {!initial && (
           <Button type="submit" variant="secondary" disabled={pending} onClick={() => { draftRef.current = true; }}>
             Enregistrer en brouillon

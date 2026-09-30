@@ -238,6 +238,41 @@ export const EFFORT_TEST_CATALOG: Record<string, EffortTestDef> = {
       return out;
     },
   },
+  vo2max_labo_velo: {
+    slug: "vo2max_labo_velo",
+    label: "VO2max en laboratoire · ergocycle",
+    sport: "cycling",
+    description: "Test triangulaire par paliers jusqu'à épuisement, avec analyse des gaz d'échange.",
+    fields: [
+      { key: "vo2max", label: "VO2max", unit: "ml/kg/min", metric: "vo2max" },
+      { key: "pma_w", label: "PMA", unit: "W", metric: "pma_vma" },
+      { key: "fc_max", label: "FC max", unit: "bpm", optional: true, metric: "fc_max", group: "Seuils" },
+      { key: "sv1_w", label: "SV1 · puissance", unit: "W", optional: true, group: "Seuils" },
+      { key: "sv1_bpm", label: "SV1 · FC", unit: "bpm", optional: true, group: "Seuils" },
+      { key: "sv2_w", label: "SV2 · puissance", unit: "W", optional: true, metric: "seuil_lactique_w", group: "Seuils" },
+      { key: "sv2_bpm", label: "SV2 · FC", unit: "bpm", optional: true, metric: "seuil_lactique_bpm", group: "Seuils" },
+      { key: "lactate", label: "Lactate max", unit: "mmol/L", optional: true, metric: "lactate_mmol", group: "Laboratoire" },
+      { key: "weight_kg", label: "Poids du jour", unit: "kg", optional: true, metric: "weight_kg", group: "Général" },
+    ],
+    results: [{ metric: "vo2max", label: "VO2max" }],
+    compute: () => [],
+  },
+  vo2max_labo_tapis: {
+    slug: "vo2max_labo_tapis",
+    label: "VO2max en laboratoire · tapis",
+    sport: "running",
+    description: "Test par paliers de vitesse sur tapis jusqu'à épuisement, avec analyse des gaz d'échange.",
+    fields: [
+      { key: "vo2max", label: "VO2max", unit: "ml/kg/min", metric: "vo2max" },
+      { key: "vma_kmh", label: "VMA", unit: "km/h", metric: "pma_vma" },
+      { key: "fc_max", label: "FC max", unit: "bpm", optional: true, metric: "fc_max", group: "Seuils" },
+      { key: "sv1_bpm", label: "SV1 · FC", unit: "bpm", optional: true, group: "Seuils" },
+      { key: "sv2_bpm", label: "SV2 · FC", unit: "bpm", optional: true, metric: "seuil_lactique_bpm", group: "Seuils" },
+      { key: "lactate", label: "Lactate max", unit: "mmol/L", optional: true, metric: "lactate_mmol", group: "Laboratoire" },
+    ],
+    results: [{ metric: "vo2max", label: "VO2max" }],
+    compute: () => [],
+  },
   css_natation: {
     slug: "css_natation",
     label: "Test CSS (400 m + 200 m chronométrés, natation)",
@@ -275,6 +310,57 @@ export function parseCustomFields(fieldsJson: string): CustomEffortTestFieldDef[
   try {
     const parsed = JSON.parse(fieldsJson);
     return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+// --- Ergomètres ---
+// Le coach choisit d'abord le support du test (ce qu'il a sous les yeux), puis
+// le test parmi ceux qui s'y font. Stocké dans la colonne device du résultat.
+export const ERGOMETERS: { value: string; label: string; tests: string[] }[] = [
+  { value: "labo", label: "Laboratoire", tests: ["vo2max_labo_velo", "vo2max_labo_tapis"] },
+  { value: "ergocycle", label: "Ergocycle · home trainer", tests: ["ftp_20min", "ftp_ramp", "ftp_2x8min", "puissance_30s", "vo2max_labo_velo"] },
+  { value: "terrain", label: "Vélo sur route", tests: ["ftp_20min", "ftp_2x8min", "puissance_30s"] },
+  { value: "tapis", label: "Tapis de course", tests: ["vo2max_labo_tapis", "vma_1000m", "seuil_30min"] },
+  { value: "piste", label: "Piste · terrain", tests: ["vma_1000m", "demi_cooper", "cooper_12min", "navette_vameval", "seuil_30min"] },
+  { value: "piscine", label: "Piscine", tests: ["css_natation"] },
+  { value: "rameur", label: "Rameur", tests: [] },
+  { value: "saut", label: "Plateforme de saut · force", tests: [] },
+  { value: "autre", label: "Autre ergomètre", tests: [] },
+];
+
+export function ergometerLabel(value: string | null | undefined): string {
+  return ERGOMETERS.find((e) => e.value === value)?.label ?? "";
+}
+
+/** Protocole proposé par défaut (modifiable à la saisie). */
+export const DEFAULT_PROTOCOLS: Record<string, string> = {
+  vo2max_labo_velo: "Échauffement 10 min à 100 W, puis paliers de +25 W toutes les minutes jusqu'à épuisement. Analyse des gaz d'échange en continu.",
+  vo2max_labo_tapis: "Échauffement 10 min à 8 km/h, puis +1 km/h par minute à 1 % de pente jusqu'à épuisement.",
+  ftp_20min: "Échauffement 20 min dont 3 × 1 min rapide, 5 min à allure seuil, 10 min de récupération, puis 20 min à l'effort maximal soutenable.",
+  ftp_ramp: "Départ à 100 W, +20 W par minute jusqu'à l'échec.",
+  ftp_2x8min: "Deux efforts maximaux de 8 min séparés de 10 min de récupération active.",
+  puissance_30s: "30 s à fond, départ lancé, après un échauffement de 15 min.",
+  vma_1000m: "1000 m chronométrés sur piste, départ arrêté, après 20 min d'échauffement.",
+  demi_cooper: "Distance maximale parcourue en 6 min sur piste.",
+  cooper_12min: "Distance maximale parcourue en 12 min sur piste.",
+  navette_vameval: "Allers-retours de 20 m au rythme des bips, +0,5 km/h par palier d'une minute.",
+  seuil_30min: "30 min au maximum soutenable ; FC moyenne sur les 20 dernières minutes.",
+  css_natation: "400 m puis 200 m nage libre à fond, 10 min de récupération entre les deux.",
+};
+
+export interface TestExtra {
+  label: string;
+  value: string;
+  unit?: string;
+}
+
+export function parseExtras(json: string | null | undefined): TestExtra[] {
+  if (!json) return [];
+  try {
+    const v = JSON.parse(json);
+    return Array.isArray(v) ? v.filter((x) => x && x.label && x.value !== undefined).map((x) => ({ label: String(x.label), value: String(x.value), unit: x.unit ? String(x.unit) : undefined })) : [];
   } catch {
     return [];
   }

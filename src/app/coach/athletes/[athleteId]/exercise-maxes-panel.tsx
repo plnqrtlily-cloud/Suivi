@@ -8,6 +8,7 @@ import { DurationInput, formatDuration } from "@/components/duration-input";
 import { TrendChart } from "@/components/trend-chart";
 import type { ExerciseMax } from "@/lib/queries";
 import { todayISO } from "@/lib/dates";
+import { estimateOneRm } from "@/lib/one-rm";
 
 const VALUE_TYPES: { value: "charge" | "temps" | "repetitions"; label: string; unit: string }[] = [
   { value: "charge", label: "Charge", unit: "kg" },
@@ -18,6 +19,7 @@ const VALUE_TYPES: { value: "charge" | "temps" | "repetitions"; label: string; u
 function displayValue(m: ExerciseMax): string {
   if (m.value_type === "temps") return formatDuration(m.value_kg);
   if (m.value_type === "repetitions") return `${m.value_kg} reps`;
+  if (m.reps && m.reps > 1) return `${m.value_kg} kg × ${m.reps} (1RM ≈ ${estimateOneRm(m.value_kg, m.reps)} kg)`;
   return `${m.value_kg} kg`;
 }
 
@@ -29,10 +31,13 @@ export function ExerciseMaxesPanel({
   athleteId,
   maxes,
   exerciseSuggestions,
+  formOnly = false,
 }: {
   athleteId: string;
   maxes: ExerciseMax[];
   exerciseSuggestions: string[];
+  /** N'affiche que le formulaire d'ajout (la liste est rendue ailleurs). */
+  formOnly?: boolean;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -77,6 +82,7 @@ export function ExerciseMaxesPanel({
         ))}
       </datalist>
 
+      {!formOnly && (
       <ul className="mb-4 space-y-1.5 text-sm">
         {[...byExercise.entries()].map(([exerciseName, entries]) => {
           // Le plus récent d'abord (tested_at DESC déjà côté requête).
@@ -151,6 +157,7 @@ export function ExerciseMaxesPanel({
         })}
         {maxes.length === 0 && <p className="text-slate">Aucun max testé pour l&apos;instant.</p>}
       </ul>
+      )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-3">
@@ -181,14 +188,19 @@ export function ExerciseMaxesPanel({
         {valueType === "temps" ? (
           <DurationInput name="value" required />
         ) : (
-          <Field
-            label={valueType === "charge" ? "Charge (kg)" : "Nombre de répétitions"}
-            type="number"
-            step={valueType === "charge" ? "0.5" : "1"}
-            name="value"
-            required
-            min={0}
-          />
+          <div className={valueType === "charge" ? "grid grid-cols-2 gap-2" : ""}>
+            <Field
+              label={valueType === "charge" ? "Charge (kg)" : "Nombre de répétitions"}
+              type="number"
+              step={valueType === "charge" ? "0.5" : "1"}
+              name="value"
+              required
+              min={0}
+            />
+            {valueType === "charge" && (
+              <Field label="Répétitions (1 = max testé)" type="number" step="1" name="reps" min={1} max={30} defaultValue="1" />
+            )}
+          </div>
         )}
 
         <label className="flex flex-col gap-1.5 text-sm">

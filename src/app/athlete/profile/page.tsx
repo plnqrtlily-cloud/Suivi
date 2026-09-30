@@ -11,7 +11,7 @@ import {
   getUserAvatar,
   profileCompletion,
   getExerciseMaxes,
-  getCustomMetricsForAthlete,
+  getPerformanceProfile,
 } from "@/lib/queries";
 import { addMeasurementAction, addInjuryAction, setGenderAction, setAthleteSportsAction } from "@/lib/actions";
 import { AvatarUpload } from "./avatar-upload";
@@ -21,7 +21,7 @@ import { computePowerZones } from "@/lib/power-zones";
 import { computePaceZones } from "@/lib/pace-zones";
 import { ZoneGrid, formatPaceValue } from "@/components/zone-grid";
 import { todayISO } from "@/lib/dates";
-import { MEASUREMENT_DEVICES, computeDerivedMetrics, groupMetrics, metricOptions } from "@/lib/performance-metrics";
+import { PERFORMANCE_METRICS, MEASUREMENT_DEVICES, computeDerivedMetrics, groupMetrics } from "@/lib/performance-metrics";
 import { Nav } from "@/components/nav";
 import { Card, Field, SelectField, Button, sportLabel } from "@/components/ui";
 import { CyclePanel } from "./cycle-panel";
@@ -35,6 +35,14 @@ function formatPace(minPerKm: number): string {
   const sec = Math.round((minPerKm - min) * 60);
   return `${min}:${String(sec).padStart(2, "0")} /km`;
 }
+
+// Liste partagée avec la fiche coach (src/lib/performance-metrics.ts) —
+// inclut seuil lactique et lactatémie en plus des mesures historiques.
+const METRICS = PERFORMANCE_METRICS.map((m) => ({
+  value: m.value,
+  label: m.unit ? `${m.label} (${m.unit})` : m.label,
+  group: m.group,
+}));
 
 const SPORTS_LIST = [
   { value: "running", label: "Course à pied" },
@@ -54,7 +62,7 @@ export default async function AthleteProfilePage() {
   // Requêtes indépendantes parties en parallèle plutôt qu'en série (chacune est
   // un aller-retour réseau vers la base distante en production — les enchaîner
   // une par une multipliait la latence de la page par leur nombre).
-  const [latest, historyAll, injuries, completion, gender, athleteSports, avatar, personalRecords, exerciseMaxes, customMetrics] =
+  const [latest, historyAll, injuries, completion, gender, athleteSports, avatar, personalRecords, exerciseMaxes, perfProfile] =
     await Promise.all([
       getLatestMeasurements(user.id),
       getMeasurementsForAthlete(user.id),
@@ -65,11 +73,8 @@ export default async function AthleteProfilePage() {
       getUserAvatar(user.id),
       getPersonalRecordsForAthlete(user.id),
       getExerciseMaxes(user.id),
-      getCustomMetricsForAthlete(user.id),
+      getPerformanceProfile(user.id),
     ]);
-  // Liste partagée avec la fiche coach (src/lib/performance-metrics.ts), plus
-  // les indicateurs créés par les coachs de l'athlète, rangés dans leur thème.
-  const METRICS = metricOptions(customMetrics);
   const seriesByMetric: Record<string, MeasurementPoint[]> = {};
   for (const h of historyAll as any[]) {
     (seriesByMetric[h.metric] ??= []).push({ value: h.value, recorded_at: h.recorded_at });
@@ -106,6 +111,23 @@ export default async function AthleteProfilePage() {
         <Card className="mb-8 rounded-3xl">
           <AvatarUpload userId={user.id} firstName={user.first_name} hasAvatar={!!avatar?.avatar_path} />
         </Card>
+
+        {perfProfile.qualities.length > 0 && (
+          <Card className="mb-8 rounded-3xl">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate">Mon auto-évaluation</h2>
+                <p className="mt-1 text-sm text-ink">
+                  {perfProfile.qualities.filter((q) => q.athlete_level).length} qualité(s) notée(s) sur {perfProfile.qualities.length}
+                  {perfProfile.selfRequestedAt && (!perfProfile.selfEvalDate || perfProfile.selfEvalDate < perfProfile.selfRequestedAt) ? " · ton coach t’a demandé de la mettre à jour" : ""}
+                </p>
+              </div>
+              <Link href="/athlete/auto-evaluation" className="rounded-full bg-moss px-4 py-2 text-sm font-semibold text-white hover:bg-moss-dark">
+                Me noter
+              </Link>
+            </div>
+          </Card>
+        )}
 
         <Card className="mb-8 rounded-3xl">
           <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Informations générales</h2>

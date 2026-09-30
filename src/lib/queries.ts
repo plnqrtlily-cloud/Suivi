@@ -1,8 +1,9 @@
+import { parseExtras } from "./effort-tests";
+import { estimateOneRm } from "./one-rm";
 import { dbGet, dbAll } from "./db";
 import type { Checkin } from "./checkin-types";
 import type { AvailabilitySlot } from "./time-of-day";
 import { computePlanStatus, type PlanStatus } from "./billing";
-import type { CustomMetricRow } from "./performance-metrics";
 
 // workouts.time est soit une heure "HH:MM" soit un créneau (morning/midday/
 // afternoon/evening, cf. lib/time-of-day.ts) quand le coach ne connaît pas
@@ -319,6 +320,8 @@ export interface AthleteMeasurement {
   recorded_at: string;
   note: string | null;
   device: string | null;
+  label?: string | null;
+  unit?: string | null;
 }
 
 export async function getMeasurementsForAthlete(athleteId: string): Promise<AthleteMeasurement[]> {
@@ -358,6 +361,8 @@ export interface ExerciseMax {
   value_type: "charge" | "temps" | "repetitions";
   tested_at: string;
   note: string | null;
+  /** Répétitions réalisées à cette charge : au-delà de 1, le 1RM est estimé (Epley). */
+  reps: number | null;
 }
 
 export async function getExerciseMaxes(athleteId: string): Promise<ExerciseMax[]> {
@@ -373,7 +378,7 @@ export async function getLatestExerciseMaxes(athleteId: string): Promise<Record<
     // Le calcul "% du max" (StrengthBuilder) n'a de sens que pour une charge en
     // kg — un max en temps ou en répétitions ne s'y prête pas.
     if (r.value_type !== "charge") continue;
-    if (!(r.exercise_name in latest)) latest[r.exercise_name] = r.value_kg;
+    if (!(r.exercise_name in latest)) latest[r.exercise_name] = estimateOneRm(r.value_kg, r.reps);
   }
   return latest;
 }
@@ -386,10 +391,69 @@ export interface Injury {
   date_start: string;
   date_end: string | null;
   created_at: string;
+  body_part?: string | null;
+  side?: string | null;
+  injury_type?: string | null;
+  pain?: number | null;
+  return_date?: string | null;
+  advice?: string | null;
+  impact_json?: string | null;
 }
 
 export async function getInjuriesForAthlete(athleteId: string): Promise<Injury[]> {
   return dbAll(`SELECT * FROM injuries WHERE athlete_id = ? ORDER BY date_start DESC`, [athleteId]);
+}
+
+export interface InjuryFollowup {
+  id: string;
+  injury_id: string;
+  follow_date: string;
+  pain: number;
+  note: string | null;
+}
+
+export async function getInjuryFollowupsForAthlete(athleteId: string): Promise<InjuryFollowup[]> {
+  return dbAll(
+    `SELECT f.id, f.injury_id, f.follow_date, f.pain, f.note FROM injury_followups f JOIN injuries i ON i.id = f.injury_id WHERE i.athlete_id = ? ORDER BY f.follow_date, f.created_at`,
+    [athleteId]
+  );
+}
+
+export interface PerformanceQuality {
+  id: string;
+  domain: string;
+  name: string;
+  level: number;
+  athlete_level: number | null;
+  importance: number;
+  prev_level: number | null;
+  plan: string | null;
+}
+
+export async function getPerformanceProfile(athleteId: string): Promise<{
+  qualities: PerformanceQuality[];
+  evalDate: string | null;
+  prevEvalDate: string | null;
+  selfRequestedAt: string | null;
+  selfEvalDate: string | null;
+}> {
+  const [qualities, meta] = await Promise.all([
+    dbAll<PerformanceQuality>(
+      `SELECT id, domain, name, level, athlete_level, importance, prev_level, plan FROM performance_qualities WHERE athlete_id = ? ORDER BY created_at, name`,
+      [athleteId]
+    ),
+    dbGet<{ eval_date: string | null; prev_eval_date: string | null; self_requested_at: string | null; self_eval_date: string | null }>(
+      `SELECT eval_date, prev_eval_date, self_requested_at, self_eval_date FROM performance_profile_meta WHERE athlete_id = ?`,
+      [athleteId]
+    ),
+  ]);
+  return {
+    qualities,
+    evalDate: meta?.eval_date ?? null,
+    prevEvalDate: meta?.prev_eval_date ?? null,
+    selfRequestedAt: meta?.self_requested_at ?? null,
+    selfEvalDate: meta?.self_eval_date ?? null,
+  };
 }
 
 export interface CustomEffortTestRow {
@@ -399,21 +463,6 @@ export interface CustomEffortTestRow {
   sport: string;
   fields_json: string;
   created_at: string;
-}
-
-export async function getCustomMetricsForCoach(coachId: string): Promise<CustomMetricRow[]> {
-  return dbAll(`SELECT id, coach_id, label, unit, group_name FROM custom_metrics WHERE coach_id = ? ORDER BY label COLLATE NOCASE`, [coachId]);
-}
-
-/** Indicateurs créés par les coachs actifs d'un athlète — pour qu'il voie et renseigne les mêmes. */
-export async function getCustomMetricsForAthlete(athleteId: string): Promise<CustomMetricRow[]> {
-  return dbAll(
-    `SELECT DISTINCT m.id, m.coach_id, m.label, m.unit, m.group_name FROM custom_metrics m
-     JOIN coach_athlete_links l ON l.coach_id = m.coach_id
-     WHERE l.athlete_id = ? AND l.status = 'active'
-     ORDER BY m.label COLLATE NOCASE`,
-    [athleteId]
-  );
 }
 
 export async function getCustomEffortTestsForCoach(coachId: string): Promise<CustomEffortTestRow[]> {
@@ -437,6 +486,8 @@ export interface EffortTestResultRow {
   attachment_name: string | null;
   batch_id: string | null;
   created_at: string;
+  protocol?: string | null;
+  extras_json?: string | null;
 }
 
 export async function getEffortTestResultsForAthlete(athleteId: string): Promise<EffortTestResultRow[]> {
@@ -459,6 +510,10 @@ export interface EffortTestBatch {
   attachmentName: string | null;
   ids: string[];
   metrics: { metric: string; value: number }[];
+  /** Données brutes saisies (champs du test). */
+  data: Record<string, number>;
+  protocol: string | null;
+  extras: { label: string; value: string; unit?: string }[];
 }
 
 /**
@@ -489,11 +544,14 @@ export async function getEffortTestBatchesForAthlete(athleteId: string): Promise
         attachmentName: r.attachment_name,
         ids: [],
         metrics: [],
+        data: (() => { try { return JSON.parse(r.data_json || "{}"); } catch { return {}; } })(),
+        protocol: r.protocol ?? null,
+        extras: parseExtras(r.extras_json),
       };
       batches.set(key, batch);
     }
     batch.ids.push(r.id);
-    batch.metrics.push({ metric: r.result_metric, value: r.result_value });
+    if (r.result_metric) batch.metrics.push({ metric: r.result_metric, value: r.result_value });
   }
   // getEffortTestResultsForAthlete trie déjà par date/création décroissante —
   // l'ordre d'apparition des lots (premier id rencontré) le respecte.
@@ -581,10 +639,10 @@ export interface PersonalRecord {
 // réellement effectuées — contrairement aux séries de musculation
 // planifiées par le coach, qui décrivent une charge prescrite et non ce que
 // l'athlète a réellement soulevé, aucun record fiable n'en est tiré ici).
-export async function getPersonalRecordsForAthlete(athleteId: string): Promise<PersonalRecord[]> {
+export async function getPersonalRecordsForAthlete(athleteId: string, since?: string): Promise<PersonalRecord[]> {
   const rows = await dbAll<{ sport: string; distance_km: number | null; duration_minutes: number | null; activity_date: string }>(
-    `SELECT sport, distance_km, duration_minutes, activity_date FROM imported_activities WHERE athlete_id = ?`,
-    [athleteId]
+    `SELECT sport, distance_km, duration_minutes, activity_date FROM imported_activities WHERE athlete_id = ?${since ? " AND activity_date >= ?" : ""}`,
+    since ? [athleteId, since] : [athleteId]
   );
 
   const bySport = new Map<string, typeof rows>();
@@ -1000,4 +1058,15 @@ export async function getCoachNoteEntries(coachId: string, athleteId: string): P
      ORDER BY entry_date DESC, created_at DESC`,
     [coachId, athleteId]
   );
+}
+
+export interface ZoneOverrides {
+  hr_json: string | null;
+  pw_json: string | null;
+  pace_json: string | null;
+  updated_at: string;
+}
+
+export async function getZoneOverrides(athleteId: string): Promise<ZoneOverrides | null> {
+  return (await dbGet<ZoneOverrides>(`SELECT hr_json, pw_json, pace_json, updated_at FROM athlete_zone_overrides WHERE athlete_id = ?`, [athleteId])) ?? null;
 }

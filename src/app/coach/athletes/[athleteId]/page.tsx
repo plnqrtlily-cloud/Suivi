@@ -10,7 +10,6 @@ import {
   getJournalForAthlete,
   getUserGender,
   getAthleteSports,
-  getCoachNotes,
   getUserAvatar,
   getUpcomingGoals,
   getImportedActivitiesForRange,
@@ -24,8 +23,10 @@ import {
   getLastUnreadMessage,
   getTeamsForAthlete,
   getCustomEffortTestsForCoach,
+  getZoneOverrides,
+  getInjuryFollowupsForAthlete,
+  getPerformanceProfile,
   getEffortTestBatchesForAthlete,
-  getCustomMetricsForAthlete,
 } from "@/lib/queries";
 import { positionLabel, type TeamSport } from "@/lib/team-sports";
 import { getCycleSettings, getPeriodStarts } from "@/lib/cycle";
@@ -36,11 +37,9 @@ import { Avatar } from "@/components/avatar";
 import { RevokeButton } from "@/app/coach/revoke-button";
 import { todayISO } from "@/lib/dates";
 import { computeAcwr } from "@/lib/training-stats";
-import { computeHrZones } from "@/lib/hr-zones";
-import { computePowerZones } from "@/lib/power-zones";
-import { computePaceZones, formatPace } from "@/lib/pace-zones";
+import { formatPace } from "@/lib/pace-zones";
 import { periodsOnDate, weekPosition } from "@/lib/periodization";
-import { PERFORMANCE_METRICS, metricOptions, customMetricKey } from "@/lib/performance-metrics";
+import { PERFORMANCE_METRICS } from "@/lib/performance-metrics";
 import { EFFORT_TEST_CATALOG } from "@/lib/effort-tests";
 import {
   addDays,
@@ -52,18 +51,24 @@ import {
   buildAttention,
   seasonSpan,
   cycleSummary,
+  cycleRing,
 } from "@/lib/athlete-overview";
 import { loadCoachCalendar } from "@/lib/coach-calendar";
 import { AthleteTabs } from "./athlete-tabs";
 import { CoachCalendar } from "./coach-calendar";
 import { OverviewTab } from "./overview-tab";
 import { PeriodizationPanel } from "./periodization-panel";
-import { MeasuresTab, type MetricSeries, type ZoneColumn } from "./measures-tab";
+import { MeasuresTab, type MetricSeries } from "./measures-tab";
+import { ZonesPanel, type ZoneActivity } from "./zones-panel";
+import { autoZones, frDay, parseCuts } from "@/lib/training-zones";
+import { ChargesList } from "./charges-list";
+import { PerformanceProfile } from "./performance-profile";
+import { parseImpact } from "@/lib/injury-catalog";
+import { BodyMeasures } from "./body-measures";
 import { HealthTab, type InjuryView } from "./health-tab";
 import { NotesTab } from "./notes-tab";
 import { ExerciseMaxesPanel } from "./exercise-maxes-panel";
 import { MeasurementsHistory } from "./measurements-history";
-import { EffortTestsPanel } from "./effort-tests-panel";
 
 const DAYS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
@@ -85,9 +90,6 @@ function metricDef(key: string) {
 function fmtMetric(value: number, unit?: string) {
   const v = Number.isInteger(value) ? String(value) : value.toFixed(1).replace(".", ",");
   return unit ? `${v} ${unit}` : v;
-}
-function monthYear(iso: string) {
-  return `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
 }
 
 export default async function AthleteDetailPage({
@@ -133,7 +135,6 @@ export default async function AthleteDetailPage({
     cycleSettings,
     athleteGender,
     athleteSports,
-    coachNotes,
     upcomingGoals,
     rangeImports,
     exerciseMaxes,
@@ -147,7 +148,9 @@ export default async function AthleteDetailPage({
     customEffortTests,
     effortTestBatches,
     periodStarts,
-    customMetrics,
+    zoneOverrides,
+    injuryFollowups,
+    perfProfile,
   ] = await Promise.all([
     findUserById(athleteId),
     getUserAvatar(athleteId),
@@ -160,7 +163,6 @@ export default async function AthleteDetailPage({
     getCycleSettings(athleteId),
     getUserGender(athleteId),
     getAthleteSports(athleteId),
-    getCoachNotes(user.id, athleteId),
     getUpcomingGoals(athleteId),
     getImportedActivitiesForRange(athleteId, rangeFrom, addDays(rangeTo, 6)),
     getExerciseMaxes(athleteId),
@@ -174,7 +176,9 @@ export default async function AthleteDetailPage({
     getCustomEffortTestsForCoach(user.id),
     getEffortTestBatchesForAthlete(athleteId),
     getPeriodStarts(athleteId),
-    getCustomMetricsForAthlete(athleteId),
+    getZoneOverrides(athleteId),
+    getInjuryFollowupsForAthlete(athleteId),
+    getPerformanceProfile(athleteId),
   ]);
   if (!athlete) notFound();
   const trainingPeriods = trainingPeriodsEarly;
@@ -278,107 +282,99 @@ export default async function AthleteDetailPage({
       ? { label: "Dernières valeurs", date: overviewTests.date ?? "", items: overviewTests.items }
       : null;
 
-  const body: { label: string; value: string; hint?: string }[] = [];
-  if (measurements.height_cm) body.push({ label: "Taille", value: `${measurements.height_cm.value} cm` });
-  if (measurements.fc_repos) body.push({ label: "FC de repos", value: `${measurements.fc_repos.value} bpm`, hint: shortDate(measurements.fc_repos.recorded_at.slice(0, 10)) });
-  if (measurements.power_weight_wkg) {
-    body.push({ label: "Rapport puissance / poids", value: fmtMetric(measurements.power_weight_wkg.value, "W/kg") });
-  } else if (measurements.ftp && weight) {
-    body.push({ label: "Rapport puissance / poids", value: fmtMetric(Math.round((measurements.ftp.value / weight) * 10) / 10, "W/kg"), hint: "FTP" });
-  }
-  if (measurements.coeff_fatigue_pct) body.push({ label: "Coefficient de fatigue", value: `${measurements.coeff_fatigue_pct.value} %` });
-  // Indicateurs créés par le coach : dernière valeur, avec le thème en repère.
-  for (const c of customMetrics) {
-    const m = measurements[customMetricKey(c.id)];
-    if (m) body.push({ label: c.label, value: fmtMetric(m.value, c.unit || undefined), hint: `${c.group_name} · ${shortDate(m.recorded_at.slice(0, 10))}` });
-  }
+  // Puissances de référence pour le rapport poids / puissance (dernière valeur).
+  const lastOf = (metric: string, ok: (v: number) => boolean = () => true) => {
+    const h = history.filter((x) => x.metric === metric && ok(x.value)).sort((a, b) => b.recorded_at.localeCompare(a.recorded_at))[0];
+    return h ? { value: h.value, date: h.recorded_at.slice(0, 10) } : undefined;
+  };
+  // PMA/VMA partagent la même mesure : au-delà de 60, c'est une puissance en watts.
+  const powerRefs = { pma: lastOf("pma_vma", (v) => v > 60), ftp: lastOf("ftp") };
 
-  const hrZones =
-    measurements.fc_repos && measurements.fc_max ? computeHrZones(measurements.fc_repos.value, measurements.fc_max.value) : null;
-  const powerZones = measurements.ftp ? computePowerZones(measurements.ftp.value) : null;
-  const paceZones = measurements.pma_vma ? computePaceZones(measurements.pma_vma.value) : null;
-  const zones: ZoneColumn[] = [];
-  if (hrZones)
-    zones.push({
-      title: "Fréquence cardiaque",
-      rows: hrZones.map((z) => ({ zone: z.zone, label: z.label, range: `${z.minBpm}-${z.maxBpm} bpm` })),
-    });
-  if (powerZones)
-    zones.push({
-      title: "Puissance · vélo",
-      rows: powerZones.map((z) => ({ zone: z.zone, label: z.label, range: `${z.minW}-${z.maxW} W` })),
-    });
-  if (paceZones)
-    zones.push({
-      title: "Allure · course à pied",
-      rows: paceZones.map((z) => ({ zone: z.zone, label: z.label, range: `${formatPace(z.minPaceMinPerKm)} à ${formatPace(z.maxPaceMinPerKm)}` })),
-    });
-  const zonesHint =
-    "Calculées à partir de " +
-    [
-      measurements.fc_max ? `FC max ${measurements.fc_max.value}` : null,
-      measurements.fc_repos ? `FC repos ${measurements.fc_repos.value}` : null,
-      measurements.ftp ? `FTP ${measurements.ftp.value} W` : null,
-      measurements.pma_vma ? `VMA ${fmtMetric(measurements.pma_vma.value)}` : null,
-    ]
-      .filter(Boolean)
-      .join(", ");
-
-  const seenExercises = new Set<string>();
-  const maxes = exerciseMaxes
-    .filter((m) => (seenExercises.has(m.exercise_name) ? false : (seenExercises.add(m.exercise_name), true)))
-    .map((m) => ({
-      name: m.exercise_name,
-      value:
-        m.value_type === "temps"
-          ? `${Math.floor(m.value_kg / 60) ? `${Math.floor(m.value_kg / 60)} min ` : ""}${m.value_kg % 60 ? `${m.value_kg % 60} s` : ""}`.trim()
-          : m.value_type === "repetitions"
-            ? `${m.value_kg} reps`
-            : `${fmtMetric(m.value_kg)} kg`,
-      hint: `${m.note ? `${m.note} · ` : ""}${shortDate(m.tested_at.slice(0, 10))}`,
+  // Zones : seuils du dernier test de labo s'il y en a, sinon FC / FTP / PMA / VMA.
+  const svBatch = effortTestBatches.find((b) => b.data.sv1_bpm || b.data.sv2_bpm || b.data.sv2_w);
+  const zoneRefs = {
+    pma: powerRefs.pma?.value,
+    vma: lastOf("pma_vma", (v) => v <= 60)?.value,
+    fcMax: measurements.fc_max?.value,
+  };
+  const autoZ = autoZones({
+    fcRepos: measurements.fc_repos?.value,
+    fcMax: zoneRefs.fcMax,
+    ftp: measurements.ftp?.value,
+    pma: zoneRefs.pma,
+    vma: zoneRefs.vma,
+    sv: svBatch
+      ? { sv1w: svBatch.data.sv1_w, sv2w: svBatch.data.sv2_w, sv1hr: svBatch.data.sv1_bpm, sv2hr: svBatch.data.sv2_bpm, date: svBatch.testDate, label: "" }
+      : undefined,
+  });
+  // Temps passé : activités importées + séances réalisées (hors celles déjà liées à un import), sur 28 jours.
+  const zoneFrom = addDays(today, -27);
+  const importedWorkoutIds = new Set(rangeImports.map((a) => a.workout_id).filter(Boolean));
+  const zoneActivities: ZoneActivity[] = [
+    ...rangeImports
+      .filter((a) => a.activity_date >= zoneFrom && a.activity_date <= today)
+      .map((a) => ({ minutes: a.duration_minutes ?? 0, hr: a.avg_hr, power: a.avg_power_w, km: a.distance_km, sport: a.sport })),
+    ...allWorkouts
+      .filter((w) => w.date >= zoneFrom && w.date <= today && w.status === "done" && !importedWorkoutIds.has(w.id))
+      .map((w) => ({ minutes: w.actual_duration_minutes ?? w.duration_minutes ?? 0, hr: w.avg_hr, power: w.avg_power_w, km: w.distance_km, sport: w.sport })),
+  ]
+    .filter((a) => a.minutes > 0)
+    .map((a) => ({
+      minutes: a.minutes,
+      hr: a.hr ?? undefined,
+      power: a.power ?? undefined,
+      kmh: a.sport === "running" && a.km ? a.km / (a.minutes / 60) : undefined,
     }));
 
-  const records: { label: string; value: string; hint: string }[] = [];
-  for (const r of personalRecords) {
-    const sp = sportLabel(r.sport).toLowerCase();
-    if (r.bestDistanceKm !== null)
-      records.push({ label: `Plus longue sortie · ${sp}`, value: `${fmtMetric(r.bestDistanceKm)} km`, hint: r.bestDistanceDate ? shortDate(r.bestDistanceDate.slice(0, 10)) : "" });
-    if (r.bestPaceMinPerKm !== null && r.sport === "running")
-      records.push({ label: "Meilleure allure", value: formatPace(r.bestPaceMinPerKm), hint: r.bestPaceDate ? shortDate(r.bestPaceDate.slice(0, 10)) : "" });
-    if (r.bestDurationMinutes !== null)
-      records.push({
-        label: `Plus longue durée · ${sp}`,
-        value:
-          r.bestDurationMinutes < 60
-            ? `${Math.round(r.bestDurationMinutes)} min`
-            : `${Math.floor(r.bestDurationMinutes / 60)} h ${String(Math.round(r.bestDurationMinutes % 60)).padStart(2, "0")}`,
-        hint: r.bestDurationDate ? shortDate(r.bestDurationDate.slice(0, 10)) : "",
-      });
-  }
+  const recordsOf = (prs: typeof personalRecords) => {
+    const records: { label: string; value: string; hint: string }[] = [];
+    for (const r of prs) {
+      const sp = sportLabel(r.sport).toLowerCase();
+      if (r.bestDistanceKm !== null)
+        records.push({ label: `Plus longue sortie · ${sp}`, value: `${fmtMetric(r.bestDistanceKm)} km`, hint: r.bestDistanceDate ? shortDate(r.bestDistanceDate.slice(0, 10)) : "" });
+      if (r.bestPaceMinPerKm !== null && r.sport === "running")
+        records.push({ label: "Meilleure allure", value: formatPace(r.bestPaceMinPerKm), hint: r.bestPaceDate ? shortDate(r.bestPaceDate.slice(0, 10)) : "" });
+      if (r.bestDurationMinutes !== null)
+        records.push({
+          label: `Plus longue durée · ${sp}`,
+          value:
+            r.bestDurationMinutes < 60
+              ? `${Math.round(r.bestDurationMinutes)} min`
+              : `${Math.floor(r.bestDurationMinutes / 60)} h ${String(Math.round(r.bestDurationMinutes % 60)).padStart(2, "0")}`,
+          hint: r.bestDurationDate ? shortDate(r.bestDurationDate.slice(0, 10)) : "",
+        });
+    }
+    return records;
+  };
+  // Saison : celle de la périodisation, sinon depuis le 1er septembre.
+  const seasonFrom = span.season?.start_date ?? `${Number(today.slice(0, 4)) - (Number(today.slice(5, 7)) < 9 ? 1 : 0)}-09-01`;
+  const seasonRecords = await getPersonalRecordsForAthlete(athleteId, seasonFrom);
+  const records = { season: recordsOf(seasonRecords), all: recordsOf(personalRecords), seasonFrom: frDay(seasonFrom) };
 
-  const METRICS = metricOptions(customMetrics);
-  const ownCustomMetrics = customMetrics
-    .filter((c) => c.coach_id === user.id)
-    .map((c) => ({ id: c.id, label: c.unit ? `${c.label} (${c.unit})` : c.label, group: c.group_name }));
+  const METRICS = PERFORMANCE_METRICS.map((m) => ({
+    value: m.value,
+    label: m.unit ? `${m.label} (${m.unit})` : m.label,
+    group: m.group,
+  }));
 
   // ---------- Santé ----------
-  const injuryViews: InjuryView[] = injuries.map((i) => {
-    const days = i.date_end
-      ? Math.round((new Date(`${i.date_end}T00:00:00`).getTime() - new Date(`${i.date_start}T00:00:00`).getTime()) / 86400000)
-      : null;
-    return {
-      id: i.id,
-      zone: i.zone,
-      description: i.description,
-      active: !i.date_end,
-      dateLabel: i.date_end
-        ? i.date_start.slice(0, 7) === i.date_end.slice(0, 7)
-          ? monthYear(i.date_start)
-          : `${shortDate(i.date_start)} → ${shortDate(i.date_end)} ${i.date_end.slice(0, 4)}`
-        : `depuis le ${shortDate(i.date_start)}`,
-      duration: days !== null && days >= 7 ? `${Math.round(days / 7)} semaine${Math.round(days / 7) > 1 ? "s" : ""}` : days !== null ? `${days} jour${days > 1 ? "s" : ""}` : null,
-    };
-  });
+  const injuryViews: InjuryView[] = injuries.map((i) => ({
+    id: i.id,
+    label: i.zone,
+    bodyPart: i.body_part ?? null,
+    side: i.side ?? null,
+    type: i.injury_type ?? null,
+    pain: i.pain ?? null,
+    dateStart: i.date_start,
+    dateEnd: i.date_end,
+    returnDate: i.return_date ?? null,
+    description: i.description,
+    advice: i.advice ?? null,
+    impact: parseImpact(i.impact_json),
+    followups: injuryFollowups.filter((f) => f.injury_id === i.id).map((f) => ({ id: f.id, date: f.follow_date, pain: f.pain, note: f.note })),
+  }));
+  const healthSports = athleteSports.length ? athleteSports.map((sp: string) => ({ key: sp, label: sportLabel(sp) })) : [{ key: "general", label: "Entraînement" }];
+  const ring = cycleShared ? cycleRing({ periodStarts, settings: cycleSettings, checkins: rangeCheckins, today, firstName }) : null;
   const cycle = cycleShared
     ? cycleSummary({ periodStarts, settings: cycleSettings, checkins: rangeCheckins, today, firstName })
     : null;
@@ -461,23 +457,24 @@ export default async function AthleteDetailPage({
                   athleteId={athleteId}
                   latestTest={latestTest}
                   series={series}
-                  body={body}
-                  weightSeries={seriesOf("weight_kg").slice(-8)}
-                  zones={zones}
-                  zonesHint={zonesHint}
-                  maxes={maxes}
-                  records={records}
-                  metrics={METRICS}
-                  customMetrics={ownCustomMetrics}
-                  effortPanel={
-                    <EffortTestsPanel
+                  bodyPanel={<BodyMeasures athleteId={athleteId} history={measurementHistory} power={powerRefs} />}
+                  zonesPanel={
+                    <ZonesPanel
                       athleteId={athleteId}
-                      batches={effortTestBatches}
-                      customTests={customEffortTests}
-                      defaultSport={athleteSports.length === 1 ? athleteSports[0] : undefined}
+                      auto={autoZ}
+                      overrides={{ hr: parseCuts(zoneOverrides?.hr_json), pw: parseCuts(zoneOverrides?.pw_json), pace: parseCuts(zoneOverrides?.pace_json) }}
+                      overriddenAt={zoneOverrides?.updated_at ?? null}
+                      source={autoZ.source}
+                      refs={zoneRefs}
+                      activities={zoneActivities}
                     />
                   }
-                  maxesPanel={<ExerciseMaxesPanel athleteId={athleteId} maxes={exerciseMaxes} exerciseSuggestions={exerciseSuggestions} />}
+                  maxesList={<ChargesList athleteId={athleteId} maxes={exerciseMaxes} />}
+                  records={records}
+                  batches={effortTestBatches}
+                  customTests={customEffortTests}
+                  weight={weight}
+                  maxesPanel={<ExerciseMaxesPanel athleteId={athleteId} maxes={exerciseMaxes} exerciseSuggestions={exerciseSuggestions} formOnly />}
                   historyPanel={
                     measurementHistory.length > 0 ? (
                       <MeasurementsHistory athleteId={athleteId} history={measurementHistory} metrics={METRICS} />
@@ -492,6 +489,8 @@ export default async function AthleteDetailPage({
                   athleteId={athleteId}
                   firstName={firstName}
                   injuries={injuryViews}
+                  sports={healthSports}
+                  ring={ring}
                   cycle={cycle}
                   cycleShared={cycleShared}
                   today={today}
@@ -500,9 +499,18 @@ export default async function AthleteDetailPage({
               notes: (
                 <NotesTab
                   athleteId={athleteId}
-                  firstName={firstName}
-                  notes={coachNotes ?? null}
                   entries={coachNoteEntries}
+                  profile={
+                    <PerformanceProfile
+                      athleteId={athleteId}
+                      firstName={firstName}
+                      qualities={perfProfile.qualities}
+                      evalDate={perfProfile.evalDate}
+                      prevEvalDate={perfProfile.prevEvalDate}
+                      selfRequestedAt={perfProfile.selfRequestedAt}
+                      selfEvalDate={perfProfile.selfEvalDate}
+                    />
+                  }
                   footer={
                     link && (
                       <div className="flex items-center justify-end gap-3 pt-2 text-[13px] text-slate">

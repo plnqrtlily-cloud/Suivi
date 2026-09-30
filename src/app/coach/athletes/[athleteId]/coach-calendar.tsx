@@ -8,15 +8,19 @@ import {
   coachAddActivityAction,
   coachAddAvailabilityBlockAction,
   coachDeleteEntryAction,
+  planningDeleteWorkoutAction,
+  publishWorkoutAction,
+  publishWorkoutsAction,
   copyWeekAction,
   duplicateWorkoutAction,
-  markWorkoutDoneAsPlannedAction,
+  updateWorkoutStatusAction,
   validateWorkoutAction,
   moveWorkoutAction,
   loadCoachCalendarWeeksAction,
 } from "@/lib/actions";
 import type { CoachCalendarData, CalDay, CalEntry, CalWeek, EntryStatus } from "@/lib/coach-calendar-types";
 import { CYCLE_DAY_STYLE } from "@/lib/cycle-types";
+import { WorkoutStructure } from "@/components/workout-structure";
 
 // Calendrier coach : défilement continu, jour après jour en vue semaine et
 // semaine après semaine en vue mois (d'autres semaines se chargent au fil du
@@ -358,6 +362,13 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
     };
   }, [view, focus, monthKey, allDays, weeks]);
 
+  // Brouillons (de ce coach) sur la période affichée : publiables d'un coup.
+  const draftIds = useMemo(() => {
+    const i = Math.max(0, allDays.findIndex((d) => d.date === focus));
+    const shown = view === "week" ? allDays.slice(i, i + 7) : allDays.filter((d) => d.date.startsWith(monthKey));
+    return shown.flatMap((d) => d.entries.filter((e) => e.kind === "workout" && e.isDraft && e.createdByMe).map((e) => e.id));
+  }, [view, focus, monthKey, allDays]);
+
   const s = head.stats;
   const bar = (v: number, of: number) => `${of ? Math.min(100, Math.round((v / of) * 100)) : 0}%`;
   const arrow = "flex h-[38px] w-[38px] items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-paper-dim";
@@ -448,6 +459,22 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
         ))}
       </div>
 
+      {draftIds.length > 0 && (
+        <div className="-mb-2 flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-[#9fb9b8] bg-white px-4 py-2.5 text-sm text-ink-soft">
+          <span className="flex-1">
+            <b className="text-ink">{draftIds.length} brouillon{draftIds.length > 1 ? "s" : ""}</b> sur {view === "week" ? "ces 7 jours" : "ce mois"}, pas encore visible{draftIds.length > 1 ? "s" : ""} par {data.athleteName}.
+          </span>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => run(() => publishWorkoutsAction(draftIds), draftIds.length > 1 ? `${draftIds.length} séances publiées` : "Séance publiée")}
+            className={pillMain}
+          >
+            {draftIds.length > 1 ? `Tout publier (${draftIds.length})` : "Publier"}
+          </button>
+        </div>
+      )}
+
       {/* Calendrier : défilement continu (jours à l'horizontale, semaines à la verticale) */}
       {view === "week" ? (
         <div
@@ -525,12 +552,18 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
                 if (!f) return <p className="text-sm text-slate">Cette entrée n&apos;est plus dans la période affichée.</p>;
                 return (
                   <EntryPanel
+                    key={f.entry.id}
                     entry={f.entry}
                     data={data}
                     picker={picker}
                     setPicker={setPicker}
                     pending={pending}
-                    onDone={() => run(() => markWorkoutDoneAsPlannedAction(f.entry.id), "Séance marquée réalisée")}
+                    onReport={(r) =>
+                      run(
+                        () => updateWorkoutStatusAction({ workoutId: f.entry.id, ...r }),
+                        r.status === "done" ? "Séance renseignée comme faite" : r.status === "partial" ? "Séance renseignée comme partielle" : r.status === "not_done" ? "Séance renseignée comme annulée" : r.postponedToDate ? `Séance reportée au ${longDate(r.postponedToDate).toLowerCase()}` : "Séance renseignée comme reportée"
+                      )
+                    }
                     onValidate={() => run(() => validateWorkoutAction(f.entry.id), "Retour validé")}
                     onPick={(mode, date) =>
                       run(
@@ -540,6 +573,8 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
                       )
                     }
                     onDeleteImport={() => run(() => coachDeleteEntryAction("activity", f.entry.id), "Activité supprimée", () => setPanel(null))}
+                    onPublish={() => run(() => publishWorkoutAction(f.entry.id), "Séance publiée")}
+                    onDeleteWorkout={() => run(() => planningDeleteWorkoutAction(f.entry.id), `« ${f.entry.title} » supprimée`, () => setPanel(null))}
                     onComment={(body) => {
                       const fd = new FormData();
                       fd.set("body", body);
@@ -937,10 +972,12 @@ function EntryPanel({
   picker,
   setPicker,
   pending,
-  onDone,
+  onReport,
   onValidate,
   onPick,
   onDeleteImport,
+  onDeleteWorkout,
+  onPublish,
   onComment,
 }: {
   entry: CalEntry;
@@ -948,13 +985,17 @@ function EntryPanel({
   picker: { mode: "move" | "dup"; id: string } | null;
   setPicker: (p: { mode: "move" | "dup"; id: string } | null) => void;
   pending: boolean;
-  onDone: () => void;
+  onReport: (r: ReportInput) => void;
   onValidate: () => void;
   onPick: (mode: "move" | "dup", date: string) => void;
   onDeleteImport: () => void;
+  onDeleteWorkout: () => void;
+  onPublish: () => void;
   onComment: (body: string) => void;
 }) {
   const [draft, setDraft] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const realised = e.status === "done" || e.status === "tovalidate" || e.status === "hors";
   const warnDur = !!e.plannedMin && !!e.realMin && e.realMin < e.plannedMin * 0.9;
   const warnRpe = !!e.plannedRpe && !!e.rpe && e.rpe > e.plannedRpe;
@@ -970,14 +1011,56 @@ function EntryPanel({
     <div>
       <PanelHead date={longDate(e.date)} title={e.title}>
         <div className="flex flex-wrap gap-2">
+          {isWorkout && e.isDraft && e.createdByMe && <button type="button" disabled={pending} onClick={onPublish} className={pillMain}>Publier</button>}
           {isWorkout && e.status === "tovalidate" && <button type="button" disabled={pending} onClick={onValidate} className={pillMain}>Valider</button>}
-          {isWorkout && (e.status === "todo" || e.status === "noreport") && <button type="button" disabled={pending} onClick={onDone} className={e.status === "noreport" ? pill : pillMain}>Marquer réalisée</button>}
+          {isWorkout && !e.isGoal && !e.isDraft && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => setReporting((r) => !r)}
+              className={e.status === "todo" || e.status === "noreport" ? pillMain : pill}
+              style={reporting ? { background: "#e3eeed", color: "#0f3336" } : undefined}
+            >
+              {e.status === "todo" || e.status === "noreport" ? "Renseigner" : "Modifier le retour"}
+            </button>
+          )}
           {isWorkout && <Link href={`/workouts/${e.id}/edit`} className={pill}>Modifier</Link>}
           {isWorkout && <button type="button" disabled={pending} onClick={() => togglePicker("dup")} className={pill} style={picker?.mode === "dup" ? { background: "#e3eeed" } : undefined}>{e.status === "miss" ? "Reprogrammer" : "Dupliquer"}</button>}
           {isWorkout && (e.status === "todo" || e.status === "noreport") && <button type="button" disabled={pending} onClick={() => togglePicker("move")} className={pill} style={picker?.mode === "move" ? { background: "#e3eeed" } : undefined}>Déplacer</button>}
           {!isWorkout && e.createdByMe && <button type="button" disabled={pending} onClick={onDeleteImport} className={pill}>Supprimer</button>}
+          {isWorkout && e.createdByMe && !confirmDelete && (
+            <button type="button" disabled={pending} onClick={() => setConfirmDelete(true)} className={`${pill} !text-[#a4492a]`}>
+              Supprimer
+            </button>
+          )}
         </div>
       </PanelHead>
+      {isWorkout && reporting && (
+        <ReportForm
+          entry={e}
+          data={data}
+          pending={pending}
+          onCancel={() => setReporting(false)}
+          onSave={(r) => {
+            onReport(r);
+            setReporting(false);
+          }}
+        />
+      )}
+      {isWorkout && confirmDelete && (
+        <div className="-mt-2 mb-5 flex flex-wrap items-center gap-3 rounded-2xl bg-[#fbe9e2] px-4 py-3 text-sm text-[#8a3a1f]">
+          <span className="flex-1">
+            Supprimer « {e.title} » ?{" "}
+            {e.isDraft ? "Ce brouillon n'a pas encore été envoyé à l'athlète." : `${data.athleteName} recevra une notification${realised ? ", et son retour sur la séance sera aussi effacé" : ""}.`}
+          </span>
+          <button type="button" disabled={pending} onClick={() => setConfirmDelete(false)} className={pill}>
+            Annuler
+          </button>
+          <button type="button" disabled={pending} onClick={onDeleteWorkout} className="rounded-full bg-[#a4492a] px-4 py-2 text-[13.5px] font-semibold text-white disabled:opacity-50">
+            Supprimer la séance
+          </button>
+        </div>
+      )}
       <div className="-mt-3 mb-5 flex items-center gap-2.5 text-sm text-ink-soft">
         <span className="h-4" style={{ borderLeft: e.isGoal ? "3px solid #a4492a" : BAR[e.status] }} />
         <b style={{ color: STATUS_COLOR[e.status] }}>{e.isGoal ? "Objectif" : STATUS_LABEL[e.status]}</b>
@@ -1017,19 +1100,37 @@ function EntryPanel({
               {e.timeLabel && <span>Moment <b className="mt-1 block text-[22px] text-ink">{e.timeLabel}</b></span>}
             </div>
           )}
-          {(e.content.length > 0 || e.description) && (
-            <div>
-              <h4 className="mb-2.5 text-sm font-bold text-ink">Contenu prévu</h4>
-              {e.content.map((l, i) => {
-                const indented = /^\s{2,}/.test(l);
-                const title = !indented && !/^\d|×|·/.test(l.trim()) && e.content[i + 1] && /^\s{2,}/.test(e.content[i + 1]);
-                return (
-                  <div key={i} className="text-sm leading-[1.8]" style={{ paddingLeft: indented ? 14 : 0, fontWeight: title ? 700 : 400, color: title ? "#182220" : "#37413f", marginTop: title && i ? 8 : 0 }}>
-                    {l.trim()}
+          {(e.structure || e.content.length > 0 || e.description) && (
+            <div className="flex flex-col gap-3">
+              <h4 className="text-sm font-bold text-ink">{e.structure || e.content.length ? "Déroulé de la séance" : "Consignes"}</h4>
+              {e.structure ? (
+                <WorkoutStructure json={e.structure} sport={e.sport} />
+              ) : (
+                e.content.length > 0 && (
+                  <div className="flex flex-col">
+                    {e.content.map((l, i) => {
+                      const indented = /^\s{2,}/.test(l);
+                      const title = !indented && !/^\d|×|·/.test(l.trim()) && e.content[i + 1] && /^\s{2,}/.test(e.content[i + 1]);
+                      return title ? (
+                        <h5 key={i} className={`border-b border-paper-dim pb-1.5 text-[15px] font-bold text-ink ${i ? "mt-3" : ""}`}>
+                          {l.trim()}
+                        </h5>
+                      ) : (
+                        <div key={i} className="flex items-center gap-3 py-1.5 text-sm text-ink">
+                          <span className="h-6 w-1.5 shrink-0 rounded-full bg-[#9fc3c4]" />
+                          <span>{l.trim()}</span>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-              {e.description && <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-soft">{e.description}</p>}
+                )
+              )}
+              {e.description && (
+                <div className="rounded-2xl bg-[#f5f7f6] px-4 py-3">
+                  {(e.structure || e.content.length > 0) && <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate">Consignes</span>}
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-ink-soft">{e.description}</p>
+                </div>
+              )}
             </div>
           )}
           {e.feedback && (
@@ -1069,6 +1170,148 @@ function EntryPanel({
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+type ReportInput = {
+  status: "done" | "partial" | "not_done" | "postponed";
+  rpe?: number;
+  athleteFeedback?: string;
+  actualDurationMinutes?: number;
+  distanceKm?: number;
+  avgHr?: number;
+  postponedToDate?: string;
+};
+
+// « Renseigner » une séance à la place de l'athlète (infos reçues à
+// l'entraînement, par message…) : faite, partielle, reportée ou annulée.
+function ReportForm({ entry: e, data, pending, onCancel, onSave }: { entry: CalEntry; data: CoachCalendarData; pending: boolean; onCancel: () => void; onSave: (r: ReportInput) => void }) {
+  const initialChoice: ReportInput["status"] = e.status === "miss" ? "not_done" : e.status === "postponed" ? "postponed" : "done";
+  const [choice, setChoice] = useState<ReportInput["status"]>(initialChoice);
+  const [minutes, setMinutes] = useState(String(e.realMin ?? e.plannedMin ?? ""));
+  const [rpe, setRpe] = useState<number | null>(e.rpe ?? e.plannedRpe ?? null);
+  const [dist, setDist] = useState(e.distanceKm != null ? String(e.distanceKm).replace(".", ",") : "");
+  const [hr, setHr] = useState(e.avgHr != null ? String(e.avgHr) : "");
+  const [note, setNote] = useState(e.feedback ?? "");
+  const [newDate, setNewDate] = useState("");
+  const input = "w-full rounded-[10px] border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-moss";
+  const label = "flex min-w-0 flex-col gap-1.5 text-[12.5px] font-semibold text-slate";
+  const num = (v: string) => {
+    const n = Number(v.replace(",", ".").trim());
+    return v.trim() && !Number.isNaN(n) && n > 0 ? n : undefined;
+  };
+  const options: { k: ReportInput["status"]; l: string; c: string }[] = [
+    { k: "done", l: "Faite", c: "#1b4b4f" },
+    { k: "partial", l: "Partielle", c: "#e8896a" },
+    { k: "postponed", l: "Reportée", c: "#6b7a8a" },
+    { k: "not_done", l: "Annulée", c: "#9aa39c" },
+  ];
+  const realised = choice === "done" || choice === "partial";
+
+  return (
+    <div className="-mt-2 mb-6 flex flex-col gap-4 rounded-2xl bg-paper p-4 animate-expand-in">
+      <div className="flex flex-wrap items-center gap-3">
+        <b className="text-sm text-ink">Renseigner la séance</b>
+        <span className="text-[13px] text-slate">à la place de {data.athleteName} · la saisie sera indiquée comme venant de vous</span>
+        <span className="flex-1" />
+        <button type="button" onClick={onCancel} className="text-[13px] font-semibold text-slate">
+          Fermer
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {options.map((o) => (
+          <button
+            key={o.k}
+            type="button"
+            onClick={() => setChoice(o.k)}
+            className="flex items-center gap-2 rounded-full border px-4 py-2 text-[13.5px] font-semibold transition-colors"
+            style={choice === o.k ? { background: o.c, borderColor: o.c, color: "#ffffff" } : { background: "#ffffff", borderColor: "#d5dbda", color: "#37413f" }}
+          >
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: choice === o.k ? "#ffffff" : o.c }} />
+            {o.l}
+          </button>
+        ))}
+      </div>
+
+      {realised && (
+        <>
+          <div className="grid max-w-[640px] grid-cols-2 gap-3 sm:grid-cols-3">
+            <label className={label}>
+              Durée réelle (min)
+              <input inputMode="numeric" value={minutes} onChange={(ev) => setMinutes(ev.target.value)} placeholder={e.plannedMin ? String(e.plannedMin) : "60"} className={input} />
+            </label>
+            <label className={label}>
+              Distance (km)
+              <input inputMode="decimal" value={dist} onChange={(ev) => setDist(ev.target.value)} placeholder="—" className={input} />
+            </label>
+            <label className={label}>
+              FC moyenne (bpm)
+              <input inputMode="numeric" value={hr} onChange={(ev) => setHr(ev.target.value)} placeholder="—" className={input} />
+            </label>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[12.5px] font-semibold text-slate">
+              Ressenti (RPE){e.plannedRpe ? <span className="font-normal"> · visé {e.plannedRpe}</span> : null}
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setRpe(rpe === n ? null : n)}
+                  className="h-9 w-9 rounded-full border text-sm font-bold"
+                  style={rpe === n ? { background: n >= 8 ? "#a4492a" : n >= 5 ? "#e8896a" : "#1b4b4f", borderColor: "transparent", color: "#ffffff" } : { background: "#ffffff", borderColor: "#d5dbda", color: "#37413f" }}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {choice === "postponed" && (
+        <label className={`${label} max-w-[240px]`}>
+          Nouvelle date (facultatif)
+          <input type="date" min={data.today} value={newDate} onChange={(ev) => setNewDate(ev.target.value)} className={input} />
+          <span className="font-normal text-slate">Avec une date, la séance est déplacée et redevient « à faire ».</span>
+        </label>
+      )}
+
+      <label className={label}>
+        {choice === "not_done" ? "Raison (facultatif)" : choice === "postponed" ? "Commentaire (facultatif)" : "Retour de l'athlète, remarques"}
+        <textarea
+          rows={2}
+          value={note}
+          onChange={(ev) => setNote(ev.target.value)}
+          placeholder={choice === "not_done" ? "ex. malade, météo, déplacement…" : "ex. bonnes sensations, jambes lourdes sur la fin…"}
+          className={`${input} resize-y`}
+        />
+      </label>
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() =>
+            onSave({
+              status: choice,
+              ...(realised
+                ? { actualDurationMinutes: num(minutes), distanceKm: num(dist), avgHr: num(hr), rpe: rpe ?? undefined }
+                : {}),
+              athleteFeedback: note.trim() || undefined,
+              postponedToDate: choice === "postponed" && newDate ? newDate : undefined,
+            })
+          }
+          className={pillMain}
+        >
+          Enregistrer
+        </button>
+        <button type="button" onClick={onCancel} className="text-[13px] font-semibold text-slate">
+          Annuler
+        </button>
       </div>
     </div>
   );
