@@ -9,6 +9,8 @@ import {
   coachAddAvailabilityBlockAction,
   coachDeleteEntryAction,
   planningDeleteWorkoutAction,
+  publishWorkoutAction,
+  publishWorkoutsAction,
   copyWeekAction,
   duplicateWorkoutAction,
   markWorkoutDoneAsPlannedAction,
@@ -359,6 +361,13 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
     };
   }, [view, focus, monthKey, allDays, weeks]);
 
+  // Brouillons (de ce coach) sur la période affichée : publiables d'un coup.
+  const draftIds = useMemo(() => {
+    const i = Math.max(0, allDays.findIndex((d) => d.date === focus));
+    const shown = view === "week" ? allDays.slice(i, i + 7) : allDays.filter((d) => d.date.startsWith(monthKey));
+    return shown.flatMap((d) => d.entries.filter((e) => e.kind === "workout" && e.isDraft && e.createdByMe).map((e) => e.id));
+  }, [view, focus, monthKey, allDays]);
+
   const s = head.stats;
   const bar = (v: number, of: number) => `${of ? Math.min(100, Math.round((v / of) * 100)) : 0}%`;
   const arrow = "flex h-[38px] w-[38px] items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-paper-dim";
@@ -448,6 +457,22 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
           </div>
         ))}
       </div>
+
+      {draftIds.length > 0 && (
+        <div className="-mb-2 flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-[#9fb9b8] bg-white px-4 py-2.5 text-sm text-ink-soft">
+          <span className="flex-1">
+            <b className="text-ink">{draftIds.length} brouillon{draftIds.length > 1 ? "s" : ""}</b> sur {view === "week" ? "ces 7 jours" : "ce mois"}, pas encore visible{draftIds.length > 1 ? "s" : ""} par {data.athleteName}.
+          </span>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => run(() => publishWorkoutsAction(draftIds), draftIds.length > 1 ? `${draftIds.length} séances publiées` : "Séance publiée")}
+            className={pillMain}
+          >
+            {draftIds.length > 1 ? `Tout publier (${draftIds.length})` : "Publier"}
+          </button>
+        </div>
+      )}
 
       {/* Calendrier : défilement continu (jours à l'horizontale, semaines à la verticale) */}
       {view === "week" ? (
@@ -542,6 +567,7 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
                       )
                     }
                     onDeleteImport={() => run(() => coachDeleteEntryAction("activity", f.entry.id), "Activité supprimée", () => setPanel(null))}
+                    onPublish={() => run(() => publishWorkoutAction(f.entry.id), "Séance publiée")}
                     onDeleteWorkout={() => run(() => planningDeleteWorkoutAction(f.entry.id), `« ${f.entry.title} » supprimée`, () => setPanel(null))}
                     onComment={(body) => {
                       const fd = new FormData();
@@ -945,6 +971,7 @@ function EntryPanel({
   onPick,
   onDeleteImport,
   onDeleteWorkout,
+  onPublish,
   onComment,
 }: {
   entry: CalEntry;
@@ -957,6 +984,7 @@ function EntryPanel({
   onPick: (mode: "move" | "dup", date: string) => void;
   onDeleteImport: () => void;
   onDeleteWorkout: () => void;
+  onPublish: () => void;
   onComment: (body: string) => void;
 }) {
   const [draft, setDraft] = useState("");
@@ -976,6 +1004,7 @@ function EntryPanel({
     <div>
       <PanelHead date={longDate(e.date)} title={e.title}>
         <div className="flex flex-wrap gap-2">
+          {isWorkout && e.isDraft && e.createdByMe && <button type="button" disabled={pending} onClick={onPublish} className={pillMain}>Publier</button>}
           {isWorkout && e.status === "tovalidate" && <button type="button" disabled={pending} onClick={onValidate} className={pillMain}>Valider</button>}
           {isWorkout && (e.status === "todo" || e.status === "noreport") && <button type="button" disabled={pending} onClick={onDone} className={e.status === "noreport" ? pill : pillMain}>Marquer réalisée</button>}
           {isWorkout && <Link href={`/workouts/${e.id}/edit`} className={pill}>Modifier</Link>}

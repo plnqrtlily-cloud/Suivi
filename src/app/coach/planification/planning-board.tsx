@@ -10,6 +10,8 @@ import {
   planningDeleteWorkoutAction,
   planningMoveWorkoutAction,
   planningUpdateWorkoutAction,
+  publishWorkoutAction,
+  publishWorkoutsAction,
 } from "@/lib/actions";
 import { Avatar } from "@/components/avatar";
 
@@ -312,6 +314,11 @@ export function PlanningBoard({
     );
   }
 
+  // Brouillons de ce coach sur la période affichée (athlètes filtrés).
+  const drafts = items.filter(
+    (x) => x.isDraft && x.mine && vis.some((a) => a.id === x.athleteId) && (view === "week" ? inVis(x.date) : x.date >= m0 && x.date <= m4)
+  );
+
   const cur = panel?.type === "item" ? items.find((x) => x.id === panel.id) ?? null : null;
   const newCell = panel?.type === "new" ? panel : null;
 
@@ -356,6 +363,28 @@ export function PlanningBoard({
           </div>
         </div>
       </div>
+
+      {drafts.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-[#9fb9b8] bg-white px-4 py-2.5 text-sm text-ink-soft">
+          <span className="flex-1">
+            <b className="text-ink">
+              {drafts.length} brouillon{drafts.length > 1 ? "s" : ""}
+            </b>{" "}
+            sur {view === "week" ? "ces 7 jours" : "ces 5 semaines"}, pas encore visible{drafts.length > 1 ? "s" : ""} par les athlètes.
+          </span>
+          <button
+            type="button"
+            className={btnPrimary}
+            onClick={() => {
+              const ids = drafts.map((x) => x.id);
+              setItems((prev) => prev.map((y) => (ids.includes(y.id) ? { ...y, isDraft: false } : y)));
+              run(() => publishWorkoutsAction(ids), ids.length > 1 ? `${ids.length} séances publiées` : "Séance publiée");
+            }}
+          >
+            {drafts.length > 1 ? `Tout publier (${drafts.length})` : "Publier"}
+          </button>
+        </div>
+      )}
 
       {/* Filtres */}
       <div className="flex flex-wrap items-center gap-2.5">
@@ -766,6 +795,18 @@ export function PlanningBoard({
           ) : (
             <>
               <div className="flex flex-wrap items-center gap-2">
+                {cur.mine && cur.isDraft && (
+                  <button
+                    type="button"
+                    className={btnPrimary}
+                    onClick={() => {
+                      setItems((prev) => prev.map((y) => (y.id === cur.id ? { ...y, isDraft: false } : y)));
+                      run(() => publishWorkoutAction(cur.id), `« ${cur.title} » publiée`);
+                    }}
+                  >
+                    Publier
+                  </button>
+                )}
                 {cur.mine && !cur.isGoal && (
                   <>
                     <button

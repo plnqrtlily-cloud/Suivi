@@ -3335,3 +3335,38 @@ export async function planningDeleteWorkoutAction(workoutId: string) {
     });
   }
 }
+
+/**
+ * Publie plusieurs brouillons d'un coup (semaine, mois, sélection) : chaque
+ * athlète reçoit une seule notification regroupant ses nouvelles séances.
+ */
+export async function publishWorkoutsAction(workoutIds: string[]) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  const ids = Array.from(new Set(workoutIds)).slice(0, 500);
+  if (!ids.length) return { count: 0 };
+  const rows = await dbAll<any>(
+    `SELECT id, athlete_id, title, date FROM workouts WHERE id IN (${ids.map(() => "?").join(",")}) AND coach_id = ? AND is_draft = 1`,
+    [...ids, user.id]
+  );
+  if (!rows.length) return { count: 0 };
+  await dbRun(`UPDATE workouts SET is_draft = 0 WHERE id IN (${rows.map(() => "?").join(",")})`, rows.map((r) => r.id));
+  const byAthlete = new Map<string, any[]>();
+  for (const r of rows) byAthlete.set(r.athlete_id, [...(byAthlete.get(r.athlete_id) ?? []), r]);
+  for (const [athleteId, list] of byAthlete) {
+    list.sort((a, b) => a.date.localeCompare(b.date));
+    await createNotification({
+      userId: athleteId,
+      type: "new_workout",
+      title: list.length > 1 ? `${list.length} nouvelles séances` : "Nouvelle séance",
+      body:
+        list.length > 1
+          ? `Du ${list[0].date.slice(8, 10)}/${list[0].date.slice(5, 7)} au ${list[list.length - 1].date.slice(8, 10)}/${list[list.length - 1].date.slice(5, 7)}`
+          : `${list[0].title} — ${list[0].date}`,
+      link: list.length > 1 ? "/athlete/programmation" : `/workouts/${list[0].id}`,
+    });
+    for (const w of list) revalidatePath(`/workouts/${w.id}`);
+    revalidateAthleteDays(athleteId, list.map((w) => w.date));
+  }
+  return { count: rows.length };
+}
