@@ -610,7 +610,7 @@ export async function addCompletionPhotoAction(workoutId: string, formData: Form
 
 export async function updateWorkoutStatusAction(params: {
   workoutId: string;
-  status: "done" | "not_done" | "postponed";
+  status: "done" | "partial" | "not_done" | "postponed";
   rpe?: number;
   athleteFeedback?: string;
   actualDurationMinutes?: number;
@@ -664,7 +664,7 @@ export async function updateWorkoutStatusAction(params: {
       reportedBy,
       // Saisi par le coach : validé d'office. Saisi par l'athlète : le coach
       // doit (re)valider ce nouveau retour.
-      reportedBy === "coach" && finalStatus === "done" ? new Date().toISOString() : null,
+      reportedBy === "coach" && (finalStatus === "done" || finalStatus === "partial") ? new Date().toISOString() : null,
       params.workoutId,
     ]
   );
