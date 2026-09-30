@@ -26,6 +26,7 @@ import {
   getZoneOverrides,
   getInjuryFollowupsForAthlete,
   getPerformanceProfile,
+  getCoachProfileQualities,
   getEffortTestBatchesForAthlete,
 } from "@/lib/queries";
 import { positionLabel, type TeamSport } from "@/lib/team-sports";
@@ -151,6 +152,7 @@ export default async function AthleteDetailPage({
     zoneOverrides,
     injuryFollowups,
     perfProfile,
+    coachQualities,
   ] = await Promise.all([
     findUserById(athleteId),
     getUserAvatar(athleteId),
@@ -179,6 +181,7 @@ export default async function AthleteDetailPage({
     getZoneOverrides(athleteId),
     getInjuryFollowupsForAthlete(athleteId),
     getPerformanceProfile(athleteId),
+    getCoachProfileQualities(user.id),
   ]);
   if (!athlete) notFound();
   const trainingPeriods = trainingPeriodsEarly;
@@ -509,6 +512,7 @@ export default async function AthleteDetailPage({
                       prevEvalDate={perfProfile.prevEvalDate}
                       selfRequestedAt={perfProfile.selfRequestedAt}
                       selfEvalDate={perfProfile.selfEvalDate}
+                      coachQualities={coachQualities}
                     />
                   }
                   footer={

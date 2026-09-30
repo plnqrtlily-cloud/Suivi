@@ -181,6 +181,17 @@ CREATE TABLE IF NOT EXISTS performance_qualities (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Qualités créées par un coach (« Autre… » dans le profil de performance) :
+-- gardées dans sa bibliothèque pour les lui reproposer chez tous ses athlètes,
+-- toujours rangées dans l'un des 6 domaines de PROFILE_DOMAINS.
+CREATE TABLE IF NOT EXISTS coach_profile_qualities (
+  id TEXT PRIMARY KEY,
+  coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  domain TEXT NOT NULL,
+  name TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_coach_profile_qualities ON coach_profile_qualities(coach_id, domain, name COLLATE NOCASE);
 CREATE TABLE IF NOT EXISTS performance_profile_meta (
   athlete_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   eval_date TEXT,

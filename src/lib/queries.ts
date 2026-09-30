@@ -430,6 +430,17 @@ export interface PerformanceQuality {
   plan: string | null;
 }
 
+export interface CoachProfileQuality {
+  id: string;
+  domain: string;
+  name: string;
+}
+
+/** Bibliothèque de qualités créées par le coach, proposées pour tous ses athlètes. */
+export async function getCoachProfileQualities(coachId: string): Promise<CoachProfileQuality[]> {
+  return dbAll(`SELECT id, domain, name FROM coach_profile_qualities WHERE coach_id = ? ORDER BY name COLLATE NOCASE`, [coachId]);
+}
+
 export async function getPerformanceProfile(athleteId: string): Promise<{
   qualities: PerformanceQuality[];
   evalDate: string | null;

@@ -33,7 +33,7 @@ import { saveSubscription, removeSubscription } from "./push";
 import { isTeamSport, isValidPosition } from "./team-sports";
 import { EFFORT_TEST_CATALOG } from "./effort-tests";
 import { BODY_PARTS, INJURY_TYPES, injuryLabel } from "./injury-catalog";
-import { PROFILE_DOMAINS, QUALITY_BASE } from "./performance-profile";
+import { PROFILE_DOMAINS, QUALITY_BASE, QUALITY_LIBRARY, type ProfileDomain } from "./performance-profile";
 
 // ---------- AUTH ----------
 
@@ -3153,8 +3153,15 @@ async function ensureProfileMeta(athleteId: string) {
   await dbRun(`INSERT OR IGNORE INTO performance_profile_meta (athlete_id, eval_date) VALUES (?, ?)`, [athleteId, todayISO()]);
 }
 
-export async function addPerformanceQualityAction(athleteId: string, domain: string, name: string, level: number, importance: number): Promise<{ id: string } | { error: string }> {
-  await coachForAthlete(athleteId);
+export async function addPerformanceQualityAction(
+  athleteId: string,
+  domain: string,
+  name: string,
+  level: number,
+  importance: number,
+  saveToLibrary = false
+): Promise<{ id: string } | { error: string }> {
+  const user = await coachForAthlete(athleteId);
   const n = name.trim().slice(0, 80);
   if (!n) return { error: "Nommez la qualité." };
   if (!PROFILE_DOMAINS.some((d) => d.key === domain)) return { error: "Domaine inconnu." };
@@ -3172,8 +3179,23 @@ export async function addPerformanceQualityAction(athleteId: string, domain: str
     Math.max(1, Math.min(3, Math.round(importance))),
     lv || null,
   ]);
+  // Qualité nommée par le coach : gardée dans sa bibliothèque (sauf si elle
+  // fait déjà partie de la liste proposée) pour la retrouver chez ses autres athlètes.
+  const inLibrary = QUALITY_LIBRARY[domain as ProfileDomain].some((q) => q.toLowerCase() === n.toLowerCase());
+  if (saveToLibrary && !inLibrary) {
+    await dbRun(`INSERT OR IGNORE INTO coach_profile_qualities (id, coach_id, domain, name) VALUES (?, ?, ?, ?)`, [randomUUID(), user.id, domain, n]);
+  }
   revalidatePath(`/coach/athletes/${athleteId}`);
   return { id };
+}
+
+// Retire une qualité de la bibliothèque du coach, sans toucher aux profils
+// d'athlètes où elle a déjà été ajoutée.
+export async function deleteCoachProfileQualityAction(id: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  await dbRun(`DELETE FROM coach_profile_qualities WHERE id = ? AND coach_id = ?`, [id, user.id]);
+  revalidatePath(`/coach/athletes`, "layout");
 }
 
 export async function seedPerformanceProfileAction(athleteId: string) {

@@ -9,8 +9,9 @@ import {
   deletePerformanceQualityAction,
   newPerformanceEvaluationAction,
   requestSelfEvaluationAction,
+  deleteCoachProfileQualityAction,
 } from "@/lib/actions";
-import type { PerformanceQuality } from "@/lib/queries";
+import type { PerformanceQuality, CoachProfileQuality } from "@/lib/queries";
 import { PROFILE_DOMAINS, QUALITY_LIBRARY, LEVEL_LABELS, IMPORTANCE_LABELS, ZONE_INFO, qualityZone, type ProfileDomain } from "@/lib/performance-profile";
 import { Panel, ghostBtn, primaryBtn, fieldClass } from "./tab-ui";
 
@@ -216,27 +217,94 @@ function QualityRow({ q, rank, prevDate, athleteName }: { q: Q; rank: number | n
   );
 }
 
-function AddQuality({ athleteId, domain, used, onDone }: { athleteId: string; domain: ProfileDomain; used: string[]; onDone: () => void }) {
+// Bibliothèque du coach pour ce domaine : ses qualités créées, retirables
+// (sans effet sur les profils où elles ont déjà été ajoutées).
+function MyQualities({ items }: { items: CoachProfileQuality[] }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  if (items.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-xs font-semibold text-slate">Mes qualités :</span>
+      {items.map((q) => (
+        <span key={q.id} className="flex items-center gap-0.5 rounded-full border border-line bg-white py-0.5 pl-2.5 pr-1 text-xs text-ink">
+          {q.name}
+          <button
+            type="button"
+            disabled={pending}
+            aria-label={`Retirer « ${q.name} » de mes qualités`}
+            title="Retirer de mes qualités (reste dans les profils où elle est déjà)"
+            onClick={() =>
+              start(async () => {
+                await deleteCoachProfileQualityAction(q.id);
+                router.refresh();
+              })
+            }
+            className="flex h-5 w-5 items-center justify-center rounded-full text-sm leading-none text-slate hover:bg-paper-dim hover:text-clay"
+          >
+            ×
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function AddQuality({
+  athleteId,
+  domain,
+  used,
+  mine,
+  onDone,
+}: {
+  athleteId: string;
+  domain: ProfileDomain;
+  used: string[];
+  mine: CoachProfileQuality[];
+  onDone: () => void;
+}) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [other, setOther] = useState("");
+  const [keep, setKeep] = useState(true);
   const [level, setLevel] = useState(0);
   const [imp, setImp] = useState(2);
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
-  const free = QUALITY_LIBRARY[domain].filter((n) => !used.includes(n));
+  const isUsed = (n: string) => used.some((u) => u.toLowerCase() === n.toLowerCase());
+  const free = QUALITY_LIBRARY[domain].filter((n) => !isUsed(n));
+  const myFree = mine.filter((q) => !isUsed(q.name));
   return (
     <div className="flex flex-col gap-2 rounded-xl bg-paper p-3">
       <select value={name} onChange={(e) => setName(e.target.value)} className={fieldClass}>
         <option value="">Choisir une qualité…</option>
-        {free.map((n) => (
-          <option key={n} value={n}>
-            {n}
-          </option>
-        ))}
-        <option value="__autre">Autre… (à nommer)</option>
+        {myFree.length > 0 && (
+          <optgroup label="Mes qualités">
+            {myFree.map((q) => (
+              <option key={q.id} value={q.name}>
+                {q.name}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        <optgroup label="Qualités proposées">
+          {free.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </optgroup>
+        <option value="__autre">Créer ma qualité…</option>
       </select>
-      {name === "__autre" && <input value={other} onChange={(e) => setOther(e.target.value)} placeholder="Nom de la qualité" className={fieldClass} />}
+      {name === "__autre" && (
+        <>
+          <input value={other} onChange={(e) => setOther(e.target.value)} maxLength={80} autoFocus placeholder="Nom de la qualité" className={fieldClass} />
+          <label className="flex items-center gap-2 text-[13px] text-ink-soft">
+            <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} />
+            La garder dans mes qualités, pour tous mes athlètes
+          </label>
+        </>
+      )}
       <div className="flex flex-wrap items-center gap-2.5">
         <Stars n={level} size={18} onPick={setLevel} label="Niveau " />
         <select value={imp} onChange={(e) => setImp(Number(e.target.value))} className="rounded-lg border border-line bg-white px-2 py-1 text-[13px]">
@@ -256,7 +324,7 @@ function AddQuality({ athleteId, domain, used, onDone }: { athleteId: string; do
             if (!n) return setError("Choisissez ou nommez la qualité.");
             setError("");
             start(async () => {
-              const r = await addPerformanceQualityAction(athleteId, domain, n, level, imp);
+              const r = await addPerformanceQualityAction(athleteId, domain, n, level, imp, name === "__autre" && keep);
               if ("error" in r) return setError(r.error);
               onDone();
               router.refresh();
@@ -267,6 +335,7 @@ function AddQuality({ athleteId, domain, used, onDone }: { athleteId: string; do
         </button>
       </div>
       {error && <p className="text-sm text-clay">{error}</p>}
+      <MyQualities items={mine} />
     </div>
   );
 }
@@ -279,6 +348,7 @@ export function PerformanceProfile({
   prevEvalDate,
   selfRequestedAt,
   selfEvalDate,
+  coachQualities,
 }: {
   athleteId: string;
   firstName: string;
@@ -287,6 +357,7 @@ export function PerformanceProfile({
   prevEvalDate: string | null;
   selfRequestedAt: string | null;
   selfEvalDate: string | null;
+  coachQualities: CoachProfileQuality[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -339,7 +410,7 @@ export function PerformanceProfile({
                 </option>
               ))}
             </select>
-            <AddQuality athleteId={athleteId} domain={adding} used={[]} onDone={() => setAdding(null)} />
+            <AddQuality athleteId={athleteId} domain={adding} used={[]} mine={coachQualities.filter((q) => q.domain === adding)} onDone={() => setAdding(null)} />
           </div>
         )}
       </Panel>
@@ -465,7 +536,7 @@ export function PerformanceProfile({
                   const r = rank.indexOf(x.id);
                   return <QualityRow key={x.id} q={x} rank={r >= 0 && r < 5 ? r + 1 : null} prevDate={prevEvalDate} athleteName={firstName} />;
                 })}
-                {adding === d.key && <AddQuality athleteId={athleteId} domain={d.key} used={xs.map((x) => x.name)} onDone={() => setAdding(null)} />}
+                {adding === d.key && <AddQuality athleteId={athleteId} domain={d.key} used={xs.map((x) => x.name)} mine={coachQualities.filter((q) => q.domain === d.key)} onDone={() => setAdding(null)} />}
                 <button type="button" onClick={() => setAdding(adding === d.key ? null : d.key)} className="self-start px-0.5 pt-2 text-[12.5px] font-bold text-moss-dark">
                   {adding === d.key ? "Annuler" : "+ Ajouter une qualité"}
                 </button>
