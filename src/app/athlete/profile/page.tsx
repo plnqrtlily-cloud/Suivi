@@ -11,6 +11,7 @@ import {
   getUserAvatar,
   profileCompletion,
   getExerciseMaxes,
+  getCustomMetricsForAthlete,
 } from "@/lib/queries";
 import { addMeasurementAction, addInjuryAction, setGenderAction, setAthleteSportsAction } from "@/lib/actions";
 import { AvatarUpload } from "./avatar-upload";
@@ -20,7 +21,7 @@ import { computePowerZones } from "@/lib/power-zones";
 import { computePaceZones } from "@/lib/pace-zones";
 import { ZoneGrid, formatPaceValue } from "@/components/zone-grid";
 import { todayISO } from "@/lib/dates";
-import { PERFORMANCE_METRICS, MEASUREMENT_DEVICES, computeDerivedMetrics, groupMetrics } from "@/lib/performance-metrics";
+import { MEASUREMENT_DEVICES, computeDerivedMetrics, groupMetrics, metricOptions } from "@/lib/performance-metrics";
 import { Nav } from "@/components/nav";
 import { Card, Field, SelectField, Button, sportLabel } from "@/components/ui";
 import { CyclePanel } from "./cycle-panel";
@@ -34,14 +35,6 @@ function formatPace(minPerKm: number): string {
   const sec = Math.round((minPerKm - min) * 60);
   return `${min}:${String(sec).padStart(2, "0")} /km`;
 }
-
-// Liste partagée avec la fiche coach (src/lib/performance-metrics.ts) —
-// inclut seuil lactique et lactatémie en plus des mesures historiques.
-const METRICS = PERFORMANCE_METRICS.map((m) => ({
-  value: m.value,
-  label: m.unit ? `${m.label} (${m.unit})` : m.label,
-  group: m.group,
-}));
 
 const SPORTS_LIST = [
   { value: "running", label: "Course à pied" },
@@ -61,7 +54,7 @@ export default async function AthleteProfilePage() {
   // Requêtes indépendantes parties en parallèle plutôt qu'en série (chacune est
   // un aller-retour réseau vers la base distante en production — les enchaîner
   // une par une multipliait la latence de la page par leur nombre).
-  const [latest, historyAll, injuries, completion, gender, athleteSports, avatar, personalRecords, exerciseMaxes] =
+  const [latest, historyAll, injuries, completion, gender, athleteSports, avatar, personalRecords, exerciseMaxes, customMetrics] =
     await Promise.all([
       getLatestMeasurements(user.id),
       getMeasurementsForAthlete(user.id),
@@ -72,7 +65,11 @@ export default async function AthleteProfilePage() {
       getUserAvatar(user.id),
       getPersonalRecordsForAthlete(user.id),
       getExerciseMaxes(user.id),
+      getCustomMetricsForAthlete(user.id),
     ]);
+  // Liste partagée avec la fiche coach (src/lib/performance-metrics.ts), plus
+  // les indicateurs créés par les coachs de l'athlète, rangés dans leur thème.
+  const METRICS = metricOptions(customMetrics);
   const seriesByMetric: Record<string, MeasurementPoint[]> = {};
   for (const h of historyAll as any[]) {
     (seriesByMetric[h.metric] ??= []).push({ value: h.value, recorded_at: h.recorded_at });

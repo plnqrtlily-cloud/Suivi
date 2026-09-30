@@ -25,6 +25,7 @@ import {
   getTeamsForAthlete,
   getCustomEffortTestsForCoach,
   getEffortTestBatchesForAthlete,
+  getCustomMetricsForAthlete,
 } from "@/lib/queries";
 import { positionLabel, type TeamSport } from "@/lib/team-sports";
 import { getCycleSettings, getPeriodStarts } from "@/lib/cycle";
@@ -39,7 +40,7 @@ import { computeHrZones } from "@/lib/hr-zones";
 import { computePowerZones } from "@/lib/power-zones";
 import { computePaceZones, formatPace } from "@/lib/pace-zones";
 import { periodsOnDate, weekPosition } from "@/lib/periodization";
-import { PERFORMANCE_METRICS } from "@/lib/performance-metrics";
+import { PERFORMANCE_METRICS, metricOptions, customMetricKey } from "@/lib/performance-metrics";
 import { EFFORT_TEST_CATALOG } from "@/lib/effort-tests";
 import {
   addDays,
@@ -146,6 +147,7 @@ export default async function AthleteDetailPage({
     customEffortTests,
     effortTestBatches,
     periodStarts,
+    customMetrics,
   ] = await Promise.all([
     findUserById(athleteId),
     getUserAvatar(athleteId),
@@ -172,6 +174,7 @@ export default async function AthleteDetailPage({
     getCustomEffortTestsForCoach(user.id),
     getEffortTestBatchesForAthlete(athleteId),
     getPeriodStarts(athleteId),
+    getCustomMetricsForAthlete(athleteId),
   ]);
   if (!athlete) notFound();
   const trainingPeriods = trainingPeriodsEarly;
@@ -284,6 +287,11 @@ export default async function AthleteDetailPage({
     body.push({ label: "Rapport puissance / poids", value: fmtMetric(Math.round((measurements.ftp.value / weight) * 10) / 10, "W/kg"), hint: "FTP" });
   }
   if (measurements.coeff_fatigue_pct) body.push({ label: "Coefficient de fatigue", value: `${measurements.coeff_fatigue_pct.value} %` });
+  // Indicateurs créés par le coach : dernière valeur, avec le thème en repère.
+  for (const c of customMetrics) {
+    const m = measurements[customMetricKey(c.id)];
+    if (m) body.push({ label: c.label, value: fmtMetric(m.value, c.unit || undefined), hint: `${c.group_name} · ${shortDate(m.recorded_at.slice(0, 10))}` });
+  }
 
   const hrZones =
     measurements.fc_repos && measurements.fc_max ? computeHrZones(measurements.fc_repos.value, measurements.fc_max.value) : null;
@@ -348,11 +356,10 @@ export default async function AthleteDetailPage({
       });
   }
 
-  const METRICS = PERFORMANCE_METRICS.map((m) => ({
-    value: m.value,
-    label: m.unit ? `${m.label} (${m.unit})` : m.label,
-    group: m.group,
-  }));
+  const METRICS = metricOptions(customMetrics);
+  const ownCustomMetrics = customMetrics
+    .filter((c) => c.coach_id === user.id)
+    .map((c) => ({ id: c.id, label: c.unit ? `${c.label} (${c.unit})` : c.label, group: c.group_name }));
 
   // ---------- Santé ----------
   const injuryViews: InjuryView[] = injuries.map((i) => {
@@ -461,6 +468,7 @@ export default async function AthleteDetailPage({
                   maxes={maxes}
                   records={records}
                   metrics={METRICS}
+                  customMetrics={ownCustomMetrics}
                   effortPanel={
                     <EffortTestsPanel
                       athleteId={athleteId}

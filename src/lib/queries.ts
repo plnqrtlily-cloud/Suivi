@@ -2,6 +2,7 @@ import { dbGet, dbAll } from "./db";
 import type { Checkin } from "./checkin-types";
 import type { AvailabilitySlot } from "./time-of-day";
 import { computePlanStatus, type PlanStatus } from "./billing";
+import type { CustomMetricRow } from "./performance-metrics";
 
 // workouts.time est soit une heure "HH:MM" soit un créneau (morning/midday/
 // afternoon/evening, cf. lib/time-of-day.ts) quand le coach ne connaît pas
@@ -398,6 +399,21 @@ export interface CustomEffortTestRow {
   sport: string;
   fields_json: string;
   created_at: string;
+}
+
+export async function getCustomMetricsForCoach(coachId: string): Promise<CustomMetricRow[]> {
+  return dbAll(`SELECT id, coach_id, label, unit, group_name FROM custom_metrics WHERE coach_id = ? ORDER BY label COLLATE NOCASE`, [coachId]);
+}
+
+/** Indicateurs créés par les coachs actifs d'un athlète — pour qu'il voie et renseigne les mêmes. */
+export async function getCustomMetricsForAthlete(athleteId: string): Promise<CustomMetricRow[]> {
+  return dbAll(
+    `SELECT DISTINCT m.id, m.coach_id, m.label, m.unit, m.group_name FROM custom_metrics m
+     JOIN coach_athlete_links l ON l.coach_id = m.coach_id
+     WHERE l.athlete_id = ? AND l.status = 'active'
+     ORDER BY m.label COLLATE NOCASE`,
+    [athleteId]
+  );
 }
 
 export async function getCustomEffortTestsForCoach(coachId: string): Promise<CustomEffortTestRow[]> {

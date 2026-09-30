@@ -69,6 +69,43 @@ export const METRIC_LABELS: Record<string, string> = Object.fromEntries(
   PERFORMANCE_METRICS.map((m) => [m.value, m.unit ? `${m.label} (${m.unit})` : m.label])
 );
 
+export function isMetricGroup(v: string): v is MetricGroup {
+  return (METRIC_GROUPS as readonly string[]).includes(v);
+}
+
+// Indicateurs créés par un coach (table custom_metrics) : clé préfixée dans
+// athlete_measurements.metric pour ne jamais entrer en collision avec une clé
+// de PERFORMANCE_METRICS.
+export const CUSTOM_METRIC_PREFIX = "custom:";
+export function customMetricKey(id: string): string {
+  return `${CUSTOM_METRIC_PREFIX}${id}`;
+}
+
+export interface CustomMetricRow {
+  id: string;
+  coach_id: string;
+  label: string;
+  unit: string | null;
+  group_name: string;
+}
+
+/**
+ * Liste d'options du formulaire d'ajout : indicateurs prédéfinis, puis ceux
+ * créés par le(s) coach(s), chacun rangé dans son thème.
+ */
+export function metricOptions(custom: CustomMetricRow[] = []): { value: string; label: string; group: string; unit?: string; custom?: boolean }[] {
+  return [
+    ...PERFORMANCE_METRICS.map((m) => ({ value: m.value, label: m.unit ? `${m.label} (${m.unit})` : m.label, group: m.group as string, unit: m.unit })),
+    ...custom.map((c) => ({
+      value: customMetricKey(c.id),
+      label: c.unit ? `${c.label} (${c.unit})` : c.label,
+      group: c.group_name,
+      unit: c.unit || undefined,
+      custom: true,
+    })),
+  ];
+}
+
 /** Regroupe une liste d'indicateurs par thème, dans l'ordre de METRIC_GROUPS, pour peupler des <optgroup>. */
 export function groupMetrics<T extends { group?: string }>(metrics: T[]): { group: string; items: T[] }[] {
   return METRIC_GROUPS.map((group) => ({ group, items: metrics.filter((m) => m.group === group) })).filter(

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { addMeasurementAction } from "@/lib/actions";
+import { addMeasurementAction, createCustomMetricAction, deleteCustomMetricAction } from "@/lib/actions";
+import { METRIC_GROUPS, customMetricKey } from "@/lib/performance-metrics";
 import { Panel, PanelTitle, Row, Segmented, TabHeader, Reveal, ghostBtn, linkBtn, primaryBtn, fieldClass, fieldLabel } from "./tab-ui";
 
 export interface MetricSeries {
@@ -79,10 +80,128 @@ function Evolution({ series }: { series: MetricSeries[] }) {
   );
 }
 
-function MeasureForm({ athleteId, metrics, onDone }: { athleteId: string; metrics: { value: string; label: string; group: string }[]; onDone: () => void }) {
+export interface OwnCustomMetric {
+  id: string;
+  label: string;
+  group: string;
+}
+
+// Création d'un indicateur propre au coach : nom et unité libres, mais thème
+// imposé parmi ceux de la liste prédéfinie, pour qu'il se range avec les autres.
+function CustomMetricCreator({ onCreated, onCancel }: { onCreated: (key: string) => void; onCancel: () => void }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const groups = Array.from(new Set(metrics.map((m) => m.group)));
+  const [error, setError] = useState<string | null>(null);
+  // Champs lus par référence : ce bloc s'affiche à l'intérieur du formulaire
+  // d'ajout de mesure, et un <form> ne peut pas en contenir un autre.
+  const labelRef = useRef<HTMLInputElement>(null);
+  const unitRef = useRef<HTMLInputElement>(null);
+  const groupRef = useRef<HTMLSelectElement>(null);
+  return (
+    <div className="col-span-2 grid grid-cols-2 gap-3 rounded-xl border border-line bg-white p-3">
+      <p className="col-span-2 text-[13px] font-semibold text-ink">Nouvel indicateur</p>
+      <div className="col-span-2">
+        <label className={fieldLabel}>Nom</label>
+        <input ref={labelRef} autoFocus maxLength={60} placeholder="Ex. Puissance 5 min" className={fieldClass} />
+      </div>
+      <div>
+        <label className={fieldLabel}>Unité (facultatif)</label>
+        <input ref={unitRef} maxLength={20} placeholder="W, s, cm…" className={fieldClass} />
+      </div>
+      <div>
+        <label className={fieldLabel}>Thème</label>
+        <select ref={groupRef} defaultValue={METRIC_GROUPS[0]} className={fieldClass}>
+          {METRIC_GROUPS.map((g) => (
+            <option key={g} value={g}>
+              {g}
+            </option>
+          ))}
+        </select>
+      </div>
+      {error && <p className="col-span-2 text-[13px] text-clay">{error}</p>}
+      <div className="col-span-2 flex items-center gap-2">
+        <button
+          type="button"
+          disabled={pending}
+          className={primaryBtn}
+          onClick={() => {
+            const fd = new FormData();
+            fd.set("label", labelRef.current?.value ?? "");
+            fd.set("unit", unitRef.current?.value ?? "");
+            fd.set("group", groupRef.current?.value ?? "");
+            setError(null);
+            start(async () => {
+              const res = await createCustomMetricAction(fd);
+              if ("error" in res) {
+                setError(res.error);
+                return;
+              }
+              onCreated(customMetricKey(res.id));
+              router.refresh();
+            });
+          }}
+        >
+          Créer
+        </button>
+        <button type="button" className={linkBtn} onClick={onCancel}>
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CustomMetricList({ items }: { items: OwnCustomMetric[] }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  if (items.length === 0) return null;
+  return (
+    <div className="col-span-2">
+      <p className={fieldLabel}>Vos indicateurs</p>
+      <ul className="flex flex-wrap gap-1.5">
+        {items.map((m) => (
+          <li key={m.id} className="flex items-center gap-1 rounded-full border border-line bg-white py-0.5 pl-2.5 pr-1 text-xs text-ink">
+            <span>{m.label}</span>
+            <span className="text-slate">· {m.group}</span>
+            <button
+              type="button"
+              disabled={pending}
+              aria-label={`Supprimer l'indicateur ${m.label}`}
+              onClick={() => {
+                if (!window.confirm(`Supprimer « ${m.label} » ? Les mesures déjà saisies pour cet indicateur seront supprimées, pour tous vos athlètes.`)) return;
+                start(async () => {
+                  await deleteCustomMetricAction(m.id);
+                  router.refresh();
+                });
+              }}
+              className="flex h-5 w-5 items-center justify-center rounded-full text-sm leading-none text-slate hover:bg-paper-dim hover:text-clay"
+            >
+              ×
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function MeasureForm({
+  athleteId,
+  metrics,
+  customMetrics,
+  onDone,
+}: {
+  athleteId: string;
+  metrics: { value: string; label: string; group: string }[];
+  customMetrics: OwnCustomMetric[];
+  onDone: () => void;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [metric, setMetric] = useState("weight_kg");
+  const [creating, setCreating] = useState(false);
+  // Ordre des thèmes identique à la liste prédéfinie, indicateurs créés compris.
+  const groups = METRIC_GROUPS.filter((g) => metrics.some((m) => m.group === g));
   return (
     <form
       className="mb-4 grid grid-cols-2 gap-3 rounded-2xl bg-paper p-4"
@@ -94,6 +213,7 @@ function MeasureForm({ athleteId, metrics, onDone }: { athleteId: string; metric
         start(async () => {
           await addMeasurementAction(fd);
           form.reset();
+          setMetric("weight_kg");
           onDone();
           router.refresh();
         });
@@ -101,7 +221,7 @@ function MeasureForm({ athleteId, metrics, onDone }: { athleteId: string; metric
     >
       <div className="col-span-2">
         <label className={fieldLabel}>Indicateur</label>
-        <select name="metric" required defaultValue="weight_kg" className={fieldClass}>
+        <select name="metric" required value={metric} onChange={(e) => setMetric(e.target.value)} className={fieldClass}>
           {groups.map((g) => (
             <optgroup key={g} label={g}>
               {metrics
@@ -114,7 +234,21 @@ function MeasureForm({ athleteId, metrics, onDone }: { athleteId: string; metric
             </optgroup>
           ))}
         </select>
+        {!creating && (
+          <button type="button" className={`${linkBtn} mt-1.5`} onClick={() => setCreating(true)}>
+            + Créer un indicateur
+          </button>
+        )}
       </div>
+      {creating && (
+        <CustomMetricCreator
+          onCreated={(key) => {
+            setMetric(key);
+            setCreating(false);
+          }}
+          onCancel={() => setCreating(false)}
+        />
+      )}
       <div>
         <label className={fieldLabel}>Valeur</label>
         <input type="number" step="0.1" name="value" required className={fieldClass} />
@@ -128,6 +262,7 @@ function MeasureForm({ athleteId, metrics, onDone }: { athleteId: string; metric
           Ajouter
         </button>
       </div>
+      <CustomMetricList items={customMetrics} />
     </form>
   );
 }
@@ -143,6 +278,7 @@ export function MeasuresTab({
   maxes,
   records,
   metrics,
+  customMetrics,
   effortPanel,
   maxesPanel,
   historyPanel,
@@ -157,6 +293,7 @@ export function MeasuresTab({
   maxes: { name: string; value: string; hint: string }[];
   records: { label: string; value: string; hint: string }[];
   metrics: { value: string; label: string; group: string }[];
+  customMetrics: OwnCustomMetric[];
   effortPanel: React.ReactNode;
   maxesPanel: React.ReactNode;
   historyPanel: React.ReactNode;
@@ -211,7 +348,7 @@ export function MeasuresTab({
             }
           />
           <Reveal open={open === "mesure"}>
-            <MeasureForm athleteId={athleteId} metrics={metrics} onDone={() => setOpen(null)} />
+            <MeasureForm athleteId={athleteId} metrics={metrics} customMetrics={customMetrics} onDone={() => setOpen(null)} />
           </Reveal>
           {wLast && (
             <div className="mb-3 flex items-end gap-4">

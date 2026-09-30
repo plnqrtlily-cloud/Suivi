@@ -31,6 +31,7 @@ import { isStripeConfigured, createCheckoutSession, createBillingPortalSession }
 import { saveSubscription, removeSubscription } from "./push";
 import { isTeamSport, isValidPosition } from "./team-sports";
 import { EFFORT_TEST_CATALOG } from "./effort-tests";
+import { isMetricGroup, customMetricKey, CUSTOM_METRIC_PREFIX } from "./performance-metrics";
 
 // ---------- AUTH ----------
 
@@ -969,6 +970,20 @@ export async function addWorkoutCommentAction(workoutId: string, formData: FormD
 
 // ---------- PROFIL ATHLÈTE ----------
 
+// Un indicateur personnalisé n'est utilisable que pour les athlètes que son
+// coach suit : sans ce contrôle, un identifiant copié d'une autre fiche
+// rattacherait une mesure à l'indicateur d'un coach sans lien avec l'athlète.
+async function canUseMetric(metric: string, athleteId: string): Promise<boolean> {
+  if (!metric.startsWith(CUSTOM_METRIC_PREFIX)) return true;
+  const row = await dbGet<{ ok: number }>(
+    `SELECT 1 AS ok FROM custom_metrics m
+     JOIN coach_athlete_links l ON l.coach_id = m.coach_id
+     WHERE m.id = ? AND l.athlete_id = ? AND l.status = 'active'`,
+    [metric.slice(CUSTOM_METRIC_PREFIX.length), athleteId]
+  );
+  return !!row;
+}
+
 export async function addMeasurementAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) throw new Error("Non autorisé.");
@@ -987,6 +1002,7 @@ export async function addMeasurementAction(formData: FormData) {
   const note = String(formData.get("note") || "").trim();
   const device = String(formData.get("device") || "").trim();
   if (!metric || Number.isNaN(value)) return;
+  if (!(await canUseMetric(metric, targetAthleteId))) throw new Error("Indicateur inconnu.");
 
   await dbRun(
     `INSERT INTO athlete_measurements (id, athlete_id, metric, value, recorded_at, note, device) VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -1010,6 +1026,7 @@ export async function updateMeasurementAction(id: string, athleteId: string, for
   const note = String(formData.get("note") || "").trim();
   const device = String(formData.get("device") || "").trim();
   if (!metric || Number.isNaN(value) || !recordedAt) throw new Error("Indicateur, valeur et date requis.");
+  if (!(await canUseMetric(metric, athleteId))) throw new Error("Indicateur inconnu.");
 
   await dbRun(
     `UPDATE athlete_measurements SET metric = ?, value = ?, recorded_at = ?, note = ?, device = ?
@@ -1118,6 +1135,56 @@ export async function deleteInjuryAction(id: string) {
 // ---------- TESTS À L'EFFORT ----------
 // Renseignés par le coach à l'issue d'un test — cf. src/lib/effort-tests.ts
 // pour le catalogue des tests connus et leurs formules.
+
+// Indicateur de performance propre au coach, rangé dans l'un des thèmes
+// existants (METRIC_GROUPS) — cf. table custom_metrics.
+export async function createCustomMetricAction(formData: FormData): Promise<{ id: string } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const label = String(formData.get("label") || "").trim().slice(0, 60);
+  const unit = String(formData.get("unit") || "").trim().slice(0, 20);
+  const group = String(formData.get("group") || "");
+  if (!label) return { error: "Donnez un nom à l'indicateur." };
+  if (!isMetricGroup(group)) return { error: "Choisissez un thème." };
+
+  const existing = await dbGet<{ id: string }>(
+    `SELECT id FROM custom_metrics WHERE coach_id = ? AND label = ? COLLATE NOCASE AND COALESCE(unit, '') = ?`,
+    [user.id, label, unit]
+  );
+  if (existing) return { error: "Cet indicateur existe déjà." };
+
+  const id = randomUUID();
+  await dbRun(`INSERT INTO custom_metrics (id, coach_id, label, unit, group_name) VALUES (?, ?, ?, ?, ?)`, [
+    id,
+    user.id,
+    label,
+    unit || null,
+    group,
+  ]);
+
+  revalidatePath(`/coach/athletes`, "layout");
+  revalidatePath("/athlete/profile");
+  return { id };
+}
+
+// Supprime l'indicateur ET les mesures qui s'y rattachent : sans sa
+// définition, une mesure n'aurait plus ni nom ni unité à afficher.
+export async function deleteCustomMetricAction(metricId: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const metric = await dbGet<{ coach_id: string }>(`SELECT coach_id FROM custom_metrics WHERE id = ?`, [metricId]);
+  if (!metric || metric.coach_id !== user.id) throw new Error("Non autorisé.");
+
+  await dbBatch([
+    { sql: `DELETE FROM athlete_measurements WHERE metric = ?`, args: [customMetricKey(metricId)] },
+    { sql: `DELETE FROM custom_metrics WHERE id = ?`, args: [metricId] },
+  ]);
+
+  revalidatePath(`/coach/athletes`, "layout");
+  revalidatePath("/athlete/profile");
+}
 
 export async function createCustomEffortTestAction(formData: FormData): Promise<{ id: string } | { error: string }> {
   const user = await getCurrentUser();

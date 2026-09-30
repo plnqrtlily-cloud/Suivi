@@ -497,6 +497,22 @@ CREATE TABLE IF NOT EXISTS effort_test_results (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_effort_test_results_athlete ON effort_test_results(athlete_id);
+
+-- Indicateurs de performance créés par un coach, en plus de la liste codée en
+-- dur (src/lib/performance-metrics.ts) : même principe que custom_effort_tests.
+-- Le thème (group_name) reste obligatoirement l'un de METRIC_GROUPS, pour que
+-- l'indicateur se range avec les autres au lieu d'ouvrir une catégorie à part.
+-- Les mesures correspondantes sont stockées dans athlete_measurements avec
+-- metric = 'custom:<id>' (cf. customMetricKey).
+CREATE TABLE IF NOT EXISTS custom_metrics (
+  id TEXT PRIMARY KEY,
+  coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  unit TEXT,
+  group_name TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_custom_metrics_coach ON custom_metrics(coach_id);
 `;
 
 let initialized: Promise<void> | null = null;
