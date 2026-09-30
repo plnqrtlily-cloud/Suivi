@@ -11,7 +11,7 @@ import { CommentForm } from "./comment-form";
 import { CancelWorkoutButton } from "./cancel-button";
 import { DuplicateWorkoutButton } from "./duplicate-workout-modal";
 import { PublishWorkoutButton } from "./publish-button";
-import { IntervalList } from "./interval-list";
+import { WorkoutStructure } from "@/components/workout-structure";
 
 const BLOCK_TITLES: Record<string, string> = {
   warmup_mobility: "Échauffement — Mobilité",
@@ -89,16 +89,16 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
       <main className="mx-auto max-w-3xl px-4 sm:px-6 py-10">
-        <div className="mb-6 flex items-start justify-between">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-sm text-slate">
-              {sportLabel(workout.sport)} · {workout.date}
+              {sportLabel(workout.sport)} ·{" "}
+              {new Date(`${workout.date}T00:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
               {workout.time && isTimeOfDaySlug(workout.time)
                 ? ` · ${formatWorkoutTime(workout.time)}`
                 : workout.time
                   ? ` à ${workout.time}`
                   : ""}
-              {workout.duration_minutes ? ` · ${workout.duration_minutes} min prévues` : ""}
             </p>
             <h1 className="font-display text-3xl text-ink">{workout.title}</h1>
             <p className="mt-1 text-sm text-slate">
@@ -142,7 +142,28 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
 
-        {workout.is_draft && user.role === "coach" && (
+        {(workout.duration_minutes || workout.planned_rpe) && (
+          <div className="mb-6 flex flex-wrap gap-x-10 gap-y-3 rounded-3xl bg-white px-6 py-4">
+            {workout.duration_minutes ? (
+              <span className="text-sm text-slate">
+                Durée prévue
+                <b className="mt-0.5 block text-[22px] text-ink">
+                  {workout.duration_minutes >= 60
+                    ? `${Math.floor(workout.duration_minutes / 60)} h${workout.duration_minutes % 60 ? ` ${String(workout.duration_minutes % 60).padStart(2, "0")}` : ""}`
+                    : `${workout.duration_minutes} min`}
+                </b>
+              </span>
+            ) : null}
+            {workout.planned_rpe ? (
+              <span className="text-sm text-slate">
+                Intensité visée
+                <b className="mt-0.5 block text-[22px] text-ink">RPE {workout.planned_rpe}/10</b>
+              </span>
+            ) : null}
+          </div>
+        )}
+
+        {!!workout.is_draft && user.role === "coach" && (
           <Card className="mb-6 border-dashed bg-paper-dim">
             <p className="text-sm text-ink-soft">
               Cette séance est un <b>brouillon</b> : votre athlète ne la voit pas et n&apos;a reçu aucune
@@ -166,7 +187,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
         {workout.intervals_json && (
           <Card className="mb-6">
             <h2 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate"><span className="h-3 w-0.5 rounded-full bg-moss" />Déroulé de la séance</h2>
-            <IntervalList json={workout.intervals_json} />
+            <WorkoutStructure json={workout.intervals_json} sport={workout.sport} />
           </Card>
         )}
 
@@ -187,7 +208,8 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
 
         {workout.description && (
           <Card className="mb-6">
-            <p className="whitespace-pre-line text-sm text-ink">{workout.description}</p>
+            <h2 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate"><span className="h-3 w-0.5 rounded-full bg-moss" />Consignes du coach</h2>
+            <p className="whitespace-pre-line text-sm leading-relaxed text-ink">{workout.description}</p>
           </Card>
         )}
 

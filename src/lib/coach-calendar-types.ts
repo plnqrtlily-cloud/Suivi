@@ -41,6 +41,8 @@ export interface CalEntry {
   timeLabel: string | null;
   description: string | null;
   content: string[];
+  /** Déroulé structuré (intervals_json) des séances d'endurance, affiché en visuel. */
+  structure: string | null;
   /** Objectifs chiffrés propres à la discipline (distance prévue, puissance cible…). */
   plan: { label: string; value: string }[];
   feedback: string | null;

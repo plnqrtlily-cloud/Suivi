@@ -20,6 +20,7 @@ import {
 } from "@/lib/actions";
 import type { CoachCalendarData, CalDay, CalEntry, CalWeek, EntryStatus } from "@/lib/coach-calendar-types";
 import { CYCLE_DAY_STYLE } from "@/lib/cycle-types";
+import { WorkoutStructure } from "@/components/workout-structure";
 
 // Calendrier coach : défilement continu, jour après jour en vue semaine et
 // semaine après semaine en vue mois (d'autres semaines se chargent au fil du
@@ -1071,19 +1072,37 @@ function EntryPanel({
               {e.timeLabel && <span>Moment <b className="mt-1 block text-[22px] text-ink">{e.timeLabel}</b></span>}
             </div>
           )}
-          {(e.content.length > 0 || e.description) && (
-            <div>
-              <h4 className="mb-2.5 text-sm font-bold text-ink">Contenu prévu</h4>
-              {e.content.map((l, i) => {
-                const indented = /^\s{2,}/.test(l);
-                const title = !indented && !/^\d|×|·/.test(l.trim()) && e.content[i + 1] && /^\s{2,}/.test(e.content[i + 1]);
-                return (
-                  <div key={i} className="text-sm leading-[1.8]" style={{ paddingLeft: indented ? 14 : 0, fontWeight: title ? 700 : 400, color: title ? "#182220" : "#37413f", marginTop: title && i ? 8 : 0 }}>
-                    {l.trim()}
+          {(e.structure || e.content.length > 0 || e.description) && (
+            <div className="flex flex-col gap-3">
+              <h4 className="text-sm font-bold text-ink">{e.structure || e.content.length ? "Déroulé de la séance" : "Consignes"}</h4>
+              {e.structure ? (
+                <WorkoutStructure json={e.structure} sport={e.sport} />
+              ) : (
+                e.content.length > 0 && (
+                  <div className="flex flex-col">
+                    {e.content.map((l, i) => {
+                      const indented = /^\s{2,}/.test(l);
+                      const title = !indented && !/^\d|×|·/.test(l.trim()) && e.content[i + 1] && /^\s{2,}/.test(e.content[i + 1]);
+                      return title ? (
+                        <h5 key={i} className={`border-b border-paper-dim pb-1.5 text-[15px] font-bold text-ink ${i ? "mt-3" : ""}`}>
+                          {l.trim()}
+                        </h5>
+                      ) : (
+                        <div key={i} className="flex items-center gap-3 py-1.5 text-sm text-ink">
+                          <span className="h-6 w-1.5 shrink-0 rounded-full bg-[#9fc3c4]" />
+                          <span>{l.trim()}</span>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-              {e.description && <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-soft">{e.description}</p>}
+                )
+              )}
+              {e.description && (
+                <div className="rounded-2xl bg-[#f5f7f6] px-4 py-3">
+                  {(e.structure || e.content.length > 0) && <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate">Consignes</span>}
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-ink-soft">{e.description}</p>
+                </div>
+              )}
             </div>
           )}
           {e.feedback && (
