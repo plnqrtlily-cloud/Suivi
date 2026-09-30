@@ -8,6 +8,7 @@ import {
   coachAddActivityAction,
   coachAddAvailabilityBlockAction,
   coachDeleteEntryAction,
+  planningDeleteWorkoutAction,
   copyWeekAction,
   duplicateWorkoutAction,
   markWorkoutDoneAsPlannedAction,
@@ -525,6 +526,7 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
                 if (!f) return <p className="text-sm text-slate">Cette entrée n&apos;est plus dans la période affichée.</p>;
                 return (
                   <EntryPanel
+                    key={f.entry.id}
                     entry={f.entry}
                     data={data}
                     picker={picker}
@@ -540,6 +542,7 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
                       )
                     }
                     onDeleteImport={() => run(() => coachDeleteEntryAction("activity", f.entry.id), "Activité supprimée", () => setPanel(null))}
+                    onDeleteWorkout={() => run(() => planningDeleteWorkoutAction(f.entry.id), `« ${f.entry.title} » supprimée`, () => setPanel(null))}
                     onComment={(body) => {
                       const fd = new FormData();
                       fd.set("body", body);
@@ -941,6 +944,7 @@ function EntryPanel({
   onValidate,
   onPick,
   onDeleteImport,
+  onDeleteWorkout,
   onComment,
 }: {
   entry: CalEntry;
@@ -952,9 +956,11 @@ function EntryPanel({
   onValidate: () => void;
   onPick: (mode: "move" | "dup", date: string) => void;
   onDeleteImport: () => void;
+  onDeleteWorkout: () => void;
   onComment: (body: string) => void;
 }) {
   const [draft, setDraft] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const realised = e.status === "done" || e.status === "tovalidate" || e.status === "hors";
   const warnDur = !!e.plannedMin && !!e.realMin && e.realMin < e.plannedMin * 0.9;
   const warnRpe = !!e.plannedRpe && !!e.rpe && e.rpe > e.plannedRpe;
@@ -976,8 +982,27 @@ function EntryPanel({
           {isWorkout && <button type="button" disabled={pending} onClick={() => togglePicker("dup")} className={pill} style={picker?.mode === "dup" ? { background: "#e3eeed" } : undefined}>{e.status === "miss" ? "Reprogrammer" : "Dupliquer"}</button>}
           {isWorkout && (e.status === "todo" || e.status === "noreport") && <button type="button" disabled={pending} onClick={() => togglePicker("move")} className={pill} style={picker?.mode === "move" ? { background: "#e3eeed" } : undefined}>Déplacer</button>}
           {!isWorkout && e.createdByMe && <button type="button" disabled={pending} onClick={onDeleteImport} className={pill}>Supprimer</button>}
+          {isWorkout && e.createdByMe && !confirmDelete && (
+            <button type="button" disabled={pending} onClick={() => setConfirmDelete(true)} className={`${pill} !text-[#a4492a]`}>
+              Supprimer
+            </button>
+          )}
         </div>
       </PanelHead>
+      {isWorkout && confirmDelete && (
+        <div className="-mt-2 mb-5 flex flex-wrap items-center gap-3 rounded-2xl bg-[#fbe9e2] px-4 py-3 text-sm text-[#8a3a1f]">
+          <span className="flex-1">
+            Supprimer « {e.title} » ?{" "}
+            {e.isDraft ? "Ce brouillon n'a pas encore été envoyé à l'athlète." : `${data.athleteName} recevra une notification${realised ? ", et son retour sur la séance sera aussi effacé" : ""}.`}
+          </span>
+          <button type="button" disabled={pending} onClick={() => setConfirmDelete(false)} className={pill}>
+            Annuler
+          </button>
+          <button type="button" disabled={pending} onClick={onDeleteWorkout} className="rounded-full bg-[#a4492a] px-4 py-2 text-[13.5px] font-semibold text-white disabled:opacity-50">
+            Supprimer la séance
+          </button>
+        </div>
+      )}
       <div className="-mt-3 mb-5 flex items-center gap-2.5 text-sm text-ink-soft">
         <span className="h-4" style={{ borderLeft: e.isGoal ? "3px solid #a4492a" : BAR[e.status] }} />
         <b style={{ color: STATUS_COLOR[e.status] }}>{e.isGoal ? "Objectif" : STATUS_LABEL[e.status]}</b>

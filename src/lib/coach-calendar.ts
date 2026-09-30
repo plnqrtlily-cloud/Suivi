@@ -224,7 +224,7 @@ export async function loadCalendarWeeks(params: {
       content,
       feedback: w.athlete_feedback,
       reportedByCoach: w.reported_by === "coach",
-      createdByMe: false,
+      createdByMe: w.coach_id === coachId,
       comments: (comments as CommentRow[]).filter((c) => c.workout_id === w.id).map(toComment),
     };
   };
