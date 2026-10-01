@@ -64,8 +64,10 @@ function AthleteCard({
   const sharedNoteSource = checkinNote ? "checkin" : "journal";
 
   return (
+    // Toute la carte mène à la fiche de l'athlète : le lien du nom s'étend sur
+    // la carte (after:inset-0), les liens internes passent au-dessus (z-10).
     <div
-      className={`flex flex-col rounded-3xl border bg-white p-4 ${
+      className={`relative flex flex-col rounded-3xl border bg-white p-4 transition-colors hover:border-moss/50 hover:shadow-sm ${
         alerts.length > 0 ? "border-gold-light/50" : "border-line"
       }`}
     >
@@ -73,11 +75,11 @@ function AthleteCard({
       <div className="mb-3 flex items-center gap-2.5">
         <Avatar userId={athleteId} firstName={link.first_name || "?"} hasAvatar={!!link.avatar_path} size="lg" />
         <div className="min-w-0">
-          <Link href={`/coach/athletes/${athleteId}`} className="block truncate font-medium text-ink hover:underline">
+          <Link href={`/coach/athletes/${athleteId}`} className="block truncate font-medium text-ink after:absolute after:inset-0 after:rounded-3xl after:content-['']">
             {link.first_name} {link.last_name}
           </Link>
           {unread > 0 && (
-            <Link href={`/coach/athletes/${athleteId}/messages`} className="text-xs font-semibold text-moss-dark hover:underline">
+            <Link href={`/coach/athletes/${athleteId}/messages`} className="relative z-10 text-xs font-semibold text-moss-dark hover:underline">
               {unread} message{unread > 1 ? "s" : ""} non lu{unread > 1 ? "s" : ""}
             </Link>
           )}
@@ -102,7 +104,7 @@ function AthleteCard({
           <dt className="shrink-0 text-slate">Aujourd&apos;hui</dt>
           <dd className="min-w-0 text-right font-medium text-ink">
             {todayWorkouts.length > 0 ? (
-              <Link href={`/coach/athletes/${athleteId}/day/${today}`} className="flex items-center justify-end gap-1.5 hover:underline">
+              <Link href={`/coach/athletes/${athleteId}/day/${today}`} className="relative z-10 flex items-center justify-end gap-1.5 hover:underline">
                 <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke={todayWorkouts[0].color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
                   <path d={sportIconPath(todayWorkouts[0].sport)} />
                 </svg>
@@ -131,13 +133,6 @@ function AthleteCard({
       )}
 
       {alerts.length > 0 && <p className="mb-3 text-xs text-gold-light">⚠ {alerts.join(" · ")}</p>}
-
-      <Link
-        href={`/coach/athletes/${athleteId}/new-workout`}
-        className="mt-auto rounded-full border border-line px-3 py-1.5 text-center text-xs font-semibold text-moss-dark hover:border-moss"
-      >
-        + Programmer une séance
-      </Link>
     </div>
   );
 }

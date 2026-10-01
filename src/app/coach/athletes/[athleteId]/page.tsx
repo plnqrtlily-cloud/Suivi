@@ -429,7 +429,6 @@ export default async function AthleteDetailPage({
           </div>
 
           <AthleteTabs
-            storageKey={`rythme:athlete-tab:${athleteId}`}
             panels={{
               apercu: (
                 <OverviewTab

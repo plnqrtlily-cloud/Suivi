@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 export const ATHLETE_TABS = [
@@ -22,42 +22,19 @@ function isTab(v: string | null): v is AthleteTab {
   return !!v && ATHLETE_TABS.some((t) => t.value === v);
 }
 
-export function AthleteTabs({
-  panels,
-  storageKey,
-}: {
-  panels: Record<AthleteTab, React.ReactNode>;
-  storageKey: string;
-}) {
+export function AthleteTabs({ panels }: { panels: Record<AthleteTab, React.ReactNode> }) {
   const params = useSearchParams();
   const tabParam = params.get("tab");
-  // Priorité : ?tab= (liens internes « Voir la santé »…), puis ?view= (la
-  // navigation du calendrier ramène sur le calendrier), puis le dernier
-  // onglet consulté pour cet athlète.
+  // Priorité : ?tab= (liens internes « Voir la santé »…), sinon le
+  // calendrier, ouvert sur la semaine en cours : c'est par lui que le coach
+  // entre dans la fiche d'un athlète.
   const fromUrl: AthleteTab | null = isTab(tabParam) ? tabParam : params.get("view") ? "programmation" : null;
-  const saved = useSyncExternalStore(
-    () => () => {},
-    () => {
-      try {
-        const v = window.localStorage.getItem(storageKey);
-        return isTab(v) ? v : null;
-      } catch {
-        return null; // Stockage indisponible (navigation privée).
-      }
-    },
-    () => null
-  );
   const [picked, setPicked] = useState<{ url: AthleteTab | null; tab: AthleteTab | null }>({ url: fromUrl, tab: null });
   if (picked.url !== fromUrl) setPicked({ url: fromUrl, tab: null });
-  const active: AthleteTab = (picked.url === fromUrl ? picked.tab : null) ?? fromUrl ?? saved ?? "apercu";
+  const active: AthleteTab = (picked.url === fromUrl ? picked.tab : null) ?? fromUrl ?? "programmation";
 
   function select(tab: AthleteTab) {
     setPicked({ url: fromUrl, tab });
-    try {
-      window.localStorage.setItem(storageKey, tab);
-    } catch {
-      // Sans persistance, le choix reste valable pour la session en cours.
-    }
     const next = new URLSearchParams(window.location.search);
     next.set("tab", tab);
     window.history.replaceState(null, "", `?${next.toString()}`);
