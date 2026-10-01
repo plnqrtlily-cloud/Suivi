@@ -433,6 +433,22 @@ CREATE TABLE IF NOT EXISTS coach_reminders (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Notes libres du coach sur son tableau de bord (idées, choses à garder en
+-- tête), à côté des tâches. Éventuellement rattachées à un athlète, une
+-- équipe ou au club (for_club), sans échéance ni statut. Jamais visibles par
+-- les athlètes. Distinctes de coach_athlete_notes, le portrait d'un athlète.
+CREATE TABLE IF NOT EXISTS coach_dashboard_notes (
+  id TEXT PRIMARY KEY,
+  coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  athlete_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+  team_id TEXT REFERENCES teams(id) ON DELETE CASCADE,
+  for_club INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_coach_dashboard_notes_coach ON coach_dashboard_notes(coach_id);
+
 CREATE TABLE IF NOT EXISTS coach_athlete_notes (
   coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   athlete_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -688,6 +704,12 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE coach_reminders ADD COLUMN notes TEXT`,
   `ALTER TABLE coach_reminders ADD COLUMN flagged INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE coach_reminders ADD COLUMN priority INTEGER NOT NULL DEFAULT 0`,
+  // Tâches du tableau de bord : statut intermédiaire « en cours » (started_at,
+  // la tâche reste à faire tant que done_at est vide) et cible élargie à une
+  // équipe ou au club, en plus d'un athlète.
+  `ALTER TABLE coach_reminders ADD COLUMN started_at TEXT`,
+  `ALTER TABLE coach_reminders ADD COLUMN team_id TEXT REFERENCES teams(id) ON DELETE SET NULL`,
+  `ALTER TABLE coach_reminders ADD COLUMN for_club INTEGER NOT NULL DEFAULT 0`,
   // Invitation personnalisée : prénom de l'athlète, mot du coach et date du
   // dernier envoi par e-mail (pour « Renvoyer »).
   `ALTER TABLE coach_athlete_links ADD COLUMN invite_first_name TEXT`,

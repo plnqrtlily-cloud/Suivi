@@ -4,8 +4,9 @@ import { getCurrentUser } from "@/lib/auth";
 import {
   getAthletesForCoach,
   getCoachReminders,
+  getCoachDashboardNotes,
   getCoachPlanStatus,
-  getTeamCountForCoach,
+  getTeamsForCoach,
 } from "@/lib/queries";
 import { FREE_PLAN_ATHLETE_LIMIT, FREE_PLAN_TEAM_LIMIT } from "@/lib/billing";
 import { isStripeConfigured } from "@/lib/stripe";
@@ -18,7 +19,9 @@ import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
 import { Avatar } from "@/components/avatar";
 import { Card } from "@/components/ui";
-import { CoachReminders } from "./coach-reminders";
+import { CoachTasks } from "./coach-tasks";
+import { CoachNotes } from "./coach-notes";
+import type { TargetOption } from "./dashboard-targets";
 import { InviteForm, InviteButton, type PendingInvite } from "../invite-form";
 import { isEmailConfigured } from "@/lib/email";
 import { sportIconPath } from "@/lib/sport-icons";
@@ -153,12 +156,14 @@ export default async function CoachDashboardPage({
   const { upgraded } = await searchParams;
   const today = todayISO();
 
-  const [links, reminders, planStatus, teamCount] = await Promise.all([
+  const [links, reminders, dashboardNotes, planStatus, teams] = await Promise.all([
     getAthletesForCoach(user.id),
     getCoachReminders(user.id),
+    getCoachDashboardNotes(user.id),
     getCoachPlanStatus(user.id),
-    getTeamCountForCoach(user.id),
+    getTeamsForCoach(user.id),
   ]);
+  const teamCount = teams.length;
   const activeAthletes = links.filter((l) => l.status === "active" && l.athlete_id);
   // Invitations envoyées mais pas encore acceptées — sinon le coach n'a aucun
   // moyen de savoir qu'elles sont en attente, ni de les annuler.
@@ -172,6 +177,15 @@ export default async function CoachDashboardPage({
     createdAt: l.created_at ?? null,
   }));
   const emailReady = isEmailConfigured();
+  // Ce à quoi une tâche ou une note peut se rattacher : un athlète suivi ou une équipe.
+  const targets: TargetOption[] = [
+    ...teams.map((t) => ({ value: `team:${t.id}`, label: t.name, group: "team" as const })),
+    ...activeAthletes.map((a: any) => ({
+      value: `athlete:${a.athlete_id}`,
+      label: `${a.first_name} ${a.last_name}`,
+      group: "athlete" as const,
+    })),
+  ];
 
   // Tout l'effectif chargé en une poignée de requêtes plutôt que huit par
   // athlète : à 30 athlètes, l'ancienne version faisait 240 allers-retours.
@@ -314,15 +328,16 @@ export default async function CoachDashboardPage({
             </Card>
           ) : (
             <>
-              <Card className="mb-4 rounded-3xl">
-                <CoachReminders
-                  reminders={reminders}
-                  athletes={activeAthletes.map((a: any) => ({
-                    id: a.athlete_id as string,
-                    name: `${a.first_name} ${a.last_name}`,
-                  }))}
-                />
-              </Card>
+              {/* Tâches et notes côte à côte (empilées sur mobile), en version
+                  compacte pour laisser la place aux cartes athlètes. */}
+              <div className="mb-4 grid items-start gap-3 lg:grid-cols-5">
+                <div className="rounded-[18px] border border-line bg-white px-3 pb-1 pt-2 lg:col-span-3">
+                  <CoachTasks tasks={reminders} targets={targets} />
+                </div>
+                <div className="rounded-[18px] border border-line bg-white px-3 pb-1.5 pt-2 lg:col-span-2">
+                  <CoachNotes notes={dashboardNotes} targets={targets} />
+                </div>
+              </div>
 
               {visible.length === 0 ? (
                 <Card className="rounded-3xl">

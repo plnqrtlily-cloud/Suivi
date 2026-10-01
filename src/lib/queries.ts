@@ -943,10 +943,24 @@ export interface CoachNotes {
 // Rappels du coach, non terminés d'abord, échéance la plus proche en tête.
 export async function getCoachReminders(coachId: string, limit = 200) {
   return dbAll<any>(
-    `SELECT r.*, u.first_name FROM coach_reminders r
+    `SELECT r.*, u.first_name, t.name AS team_name FROM coach_reminders r
      LEFT JOIN users u ON u.id = r.athlete_id
+     LEFT JOIN teams t ON t.id = r.team_id
      WHERE r.coach_id = ?
      ORDER BY r.done_at IS NOT NULL, r.due_date IS NULL, r.due_date ASC, r.created_at DESC
+     LIMIT ?`,
+    [coachId, limit]
+  );
+}
+
+// Notes libres du tableau de bord, la plus récente en tête.
+export async function getCoachDashboardNotes(coachId: string, limit = 200) {
+  return dbAll<any>(
+    `SELECT n.*, u.first_name, t.name AS team_name FROM coach_dashboard_notes n
+     LEFT JOIN users u ON u.id = n.athlete_id
+     LEFT JOIN teams t ON t.id = n.team_id
+     WHERE n.coach_id = ?
+     ORDER BY n.created_at DESC
      LIMIT ?`,
     [coachId, limit]
   );
