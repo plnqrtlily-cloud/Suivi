@@ -941,10 +941,35 @@ export interface CoachNotes {
 }
 
 // Rappels du coach, non terminés d'abord, échéance la plus proche en tête.
+export interface CoachDeskNote {
+  id: string;
+  body: string;
+  athlete_id: string | null;
+  team_id: string | null;
+  for_club: number;
+  first_name: string | null;
+  team_name: string | null;
+  created_at: string;
+}
+
+export async function getCoachDeskNotes(coachId: string): Promise<CoachDeskNote[]> {
+  return dbAll(
+    `SELECT n.id, n.body, n.athlete_id, n.team_id, n.for_club, n.created_at, u.first_name, t.name AS team_name
+     FROM coach_desk_notes n
+     LEFT JOIN users u ON u.id = n.athlete_id
+     LEFT JOIN teams t ON t.id = n.team_id
+     WHERE n.coach_id = ?
+     ORDER BY n.created_at DESC
+     LIMIT 200`,
+    [coachId]
+  );
+}
+
 export async function getCoachReminders(coachId: string, limit = 200) {
   return dbAll<any>(
-    `SELECT r.*, u.first_name FROM coach_reminders r
+    `SELECT r.*, u.first_name, t.name AS team_name FROM coach_reminders r
      LEFT JOIN users u ON u.id = r.athlete_id
+     LEFT JOIN teams t ON t.id = r.team_id
      WHERE r.coach_id = ?
      ORDER BY r.done_at IS NOT NULL, r.due_date IS NULL, r.due_date ASC, r.created_at DESC
      LIMIT ?`,

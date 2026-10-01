@@ -423,6 +423,21 @@ CREATE TABLE IF NOT EXISTS messages (
 -- Rappels et tâches du coach : pense-bête personnel (« rappeler à Léa de
 -- refaire son test FTP »), éventuellement rattaché à un athlète et à une
 -- échéance. Jamais visible par les athlètes.
+-- Notes libres de l'accueil coach (à côté des tâches) : ce qu'il veut garder
+-- en tête, éventuellement rattaché au club, à une équipe ou à un athlète.
+-- Jamais visibles par les athlètes.
+CREATE TABLE IF NOT EXISTS coach_desk_notes (
+  id TEXT PRIMARY KEY,
+  coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  athlete_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+  team_id TEXT REFERENCES teams(id) ON DELETE CASCADE,
+  for_club INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_coach_desk_notes_coach ON coach_desk_notes(coach_id);
+
 CREATE TABLE IF NOT EXISTS coach_reminders (
   id TEXT PRIMARY KEY,
   coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -688,6 +703,11 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE coach_reminders ADD COLUMN notes TEXT`,
   `ALTER TABLE coach_reminders ADD COLUMN flagged INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE coach_reminders ADD COLUMN priority INTEGER NOT NULL DEFAULT 0`,
+  // Tâches de l'accueil coach : « en cours » entre à faire et fait (fait =
+  // done_at renseigné), et cible club ou équipe en plus d'un athlète.
+  `ALTER TABLE coach_reminders ADD COLUMN in_progress INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE coach_reminders ADD COLUMN team_id TEXT`,
+  `ALTER TABLE coach_reminders ADD COLUMN for_club INTEGER NOT NULL DEFAULT 0`,
   // Invitation personnalisée : prénom de l'athlète, mot du coach et date du
   // dernier envoi par e-mail (pour « Renvoyer »).
   `ALTER TABLE coach_athlete_links ADD COLUMN invite_first_name TEXT`,

@@ -2108,6 +2108,25 @@ export async function revokeCalendarTokenAction() {
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const HH_MM = /^\d{2}:\d{2}$/;
 
+// Cible d'une tâche ou d'une note de l'accueil : "club", "team:<id>",
+// "athlete:<id>" ou rien. Une équipe ou un athlète doit appartenir au coach.
+async function resolveDeskTarget(coachId: string, raw: string | null | undefined) {
+  const v = String(raw || "");
+  if (v === "club") return { athleteId: null, teamId: null, forClub: 1 };
+  if (v.startsWith("athlete:")) {
+    const id = v.slice(8);
+    if (!(await isCoachLinkedToAthlete(coachId, id))) throw new Error("Non autorisé.");
+    return { athleteId: id, teamId: null, forClub: 0 };
+  }
+  if (v.startsWith("team:")) {
+    const id = v.slice(5);
+    const team = await dbGet<{ coach_id: string }>(`SELECT coach_id FROM teams WHERE id = ?`, [id]);
+    if (!team || team.coach_id !== coachId) throw new Error("Non autorisé.");
+    return { athleteId: null, teamId: id, forClub: 0 };
+  }
+  return { athleteId: null, teamId: null, forClub: 0 };
+}
+
 export async function addCoachReminderAction(formData: FormData): Promise<{ id: string } | undefined> {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
@@ -2122,11 +2141,25 @@ export async function addCoachReminderAction(formData: FormData): Promise<{ id: 
   const flagged = formData.get("flagged") === "1" ? 1 : 0;
   // Un rappel peut viser un athlète précis — mais uniquement l'un des siens.
   if (athleteId && !(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+  // Cible au format de l'accueil (club, équipe ou athlète), prioritaire sur athleteId.
+  const target = formData.has("target") ? await resolveDeskTarget(user.id, String(formData.get("target"))) : null;
 
   const id = randomUUID();
   await dbRun(
-    `INSERT INTO coach_reminders (id, coach_id, athlete_id, content, due_date, due_time, notes, priority, flagged) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, user.id, athleteId || null, content, ISO_DATE.test(dueDate) ? dueDate : null, HH_MM.test(dueTime) ? dueTime : null, notes || null, priority, flagged]
+    `INSERT INTO coach_reminders (id, coach_id, athlete_id, team_id, for_club, content, due_date, due_time, notes, priority, flagged) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      id,
+      user.id,
+      target ? target.athleteId : athleteId || null,
+      target?.teamId ?? null,
+      target?.forClub ?? 0,
+      content,
+      ISO_DATE.test(dueDate) ? dueDate : null,
+      HH_MM.test(dueTime) && ISO_DATE.test(dueDate) ? dueTime : null,
+      notes || null,
+      priority,
+      flagged,
+    ]
   );
   revalidatePath("/coach/dashboard");
   return { id };
@@ -2141,6 +2174,7 @@ export async function updateCoachReminderAction(
     dueDate?: string | null;
     dueTime?: string | null;
     athleteId?: string | null;
+    target?: string | null;
     priority?: number;
     flagged?: boolean;
   }
@@ -2175,6 +2209,11 @@ export async function updateCoachReminderAction(
     sets.push("athlete_id = ?");
     args.push(fields.athleteId || null);
   }
+  if (fields.target !== undefined) {
+    const t = await resolveDeskTarget(user.id, fields.target);
+    sets.push("athlete_id = ?", "team_id = ?", "for_club = ?");
+    args.push(t.athleteId, t.teamId, t.forClub);
+  }
   if (fields.priority !== undefined) {
     sets.push("priority = ?");
     args.push(Math.max(0, Math.min(3, Math.round(fields.priority))));
@@ -2207,6 +2246,67 @@ export async function toggleCoachReminderAction(id: string) {
     reminder.done_at ? null : new Date().toISOString(),
     id,
   ]);
+  revalidatePath("/coach/dashboard");
+}
+
+// Statut d'une tâche en trois temps : 0 à faire, 1 en cours, 2 faite.
+export async function setCoachReminderStatusAction(id: string, level: number) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  const reminder = await dbGet<{ coach_id: string; done_at: string | null }>(`SELECT coach_id, done_at FROM coach_reminders WHERE id = ?`, [id]);
+  if (!reminder || reminder.coach_id !== user.id) throw new Error("Non autorisé.");
+  const lv = Math.max(0, Math.min(2, Math.round(level)));
+  await dbRun(`UPDATE coach_reminders SET in_progress = ?, done_at = ? WHERE id = ?`, [
+    lv === 1 ? 1 : 0,
+    lv === 2 ? reminder.done_at ?? new Date().toISOString() : null,
+    id,
+  ]);
+  revalidatePath("/coach/dashboard");
+}
+
+// ---------- Notes de l'accueil coach ----------
+
+export async function addCoachDeskNoteAction(body: string, target: string): Promise<{ id: string } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  const text = body.trim().slice(0, 4000);
+  if (!text) return { error: "La note est vide." };
+  const t = await resolveDeskTarget(user.id, target);
+  const id = randomUUID();
+  await dbRun(`INSERT INTO coach_desk_notes (id, coach_id, body, athlete_id, team_id, for_club) VALUES (?, ?, ?, ?, ?, ?)`, [
+    id,
+    user.id,
+    text,
+    t.athleteId,
+    t.teamId,
+    t.forClub,
+  ]);
+  revalidatePath("/coach/dashboard");
+  return { id };
+}
+
+export async function updateCoachDeskNoteAction(id: string, body: string, target: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  const note = await dbGet<{ coach_id: string }>(`SELECT coach_id FROM coach_desk_notes WHERE id = ?`, [id]);
+  if (!note || note.coach_id !== user.id) throw new Error("Non autorisé.");
+  const text = body.trim().slice(0, 4000);
+  if (!text) return;
+  const t = await resolveDeskTarget(user.id, target);
+  await dbRun(`UPDATE coach_desk_notes SET body = ?, athlete_id = ?, team_id = ?, for_club = ?, updated_at = datetime('now') WHERE id = ?`, [
+    text,
+    t.athleteId,
+    t.teamId,
+    t.forClub,
+    id,
+  ]);
+  revalidatePath("/coach/dashboard");
+}
+
+export async function deleteCoachDeskNoteAction(id: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  await dbRun(`DELETE FROM coach_desk_notes WHERE id = ? AND coach_id = ?`, [id, user.id]);
   revalidatePath("/coach/dashboard");
 }
 

@@ -5,6 +5,8 @@ import {
   getAthletesForCoach,
   getCoachReminders,
   getCoachPlanStatus,
+  getCoachDeskNotes,
+  getTeamsForCoach,
 } from "@/lib/queries";
 import { isStripeConfigured } from "@/lib/stripe";
 import { formatTrialDate } from "@/lib/billing";
@@ -17,7 +19,7 @@ import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
 import { Avatar } from "@/components/avatar";
 import { Card } from "@/components/ui";
-import { CoachReminders } from "./coach-reminders";
+import { CoachDesk } from "./coach-desk";
 import { InviteForm, InviteButton, type PendingInvite } from "../invite-form";
 import { isEmailConfigured } from "@/lib/email";
 import { sportIconPath } from "@/lib/sport-icons";
@@ -152,10 +154,12 @@ export default async function CoachDashboardPage({
   const { upgraded } = await searchParams;
   const today = todayISO();
 
-  const [links, reminders, planStatus] = await Promise.all([
+  const [links, reminders, planStatus, deskNotes, teams] = await Promise.all([
     getAthletesForCoach(user.id),
     getCoachReminders(user.id),
     getCoachPlanStatus(user.id),
+    getCoachDeskNotes(user.id),
+    getTeamsForCoach(user.id),
   ]);
   const activeAthletes = links.filter((l) => l.status === "active" && l.athlete_id);
   // Invitations envoyées mais pas encore acceptées — sinon le coach n'a aucun
@@ -299,15 +303,18 @@ export default async function CoachDashboardPage({
             </Card>
           ) : (
             <>
-              <Card className="mb-4 rounded-3xl">
-                <CoachReminders
-                  reminders={reminders}
-                  athletes={activeAthletes.map((a: any) => ({
-                    id: a.athlete_id as string,
-                    name: `${a.first_name} ${a.last_name}`,
-                  }))}
+              <div className="mb-4">
+                <CoachDesk
+                  tasks={reminders}
+                  notes={deskNotes}
+                  today={today}
+                  targets={[
+                    { value: "club", label: "Club" },
+                    ...teams.map((t) => ({ value: `team:${t.id}`, label: `Équipe · ${t.name}` })),
+                    ...activeAthletes.map((a) => ({ value: `athlete:${a.athlete_id}`, label: `Athlète · ${a.first_name}` })),
+                  ]}
                 />
-              </Card>
+              </div>
 
               {visible.length === 0 ? (
                 <Card className="rounded-3xl">
