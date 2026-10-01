@@ -53,7 +53,7 @@ import {
 } from "../src/lib/queries";
 import { bilanRangeDays } from "../src/lib/dates";
 import { isValidPosition, layoutBand } from "../src/lib/team-sports";
-import { computePlanStatus, TRIAL_DURATION_DAYS } from "../src/lib/billing";
+import { computePlanStatus, TRIAL_POLICY_START, ADMIN_EMAIL } from "../src/lib/billing";
 import { EFFORT_TEST_CATALOG } from "../src/lib/effort-tests";
 import { getInjuriesForAthlete, getEffortTestResultsForAthlete } from "../src/lib/queries";
 
@@ -1193,27 +1193,27 @@ async function main() {
   );
   assert(
     (await getTeamCountForCoach(coach.id)) === 1 && (await getTeamCountForCoach(otherAthlete.id)) === 0,
-    "Le nombre d'équipes d'un coach est compté correctement (sert au plafond gratuit)"
+    "Le nombre d'équipes d'un coach est compté correctement"
   );
 
-  // --- Essai automatique (canCreateSessions) ---------------------------------
-  const justSignedUp = new Date().toISOString();
-  const longAgo = new Date(Date.now() - (TRIAL_DURATION_DAYS + 1) * 86400000).toISOString();
-  const stillWithinTrial = computePlanStatus("free", justSignedUp);
+  // --- Essai de 3 mois, puis accès bloqué sans abonnement (hasAccess) ----------
+  const now = new Date("2026-11-15T12:00:00Z");
+  const recent = computePlanStatus("free", "2026-11-01 09:00:00", undefined, now);
   assert(
-    stillWithinTrial.canCreateSessions && stillWithinTrial.trialDaysLeft === TRIAL_DURATION_DAYS,
-    "Un compte gratuit tout juste créé peut encore programmer des séances"
+    recent.hasAccess && recent.trialEndsAt === "2027-02-01",
+    "Un coach inscrit récemment a 3 mois d'essai à partir de son inscription"
   );
-  const trialExpired = computePlanStatus("free", longAgo);
+  const before = computePlanStatus("free", "2025-01-10 09:00:00", undefined, now);
   assert(
-    !trialExpired.canCreateSessions && trialExpired.trialDaysLeft === null,
-    "Un compte gratuit dont l'essai est passé ne peut plus programmer de nouvelles séances"
+    before.hasAccess && before.trialEndsAt === "2027-01-01",
+    `Un coach inscrit avant ${TRIAL_POLICY_START} a ses 3 mois à partir de cette date`
   );
-  const proAccount = computePlanStatus("pro", longAgo);
-  assert(
-    proAccount.canCreateSessions && proAccount.isPro,
-    "Un compte Pro peut toujours programmer, quelle que soit l'ancienneté du compte"
-  );
+  const expired = computePlanStatus("free", "2026-01-01 09:00:00", undefined, new Date("2027-01-02T00:00:00Z"));
+  assert(!expired.hasAccess && expired.trialDaysLeft === null, "Essai terminé sans abonnement : accès bloqué");
+  const proAccount = computePlanStatus("pro", "2020-01-01 09:00:00", undefined, new Date("2030-01-01T00:00:00Z"));
+  assert(proAccount.hasAccess && proAccount.isPro, "Un compte Pro garde l'accès quelle que soit l'ancienneté du compte");
+  const admin = computePlanStatus("free", "2020-01-01 09:00:00", ADMIN_EMAIL, new Date("2030-01-01T00:00:00Z"));
+  assert(admin.hasAccess, "L'administratrice garde toujours l'accès");
 
   // --- Tests à l'effort --------------------------------------------------
   const demiCooper = EFFORT_TEST_CATALOG.demi_cooper.compute({ distance_m: 1500 });

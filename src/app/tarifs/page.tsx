@@ -6,10 +6,11 @@ import { createCheckoutSessionAction, createBillingPortalSessionAction } from "@
 import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
 import { Card, LinkButton, Button } from "@/components/ui";
-import { FREE_PLAN_ATHLETE_LIMIT, FREE_PLAN_TEAM_LIMIT, PRO_PLAN_PRICE_EUR, TRIAL_DURATION_DAYS, upgradeMailtoHref } from "@/lib/billing";
+import { PRO_PLAN_PRICE_EUR, TRIAL_DURATION_MONTHS, formatTrialDate, upgradeMailtoHref } from "@/lib/billing";
 
-export default async function TarifsPage() {
+export default async function TarifsPage({ searchParams }: { searchParams: Promise<{ essai?: string }> }) {
   const user = await getCurrentUser();
+  const { essai } = await searchParams;
   // Le paiement en self-service n'a de sens que connecté (Stripe a besoin de
   // savoir quel compte faire passer Pro) et déjà pas Pro (sinon on créerait un
   // second abonnement pour le même coach) — sinon on retombe sur le contact
@@ -17,30 +18,47 @@ export default async function TarifsPage() {
   const planStatus = user?.role === "coach" ? await getCoachPlanStatus(user.id) : null;
   const canCheckout = user?.role === "coach" && isStripeConfigured() && planStatus?.plan !== "pro";
   const alreadyPro = planStatus?.plan === "pro";
+  // Redirigé ici par src/proxy.ts quand l'essai est terminé.
+  const trialOver = !!planStatus && !planStatus.hasAccess;
+  const endLabel = planStatus?.trialEndsAt ? formatTrialDate(planStatus.trialEndsAt) : null;
 
   const content = (
     <>
       <h1 className="mb-2 font-display text-3xl text-ink">Tarifs</h1>
       <p className="mb-8 text-slate">
-        Suivez vos premiers athlètes gratuitement. Passez au plan Pro quand votre effectif grandit — pas de
-        facturation automatique pour l&apos;instant, on en discute directement par email.
+        {TRIAL_DURATION_MONTHS} mois d&apos;essai gratuit, sans limite et sans carte bancaire. Ensuite, un abonnement
+        unique pour continuer.
       </p>
+
+      {(trialOver || essai === "termine") && planStatus && !planStatus.hasAccess && (
+        <div className="mb-6 rounded-2xl border border-gold-light/40 bg-white p-4 text-sm text-ink">
+          <p className="font-semibold">Votre essai gratuit est terminé{endLabel ? ` depuis le ${endLabel}` : ""}.</p>
+          <p className="mt-1 text-ink-soft">
+            Passez au plan Pro pour retrouver votre espace coach. Vos athlètes, séances et données sont conservés.
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card className="rounded-3xl">
-          <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Gratuit</h2>
-          <p className="mb-4 font-display text-3xl text-ink">0€</p>
+          <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Essai gratuit</h2>
+          <p className="mb-4 font-display text-3xl text-ink">
+            0€<span className="text-base font-normal text-slate"> pendant {TRIAL_DURATION_MONTHS} mois</span>
+          </p>
           <ul className="mb-6 flex flex-col gap-2 text-sm text-ink-soft">
-            <li>Jusqu&apos;à {FREE_PLAN_ATHLETE_LIMIT} athlètes en coaching individuel</li>
-            <li>Ou {FREE_PLAN_TEAM_LIMIT} équipe de sport collectif, effectif illimité</li>
-            <li>Programmation, suivi de forme, messagerie</li>
-            <li>Bilans, périodisation, statistiques de performance</li>
-            <li>Terrain par poste (foot, rugby, hand, basket)</li>
-            <li>{TRIAL_DURATION_DAYS} jours d&apos;essai pour prendre l&apos;app en main</li>
+            <li>Athlètes et équipes illimités</li>
+            <li>Toutes les fonctionnalités, sans restriction</li>
+            <li>Sans carte bancaire</li>
           </ul>
-          <LinkButton href="/register" variant="secondary">
-            Commencer gratuitement
-          </LinkButton>
+          {!user ? (
+            <LinkButton href="/register" variant="secondary">
+              Commencer l&apos;essai gratuit
+            </LinkButton>
+          ) : planStatus?.hasAccess && !alreadyPro && endLabel ? (
+            <p className="text-sm font-medium text-moss-dark">
+              Essai en cours — encore {planStatus.trialDaysLeft} jour{(planStatus.trialDaysLeft ?? 0) > 1 ? "s" : ""}, jusqu&apos;au {endLabel}.
+            </p>
+          ) : null}
         </Card>
 
         <Card className="rounded-3xl border-2 border-moss/40">
@@ -49,8 +67,9 @@ export default async function TarifsPage() {
             {PRO_PLAN_PRICE_EUR}€<span className="text-base font-normal text-slate">/mois</span>
           </p>
           <ul className="mb-6 flex flex-col gap-2 text-sm text-ink-soft">
-            <li>Athlètes et équipes illimités</li>
-            <li>Toutes les fonctionnalités de l&apos;offre gratuite</li>
+            <li>Après l&apos;essai : tout continue, sans limite</li>
+            <li>Programmation, suivi de forme, messagerie</li>
+            <li>Bilans, périodisation, profil de performance</li>
             <li>Support prioritaire par email</li>
           </ul>
           {alreadyPro ? (
@@ -79,10 +98,9 @@ export default async function TarifsPage() {
       </div>
 
       <p className="mt-6 text-sm text-slate">
-        Chaque inscription inclut automatiquement {TRIAL_DURATION_DAYS} jours pour programmer librement et prendre
-        l&apos;app en main, sans carte bancaire. Passé ce délai, l&apos;offre gratuite reste active
-        (effectif, suivi, statistiques) mais il faut passer au plan Pro pour continuer à programmer de nouvelles
-        séances.
+        L&apos;essai démarre à l&apos;inscription. Vous pouvez vous abonner avant la fin : le premier paiement n&apos;a
+        lieu qu&apos;à la fin des {TRIAL_DURATION_MONTHS} mois. Sans abonnement à la fin de l&apos;essai, l&apos;espace coach est
+        suspendu jusqu&apos;au paiement, et vos données sont conservées.
       </p>
 
       <p className="mt-8 text-sm text-slate">

@@ -15,14 +15,14 @@ export function SetPlanButton({ coachId, currentPlan }: { coachId: string; curre
         variant="ghost"
         loading={pending}
         onClick={async () => {
-          if (!confirm("Repasser ce coach en offre gratuite ?")) return;
+          if (!confirm("Retirer le plan Pro de ce coach ? Si son essai est terminé, son espace sera bloqué.")) return;
           setPending(true);
           await setCoachPlanAction(coachId, "free");
           router.refresh();
           setPending(false);
         }}
       >
-        Repasser gratuit
+        Retirer le Pro
       </Button>
     );
   }

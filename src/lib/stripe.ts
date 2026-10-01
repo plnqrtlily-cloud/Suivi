@@ -38,9 +38,11 @@ export async function createCheckoutSession(params: {
   email: string;
   successUrl: string;
   cancelUrl: string;
+  trialEndUnix?: number;
 }): Promise<{ url: string } | { error: string }> {
   try {
     const session = await stripeRequest("checkout/sessions", {
+      ...(params.trialEndUnix ? { "subscription_data[trial_end]": String(params.trialEndUnix) } : {}),
       mode: "subscription",
       "line_items[0][price]": process.env.STRIPE_PRICE_ID_PRO!,
       "line_items[0][quantity]": "1",

@@ -1,24 +1,18 @@
-// Offre commerciale : pas de facturation automatisée pour l'instant (aucun
-// compte Stripe branché) — un coach qui veut dépasser l'offre gratuite
-// contacte directement l'éditeur, qui bascule son compte en 'pro' à la main
-// (cf. plan sur users, colonne ajoutée dans src/lib/db.ts). Centraliser ces
-// constantes ici évite de disperser le prix et la limite dans chaque écran
-// qui les affiche.
-export const FREE_PLAN_ATHLETE_LIMIT = 3;
-// Un coach qui a créé son équipe gratuite (sport collectif) n'est plus
-// soumis à FREE_PLAN_ATHLETE_LIMIT : le vrai levier gratuit/payant pour le
-// sport co est le nombre d'équipes, pas la taille de l'effectif (un effectif
-// de foot dépasse largement 3 joueurs). Cf. createInviteAction/createTeamAction.
-export const FREE_PLAN_TEAM_LIMIT = 1;
+// Offre commerciale : 3 mois d'essai complet, puis abonnement Pro. Le paiement
+// passe par Stripe quand il est configuré (cf. src/lib/stripe.ts), sinon par
+// email : l'éditeur bascule alors le compte en 'pro' à la main (cf. /admin).
+// Centraliser ces constantes ici évite de disperser le prix et la durée
+// d'essai dans chaque écran qui les affiche.
 export const PRO_PLAN_PRICE_EUR = 19;
 export const UPGRADE_CONTACT_EMAIL = "plnqrtlily@gmail.com";
-// Durée pendant laquelle un compte gratuit peut encore programmer de
-// nouvelles séances après son inscription (cf. createWorkoutAction/
-// createTeamSessionAction) — assez long pour prendre en main l'app et
-// programmer plusieurs semaines réelles, court assez pour donner envie de
-// passer Pro. Ne s'applique pas à FREE_PLAN_ATHLETE_LIMIT/FREE_PLAN_TEAM_LIMIT,
-// qui restent valables indéfiniment sur l'offre gratuite.
-export const TRIAL_DURATION_DAYS = 30;
+// Essai gratuit de 3 mois, sans limite (athlètes et équipes illimités, toutes
+// les fonctions) : il démarre à l'inscription. Au-delà, l'espace coach est
+// bloqué jusqu'au paiement — il n'y a plus d'offre gratuite permanente.
+export const TRIAL_DURATION_MONTHS = 3;
+// Passage à ce modèle : les coachs inscrits avant cette date ont droit à
+// leurs 3 mois complets à partir d'elle, plutôt que depuis leur inscription
+// (sinon les plus anciens seraient bloqués du jour au lendemain).
+export const TRIAL_POLICY_START = "2026-10-01";
 // Contrôle d'accès à /admin — même valeur que UPGRADE_CONTACT_EMAIL aujourd'hui,
 // mais un rôle différent (identifiant d'accès plutôt qu'adresse affichée aux
 // utilisateurs) : gardées séparées pour ne pas les faire dépendre l'une de
@@ -27,38 +21,54 @@ export const ADMIN_EMAIL = "plnqrtlily@gmail.com";
 
 export interface PlanStatus {
   plan: string; // valeur brute de la colonne : 'free' | 'pro'
-  isPro: boolean; // plan payant uniquement — l'essai automatique ne lève plus
-  // FREE_PLAN_ATHLETE_LIMIT/FREE_PLAN_TEAM_LIMIT, seulement canCreateSessions.
-  trialDaysLeft: number | null; // jours restants avant blocage ; null si Pro ou essai déjà terminé
-  canCreateSessions: boolean; // false si free et essai (TRIAL_DURATION_DAYS depuis l'inscription) terminé
+  isPro: boolean; // abonnement payé
+  trialEndsAt: string | null; // fin de l'essai (AAAA-MM-JJ) ; null si Pro
+  trialDaysLeft: number | null; // jours d'essai restants ; null si Pro ou essai terminé
+  hasAccess: boolean; // Pro, ou essai en cours : sinon l'espace coach est bloqué
+}
+
+/** Fin de l'essai : 3 mois après l'inscription, ou après TRIAL_POLICY_START pour les comptes plus anciens. */
+export function trialEndDate(createdAt: string): Date {
+  const signup = new Date(createdAt.replace(" ", "T").slice(0, 10) + "T00:00:00Z");
+  const policy = new Date(`${TRIAL_POLICY_START}T00:00:00Z`);
+  const start = signup > policy ? signup : policy;
+  const end = new Date(start);
+  end.setUTCMonth(end.getUTCMonth() + TRIAL_DURATION_MONTHS);
+  return end;
 }
 
 /**
- * Essai automatique depuis l'inscription (pas d'action manuelle du coach) :
- * l'état effectif se recalcule à chaque lecture à partir de la date de
- * création du compte, comme l'expiration des sessions dans getCurrentUser.
- * Un essai expiré ne bloque que la création de nouvelles séances
- * (createWorkoutAction/createTeamSessionAction) — le reste de l'app (suivi,
- * effectif, statistiques) reste consultable normalement.
+ * L'état effectif se recalcule à chaque lecture à partir de la date de
+ * création du compte, comme l'expiration des sessions dans getCurrentUser
+ * (pas de tâche planifiée). L'administratrice garde toujours l'accès.
  */
-export function computePlanStatus(plan: string, createdAt: string): PlanStatus {
-  if (plan === "pro") {
-    return { plan, isPro: true, trialDaysLeft: null, canCreateSessions: true };
+export function computePlanStatus(plan: string, createdAt: string, email?: string, now: Date = new Date()): PlanStatus {
+  if (plan === "pro" || (email && email.toLowerCase() === ADMIN_EMAIL)) {
+    return { plan, isPro: plan === "pro", trialEndsAt: null, trialDaysLeft: null, hasAccess: true };
   }
-  const daysSince = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
-  const trialActive = daysSince < TRIAL_DURATION_DAYS;
+  const end = trialEndDate(createdAt);
+  const msLeft = end.getTime() - now.getTime();
+  const trialActive = msLeft > 0;
   return {
     plan,
     isPro: false,
-    trialDaysLeft: trialActive ? TRIAL_DURATION_DAYS - daysSince : null,
-    canCreateSessions: trialActive,
+    trialEndsAt: end.toISOString().slice(0, 10),
+    trialDaysLeft: trialActive ? Math.ceil(msLeft / 86400000) : null,
+    hasAccess: trialActive,
   };
+}
+
+const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+/** « 1er janvier 2027 » à partir de AAAA-MM-JJ. */
+export function formatTrialDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${d === 1 ? "1er" : d} ${MONTHS[m - 1]} ${y}`;
 }
 
 export function upgradeMailtoHref(context?: string): string {
   const subject = encodeURIComponent("Passer au plan Pro — Rythme");
   const body = encodeURIComponent(
-    `Bonjour,\n\nJe souhaite passer au plan Pro (${PRO_PLAN_PRICE_EUR}€/mois, athlètes illimités).${
+    `Bonjour,\n\nJe souhaite passer au plan Pro (${PRO_PLAN_PRICE_EUR}€/mois).${
       context ? `\n\n${context}` : ""
     }\n\nMon adresse de connexion : \n\nMerci !`
   );

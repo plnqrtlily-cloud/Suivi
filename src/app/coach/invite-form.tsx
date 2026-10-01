@@ -82,7 +82,7 @@ export function InviteForm({
     start(async () => {
       const res = await createInviteAction(fd);
       if ("error" in res) {
-        setError({ text: res.error, limit: res.error.includes("offre gratuite") || res.error.includes("plan Pro") });
+        setError({ text: res.error, limit: res.error.includes("plan Pro") });
         setResult(null);
         return;
       }

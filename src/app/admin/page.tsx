@@ -36,9 +36,9 @@ export default async function AdminPage() {
               const label =
                 status.plan === "pro"
                   ? "Pro"
-                  : status.canCreateSessions
-                    ? `Essai — ${status.trialDaysLeft} j restants`
-                    : "Gratuit (essai terminé)";
+                  : status.hasAccess
+                    ? `Essai — ${status.trialDaysLeft} j restants (jusqu'au ${status.trialEndsAt})`
+                    : "Essai terminé — accès bloqué";
               return (
                 <Card key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl">
                   <div>

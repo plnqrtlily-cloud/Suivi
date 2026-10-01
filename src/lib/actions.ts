@@ -24,8 +24,8 @@ import {
 } from "./auth";
 import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MESSAGE_DOC_TYPES } from "./storage";
 import { parseGpx, simplifyRoute } from "./gpx";
-import { getResourceById, getBlocksForWorkout, getAthletesForCoach, getCoachPlanStatus, getTeamWithMembers, getTeamCountForCoach } from "./queries";
-import { FREE_PLAN_ATHLETE_LIMIT, FREE_PLAN_TEAM_LIMIT, ADMIN_EMAIL } from "./billing";
+import { getResourceById, getBlocksForWorkout, getCoachPlanStatus, getTeamWithMembers } from "./queries";
+import { ADMIN_EMAIL, trialEndDate } from "./billing";
 import { createNotification, markNotificationRead, markAllNotificationsRead } from "./notifications";
 import { sendEmail, isEmailConfigured, appBaseUrl } from "./email";
 import { isStripeConfigured, createCheckoutSession, createBillingPortalSession } from "./stripe";
@@ -104,23 +104,10 @@ export async function createInviteAction(
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
 
-  // Offre gratuite plafonnée en nombre d'athlètes (liens actifs ou en
-  // attente) — cf. src/lib/billing.ts. Un essai Pro actif compte comme Pro.
-  // Un coach qui a déjà créé son équipe gratuite (sport collectif) n'est
-  // plus soumis à cette limite : son levier gratuit/payant est le nombre
-  // d'équipes (cf. createTeamAction), pas la taille de son effectif — un
-  // roster de foot dépasse largement FREE_PLAN_ATHLETE_LIMIT.
+  // Essai de 3 mois sans limite, puis abonnement Pro — cf. src/lib/billing.ts.
   const status = await getCoachPlanStatus(user.id);
-  if (!status.isPro) {
-    const teamCount = await getTeamCountForCoach(user.id);
-    if (teamCount === 0) {
-      const links = await getAthletesForCoach(user.id);
-      if (links.length >= FREE_PLAN_ATHLETE_LIMIT) {
-        return {
-          error: `L'offre gratuite est limitée à ${FREE_PLAN_ATHLETE_LIMIT} athlètes. Passez au plan Pro pour en suivre davantage.`,
-        };
-      }
-    }
+  if (!status.hasAccess) {
+    return { error: "Votre essai gratuit est terminé. Passez au plan Pro pour inviter des athlètes." };
   }
 
   const email = String(formData.get("email") || "").trim().toLowerCase();
@@ -208,9 +195,14 @@ export async function createCheckoutSessionAction() {
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
   if (!isStripeConfigured()) throw new Error("Le paiement en ligne n'est pas encore configuré.");
 
+  // S'abonner pendant l'essai ne fait pas perdre les jours restants : Stripe
+  // ne prélève qu'à la fin de l'essai (il exige au moins 48 h d'écart).
+  const row = await dbGet<{ created_at: string }>(`SELECT created_at FROM users WHERE id = ?`, [user.id]);
+  const trialEnd = row ? trialEndDate(row.created_at).getTime() : 0;
   const result = await createCheckoutSession({
     coachId: user.id,
     email: user.email,
+    trialEndUnix: trialEnd - Date.now() > 48 * 3600 * 1000 ? Math.floor(trialEnd / 1000) : undefined,
     successUrl: `${appBaseUrl()}/coach/dashboard?upgraded=1`,
     cancelUrl: `${appBaseUrl()}/tarifs`,
   });
@@ -338,7 +330,7 @@ export async function createWorkoutAction(params: {
   // jusqu'au passage au plan Pro. createWorkoutBulkAction et
   // createTeamSessionAction passent tous les deux par ici.
   const status = await getCoachPlanStatus(user.id);
-  if (!status.canCreateSessions) {
+  if (!status.hasAccess) {
     throw new Error(
       "Votre essai gratuit est terminé. Passez au plan Pro pour continuer à programmer des séances."
     );
@@ -2751,17 +2743,10 @@ export async function createTeamAction(formData: FormData): Promise<{ teamId: st
   if (!name) return { error: "Le nom de l'équipe est obligatoire." };
   if (!isTeamSport(sport)) return { error: "Sport invalide." };
 
-  // Offre gratuite plafonnée en nombre d'équipes — cf. src/lib/billing.ts.
-  // L'effectif de cette équipe, lui, n'est ensuite plus limité (cf.
-  // createInviteAction).
+  // Essai de 3 mois sans limite, puis abonnement Pro — cf. src/lib/billing.ts.
   const status = await getCoachPlanStatus(user.id);
-  if (!status.isPro) {
-    const teamCount = await getTeamCountForCoach(user.id);
-    if (teamCount >= FREE_PLAN_TEAM_LIMIT) {
-      return {
-        error: `L'offre gratuite est limitée à ${FREE_PLAN_TEAM_LIMIT} équipe. Passez au plan Pro pour en créer plusieurs.`,
-      };
-    }
+  if (!status.hasAccess) {
+    return { error: "Votre essai gratuit est terminé. Passez au plan Pro pour créer une équipe." };
   }
 
   const id = randomUUID();
@@ -2892,7 +2877,7 @@ export async function createTeamSessionAction(params: {
   // n'attrape pas les exceptions — un {error} propre plutôt qu'un throw non
   // capturé. Cf. src/lib/billing.ts.
   const status = await getCoachPlanStatus(user.id);
-  if (!status.canCreateSessions) {
+  if (!status.hasAccess) {
     return { error: "Votre essai gratuit est terminé. Passez au plan Pro pour continuer à programmer des séances." };
   }
 

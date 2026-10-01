@@ -126,11 +126,11 @@ export async function getTeamsForAthlete(athleteId: string, coachId: string): Pr
 
 /** Offre + essai en cours — cf. src/lib/billing.ts pour ce que chaque état permet. */
 export async function getCoachPlanStatus(coachId: string): Promise<PlanStatus> {
-  const row = await dbGet<{ plan: string; created_at: string }>(
-    `SELECT plan, created_at FROM users WHERE id = ?`,
+  const row = await dbGet<{ plan: string; created_at: string; email: string }>(
+    `SELECT plan, created_at, email FROM users WHERE id = ?`,
     [coachId]
   );
-  return computePlanStatus(row?.plan ?? "free", row?.created_at ?? new Date().toISOString());
+  return computePlanStatus(row?.plan ?? "free", row?.created_at ?? new Date().toISOString(), row?.email);
 }
 
 export interface AdminCoachRow {

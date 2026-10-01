@@ -5,10 +5,9 @@ import {
   getAthletesForCoach,
   getCoachReminders,
   getCoachPlanStatus,
-  getTeamCountForCoach,
 } from "@/lib/queries";
-import { FREE_PLAN_ATHLETE_LIMIT, FREE_PLAN_TEAM_LIMIT } from "@/lib/billing";
 import { isStripeConfigured } from "@/lib/stripe";
+import { formatTrialDate } from "@/lib/billing";
 import { createBillingPortalSessionAction } from "@/lib/actions";
 import { computeRosterSignals, signalScore, type RosterSignals } from "@/lib/roster-signals";
 import { loadDashboardBatch } from "@/lib/dashboard-batch";
@@ -153,11 +152,10 @@ export default async function CoachDashboardPage({
   const { upgraded } = await searchParams;
   const today = todayISO();
 
-  const [links, reminders, planStatus, teamCount] = await Promise.all([
+  const [links, reminders, planStatus] = await Promise.all([
     getAthletesForCoach(user.id),
     getCoachReminders(user.id),
     getCoachPlanStatus(user.id),
-    getTeamCountForCoach(user.id),
   ]);
   const activeAthletes = links.filter((l) => l.status === "active" && l.athlete_id);
   // Invitations envoyées mais pas encore acceptées — sinon le coach n'a aucun
@@ -268,24 +266,11 @@ export default async function CoachDashboardPage({
           {!planStatus.isPro && (
             <div className="mb-6 flex flex-wrap items-center gap-3">
               <p className="text-xs text-slate">
-                {teamCount > 0 ? (
+                {planStatus.trialEndsAt && (
                   <>
-                    Offre gratuite — {teamCount}/{FREE_PLAN_TEAM_LIMIT} équipe.{" "}
+                    Essai gratuit — encore {planStatus.trialDaysLeft} jour{(planStatus.trialDaysLeft ?? 0) > 1 ? "s" : ""}, jusqu&apos;au{" "}
+                    {formatTrialDate(planStatus.trialEndsAt)}.{" "}
                   </>
-                ) : (
-                  <>
-                    Offre gratuite — {links.length}/{FREE_PLAN_ATHLETE_LIMIT} athlètes.{" "}
-                  </>
-                )}
-                {planStatus.canCreateSessions ? (
-                  <>
-                    Essai — encore {planStatus.trialDaysLeft} jour{(planStatus.trialDaysLeft ?? 0) > 1 ? "s" : ""} pour
-                    programmer librement.{" "}
-                  </>
-                ) : (
-                  <span className="font-medium text-gold-light">
-                    Essai terminé — passez Pro pour programmer de nouvelles séances.{" "}
-                  </span>
                 )}
                 <Link href="/tarifs" className="font-semibold text-moss-dark hover:underline">
                   Passer au plan Pro

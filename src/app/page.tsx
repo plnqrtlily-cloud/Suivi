@@ -63,7 +63,7 @@ export default async function Home() {
                 Voir les tarifs
               </LinkButton>
             </div>
-            <p className="text-sm text-slate">Gratuit pour commencer, sans carte bancaire.</p>
+            <p className="text-sm text-slate">3 mois d&apos;essai gratuit, sans carte bancaire.</p>
           </div>
           <div className="flex flex-col gap-2">
             <TeamPitch sport="football" members={DEMO_MEMBERS} interactive={false} />
@@ -126,7 +126,7 @@ export default async function Home() {
         <section className="flex flex-col items-center gap-3 rounded-3xl border border-line bg-white px-6 py-12 text-center">
           <h2 className="font-display text-2xl text-ink">Prêt à essayer ?</h2>
           <p className="max-w-md text-slate">
-            Gratuit pour une équipe complète ou jusqu&apos;à 3 athlètes en coaching individuel, sans carte bancaire.
+            3 mois d&apos;essai gratuit, athlètes et équipes illimités, sans carte bancaire.
           </p>
           <LinkButton href="/register" variant="primary">
             Créer mon compte coach
