@@ -607,6 +607,70 @@ export default async function AthleteDetailPage({
                   <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Évolution de la forme</h3>
                   <FormHistory checkins={bilanCheckins} />
                 </Card>
+
+        {/* Journal de suivi coach : un même espace privé, en deux temps — un
+            portrait qui se réécrit (points forts/faibles) et des entrées datées
+            qui s'accumulent. Auparavant deux cartes de styles différents
+            (bordure pointillée vs pleine) qui donnaient l'impression de deux
+            fonctionnalités séparées plutôt que d'un seul journal ; réunies ici
+            sous un même titre et une même mise en forme, jamais visibles par
+            l'athlète ni par un autre coach (cf. upsertCoachNotesAction /
+            coach_note_entries, vérifient coach_id = utilisateur courant). */}
+        <Card className="mb-8 rounded-3xl">
+          <div className="mb-1 flex items-center gap-2">
+            <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate">Journal de suivi</h2>
+            <span className="rounded-full bg-paper-dim px-2 py-0.5 text-[10px] font-semibold text-slate">
+              Visibles par vous seul·e
+            </span>
+          </div>
+          <p className="mb-4 text-xs text-slate">
+            Jamais partagé avec l&apos;athlète, ni avec un autre coach qui le suivrait aussi.
+          </p>
+
+          <h3 className="mb-2 text-xs font-semibold text-ink-soft">Portrait</h3>
+          <form
+            action={async (formData) => {
+              "use server";
+              await upsertCoachNotesAction(formData);
+            }}
+            className="grid gap-3 sm:grid-cols-2"
+          >
+            <input type="hidden" name="athleteId" value={athleteId} />
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="font-medium text-ink-soft">Points forts</span>
+              <textarea
+                name="strengths"
+                rows={3}
+                defaultValue={coachNotes?.strengths || ""}
+                placeholder="Ce qui fonctionne bien, à capitaliser…"
+                className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="font-medium text-ink-soft">Points faibles / axes de travail</span>
+              <textarea
+                name="weaknesses"
+                rows={3}
+                defaultValue={coachNotes?.weaknesses || ""}
+                placeholder="Ce sur quoi insister dans la programmation…"
+                className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
+              />
+            </label>
+            <div className="sm:col-span-2">
+              <Button type="submit" variant="secondary">
+                Enregistrer
+              </Button>
+              {coachNotes?.updated_at && (
+                <span className="ml-3 text-xs text-slate">
+                  Dernière mise à jour : {new Date(coachNotes.updated_at.replace(" ", "T")).toLocaleDateString("fr-FR")}
+                </span>
+              )}
+            </div>
+          </form>
+
+          <h3 className="mb-2 mt-6 border-t border-line pt-4 text-xs font-semibold text-ink-soft">Entrées datées</h3>
+          <CoachJournal athleteId={athleteId} entries={coachNoteEntries} today={today} />
+        </Card>
               </div>
             ),
             programmation: (
@@ -852,74 +916,7 @@ export default async function AthleteDetailPage({
 
               </div>
             ),
-            notes: (
-              <>
-        {/* Journal de suivi coach : un même espace privé, en deux temps — un
-            portrait qui se réécrit (points forts/faibles) et des entrées datées
-            qui s'accumulent. Auparavant deux cartes de styles différents
-            (bordure pointillée vs pleine) qui donnaient l'impression de deux
-            fonctionnalités séparées plutôt que d'un seul journal ; réunies ici
-            sous un même titre et une même mise en forme, jamais visibles par
-            l'athlète ni par un autre coach (cf. upsertCoachNotesAction /
-            coach_note_entries, vérifient coach_id = utilisateur courant). */}
-        <Card className="mb-8 rounded-3xl">
-          <div className="mb-1 flex items-center gap-2">
-            <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate">Journal de suivi</h2>
-            <span className="rounded-full bg-paper-dim px-2 py-0.5 text-[10px] font-semibold text-slate">
-              Visibles par vous seul·e
-            </span>
-          </div>
-          <p className="mb-4 text-xs text-slate">
-            Jamais partagé avec l&apos;athlète, ni avec un autre coach qui le suivrait aussi.
-          </p>
-
-          <h3 className="mb-2 text-xs font-semibold text-ink-soft">Portrait</h3>
-          <form
-            action={async (formData) => {
-              "use server";
-              await upsertCoachNotesAction(formData);
-            }}
-            className="grid gap-3 sm:grid-cols-2"
-          >
-            <input type="hidden" name="athleteId" value={athleteId} />
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium text-ink-soft">Points forts</span>
-              <textarea
-                name="strengths"
-                rows={3}
-                defaultValue={coachNotes?.strengths || ""}
-                placeholder="Ce qui fonctionne bien, à capitaliser…"
-                className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
-              />
-            </label>
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium text-ink-soft">Points faibles / axes de travail</span>
-              <textarea
-                name="weaknesses"
-                rows={3}
-                defaultValue={coachNotes?.weaknesses || ""}
-                placeholder="Ce sur quoi insister dans la programmation…"
-                className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
-              />
-            </label>
-            <div className="sm:col-span-2">
-              <Button type="submit" variant="secondary">
-                Enregistrer
-              </Button>
-              {coachNotes?.updated_at && (
-                <span className="ml-3 text-xs text-slate">
-                  Dernière mise à jour : {new Date(coachNotes.updated_at.replace(" ", "T")).toLocaleDateString("fr-FR")}
-                </span>
-              )}
-            </div>
-          </form>
-
-          <h3 className="mb-2 mt-6 border-t border-line pt-4 text-xs font-semibold text-ink-soft">Entrées datées</h3>
-          <CoachJournal athleteId={athleteId} entries={coachNoteEntries} today={today} />
-        </Card>
-
-              </>
-            ),
+            profil: <></>,
           }}
         />
       </main>

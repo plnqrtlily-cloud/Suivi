@@ -8,7 +8,7 @@ export const ATHLETE_TABS = [
   { value: "periodisation", label: "Périodisation" },
   { value: "mesures", label: "Mesures" },
   { value: "sante", label: "Santé" },
-  { value: "notes", label: "Notes" },
+  { value: "profil", label: "Profil" },
 ] as const;
 
 export type AthleteTab = (typeof ATHLETE_TABS)[number]["value"];
