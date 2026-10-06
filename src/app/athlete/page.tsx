@@ -265,15 +265,26 @@ export default async function AthleteDashboard({
           {/* Journal de bord regroupé ici avec le reste des informations du jour
               (forme, séance) plutôt qu'en bloc séparé plus bas — et filtré sur le
               jour sélectionné : une note du 3 mars n'a pas à s'afficher quand on
-              consulte le 12 mars. */}
-          <p className="mb-2 mt-5 text-[11px] font-bold uppercase tracking-wider text-slate">Journal de bord</p>
-          <ul className="mb-4 space-y-2 text-sm">
-            {journal.map((j) => (
-              <JournalEntry key={j.id} entry={j} />
-            ))}
-            {journal.length === 0 && <p className="text-slate">Aucune note pour ce jour-là.</p>}
-          </ul>
-          <AddJournalEntryForm selectedDate={selectedDate} />
+              consulte le 12 mars. Replié par défaut (fil resserré, cf. refonte
+              "Aujourd'hui") mais ouvert d'office dès qu'une note du jour existe
+              déjà, pour ne jamais la masquer derrière un clic. */}
+          <details className="mt-5" open={journal.length > 0}>
+            <summary className="mb-2 flex cursor-pointer items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate">
+              Journal de bord
+              {journal.length > 0 && (
+                <span className="rounded-full bg-paper-dim px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-ink-soft">
+                  {journal.length}
+                </span>
+              )}
+            </summary>
+            <ul className="mb-4 space-y-2 text-sm">
+              {journal.map((j) => (
+                <JournalEntry key={j.id} entry={j} />
+              ))}
+              {journal.length === 0 && <p className="text-slate">Aucune note pour ce jour-là.</p>}
+            </ul>
+            <AddJournalEntryForm selectedDate={selectedDate} />
+          </details>
         </section>
       </main>
     </div>
