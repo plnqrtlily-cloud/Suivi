@@ -56,6 +56,7 @@ import { isValidPosition, layoutBand } from "../src/lib/team-sports";
 import { computePlanStatus, TRIAL_POLICY_START, ADMIN_EMAIL } from "../src/lib/billing";
 import { EFFORT_TEST_CATALOG } from "../src/lib/effort-tests";
 import { getInjuriesForAthlete, getEffortTestResultsForAthlete } from "../src/lib/queries";
+import { getOngoingHealthReports, getUnreadHealthCounts, getPainHistory, getHealthMessages } from "../src/lib/health";
 
 function assert(cond: any, message: string) {
   if (!cond) {
@@ -1338,6 +1339,29 @@ async function main() {
   assert(ovAttention.some((a) => a.title === "Séance non réalisée jeudi") && ovAttention.some((a) => a.title === "Une séance à valider") && ovAttention.some((a) => a.title.startsWith("Semaine prochaine : +")), "L'aperçu signale la séance non réalisée, celle à valider et la hausse de charge de la semaine suivante");
   const cyc = cycleSummary({ periodStarts: ["2026-08-26", "2026-09-23"], settings: cycleSet, checkins: [], today: "2026-09-28", firstName: "Laura" });
   assert(cyc.rows[0].value === "28 jours" && cyc.rows.some((r) => r.label === "Prochaines règles" && r.value === "vers le 21 oct."), "Le résumé du cycle donne la durée moyenne et les prochaines règles");
+
+  // --- Signalements santé de l'athlète (onglet +) et fil d'échange ---
+  const hrId = randomUUID();
+  await dbRun(
+    `INSERT INTO injuries (id, athlete_id, zone, description, date_start, pain, category, training_impact, reported_by) VALUES (?, ?, 'Genou gauche', 'Chute', '2030-01-10', 3, 'blessure', 'gene', ?)`,
+    [hrId, athlete.id, athlete.id]
+  );
+  const etatId = randomUUID();
+  await dbRun(
+    `INSERT INTO injuries (id, athlete_id, zone, date_start, date_end, category, reported_by) VALUES (?, ?, 'Voyage', '2030-01-08', '2030-01-09', 'etat', ?)`,
+    [etatId, athlete.id, athlete.id]
+  );
+  await dbRun(`INSERT INTO injury_followups (id, injury_id, follow_date, pain) VALUES (?, ?, '2030-01-11', 2)`, [randomUUID(), hrId]);
+  await dbRun(`INSERT INTO health_messages (id, injury_id, author_id, kind, body) VALUES (?, ?, ?, 'message', 'Ça tire')`, [randomUUID(), hrId, athlete.id]);
+  await dbRun(`INSERT INTO health_messages (id, injury_id, author_id, kind, body) VALUES (?, ?, ?, 'message', 'Glace ce soir')`, [randomUUID(), hrId, coach.id]);
+  const ongoingHr = await getOngoingHealthReports(athlete.id, "2030-01-11");
+  assert(ongoingHr.some((r) => r.id === hrId && r.category === "blessure") && !ongoingHr.some((r) => r.id === etatId), "Un état terminé n'est plus en cours, une blessure sans fin l'est");
+  const unreadHr = await getUnreadHealthCounts([hrId], athlete.id);
+  assert(unreadHr[hrId] === 1, "L'athlète voit 1 message non lu de son coach dans le fil");
+  const painsHr = await getPainHistory(hrId);
+  assert(painsHr.length === 2 && painsHr[0].pain === 3 && painsHr[1].pain === 2, "La douleur suit le signalement puis chaque note");
+  const msgsHr = await getHealthMessages(hrId);
+  assert(msgsHr.length === 2 && msgsHr[1].author_role === "coach", "Le fil garde l'ordre et l'auteur des messages");
 
   console.log("\nTest end-to-end terminé.");
 }

@@ -55,10 +55,12 @@ export function JournalEntry({ entry }: { entry: JournalEntryItem }) {
   }
 
   return (
-    <li className="flex items-start justify-between gap-3 rounded-xl bg-paper-dim p-2 text-sm">
-      <div>
-        <span className="text-slate">{entry.entry_date} — </span>
-        <span className="text-ink">{entry.content}</span>
+    <li className="flex items-start justify-between gap-3 rounded-2xl bg-white px-3.5 py-3 text-sm">
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-xs text-slate">
+          {new Date(`${entry.entry_date}T00:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
+        </span>
+        <span className="whitespace-pre-wrap leading-snug text-ink">{entry.content}</span>
       </div>
       <div className="flex shrink-0 gap-2 text-xs">
         <button type="button" onClick={() => setEditing(true)} className="text-moss-dark hover:underline" disabled={pending}>

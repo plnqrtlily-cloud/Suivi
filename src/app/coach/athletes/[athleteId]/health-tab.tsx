@@ -27,6 +27,22 @@ export interface InjuryView {
   advice: string | null;
   impact: Record<string, Impact>;
   followups: { id: string; date: string; pain: number; note: string | null }[];
+  // Signalement de l'athlète (onglet +) : catégorie et fil d'échange dédié.
+  category?: "blessure" | "maladie" | "etat";
+  thread?: { count: number; unread: number };
+}
+
+const CATEGORY_PREFIX: Record<string, string> = { maladie: "Maladie · ", etat: "État · " };
+
+function ThreadLink({ injury }: { injury: InjuryView }) {
+  if (!injury.thread) return null;
+  const { count, unread } = injury.thread;
+  return (
+    <a href={`/sante/${injury.id}`} className="mt-1 inline-flex items-center gap-1.5 text-[13px] font-semibold text-moss-dark hover:underline">
+      {count ? `Échange · ${count} message${count > 1 ? "s" : ""}` : "Ouvrir l'échange"}
+      {unread > 0 && <span className="rounded-full bg-[#e8896a] px-1.5 text-[11px] font-bold text-white">{unread} non lu{unread > 1 ? "s" : ""}</span>}
+    </a>
+  );
 }
 
 const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
@@ -324,11 +340,13 @@ function ActiveInjury({ injury, sports, today, onEdit }: { injury: InjuryView; s
         <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#a4492a]" />
         <div className="min-w-0 flex-1">
           <p className="text-[15.5px] font-bold text-ink">
+            {injury.category ? CATEGORY_PREFIX[injury.category] ?? "" : ""}
             {injury.label} {injury.type && <span className="font-medium text-ink-soft">· {injury.type}</span>}
           </p>
           <p className="text-[13px] text-slate">
             depuis le {frd(injury.dateStart)} · J+{days(injury.dateStart, today)}
           </p>
+          <ThreadLink injury={injury} />
         </div>
         <div className="text-right">
           <p className={`text-[22px] font-bold leading-none tracking-tight ${pain >= 6 ? "text-[#a4492a]" : pain >= 3 ? "text-[#b07a1c]" : "text-moss-dark"}`}>{pain}/10</p>
@@ -401,7 +419,10 @@ function PastInjury({ injury, sports, open, onToggle, onEdit, onRelapse }: { inj
         <span className="w-[3px] shrink-0 rounded-full bg-[#c9a48f]" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-[15px] font-semibold text-ink">{injury.label}</p>
+            <p className="text-[15px] font-semibold text-ink">
+              {injury.category ? CATEGORY_PREFIX[injury.category] ?? "" : ""}
+              {injury.label}
+            </p>
             <p className="text-[13px] text-slate">
               {frs(injury.dateStart, true)} → {frs(injury.dateEnd!, true)}
             </p>

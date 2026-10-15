@@ -249,6 +249,21 @@ CREATE TABLE IF NOT EXISTS injuries (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Fil d'échange coach/athlète propre à une blessure, une maladie ou un état
+-- signalé (table injuries) : messages et repères (signalement, douleur notée,
+-- guérison) dans l'ordre. read_at : lu par l'autre partie.
+CREATE TABLE IF NOT EXISTS health_messages (
+  id TEXT PRIMARY KEY,
+  injury_id TEXT NOT NULL REFERENCES injuries(id) ON DELETE CASCADE,
+  author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL DEFAULT 'message',
+  body TEXT,
+  pain INTEGER,
+  read_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_health_messages_injury ON health_messages(injury_id, created_at);
+
 -- Journal de bord
 CREATE TABLE IF NOT EXISTS journal_entries (
   id TEXT PRIMARY KEY,
@@ -740,6 +755,13 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE performance_profile_meta ADD COLUMN self_requested_at TEXT`,
   `ALTER TABLE performance_profile_meta ADD COLUMN self_eval_date TEXT`,
   `UPDATE workouts SET status = 'done' WHERE status = 'partial'`,
+  // Signalement par l'athlète depuis l'onglet + : blessure, maladie ou état,
+  // possibilité de s'entraîner (normal / gene / stop), médecin vu, et qui l'a
+  // signalé (l'athlète lui-même ou le coach).
+  `ALTER TABLE injuries ADD COLUMN category TEXT DEFAULT 'blessure'`,
+  `ALTER TABLE injuries ADD COLUMN training_impact TEXT`,
+  `ALTER TABLE injuries ADD COLUMN doctor_seen INTEGER`,
+  `ALTER TABLE injuries ADD COLUMN reported_by TEXT`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

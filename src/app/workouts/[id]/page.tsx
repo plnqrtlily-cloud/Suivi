@@ -371,10 +371,12 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
         )}
 
         {user.role === "athlete" && (
-          <Card className="mb-6">
-            <h2 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate"><span className="h-3 w-0.5 rounded-full bg-moss" />Où en êtes-vous ?</h2>
-            <StatusForm workoutId={workout.id} currentStatus={workout.status} sport={workout.sport} />
-          </Card>
+          <div id="renseigner" className="scroll-mt-4">
+            <Card className="mb-6">
+              <h2 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate"><span className="h-3 w-0.5 rounded-full bg-moss" />Où en êtes-vous ?</h2>
+              <StatusForm workoutId={workout.id} currentStatus={workout.status} sport={workout.sport} />
+            </Card>
+          </div>
         )}
 
         {/* Le coach saisit le réalisé quand l'athlète le lui a transmis hors

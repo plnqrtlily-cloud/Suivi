@@ -1,7 +1,10 @@
 import { logoutAction } from "@/lib/actions";
 import { User } from "@/lib/auth";
 import { getNotifications } from "@/lib/notifications";
-import { getUserAvatar } from "@/lib/queries";
+import { getUserAvatar, getCoachesForAthlete, getUserGender } from "@/lib/queries";
+import { dbGet } from "@/lib/db";
+import { todayISO } from "@/lib/dates";
+import { AddMenu } from "./add-menu";
 import { NotificationBell } from "./notification-bell";
 import { Avatar } from "./avatar";
 import Link from "next/link";
@@ -10,10 +13,18 @@ import { BottomNav } from "./bottom-nav";
 
 export async function Nav({ user }: { user: User }) {
   const homeHref = user.role === "coach" ? "/coach/dashboard" : "/athlete";
-  const [notifications, avatar] = await Promise.all([
+  const isAthlete = user.role === "athlete";
+  const [notifications, avatar, coaches, gender, unread] = await Promise.all([
     getNotifications(user.id),
-    user.role === "athlete" ? getUserAvatar(user.id) : Promise.resolve(undefined),
+    isAthlete ? getUserAvatar(user.id) : Promise.resolve(undefined),
+    isAthlete ? getCoachesForAthlete(user.id) : Promise.resolve([]),
+    isAthlete ? getUserGender(user.id) : Promise.resolve(null),
+    isAthlete
+      ? dbGet<{ n: number }>(`SELECT COUNT(*) as n FROM messages WHERE athlete_id = ? AND sender_id != ? AND read_at IS NULL`, [user.id, user.id])
+      : Promise.resolve(undefined),
   ]);
+  const unreadMessages = Number(unread?.n ?? 0);
+  const coachName = coaches.length === 1 ? coaches[0].first_name : "ton coach";
 
   const navItems: { href: string; label: string; icon: NavIconName }[] = [
     ...(user.role === "coach"
@@ -30,8 +41,8 @@ export async function Nav({ user }: { user: User }) {
       ? [
           { href: "/athlete", icon: "home" as const, label: "Aujourd'hui" },
           { href: "/athlete/programmation", icon: "calendar" as const, label: "Calendrier" },
-          { href: "/athlete/profile", icon: "profile" as const, label: "Mon profil" },
           { href: "/athlete/messages", icon: "messages" as const, label: "Messages" },
+          { href: "/athlete/profile", icon: "profile" as const, label: "Moi" },
         ]
       : []),
     { href: "/settings", icon: "settings", label: "Paramètres" },
@@ -55,8 +66,13 @@ export async function Nav({ user }: { user: User }) {
   // maintenir. Paramètres reste toujours en dernier : c'est la seule
   // navigation sur mobile vers le compte, les connexions de montre et les
   // coachs liés.
+  // Côté athlète, « Moi » regroupe le profil et les paramètres (lien en tête
+  // du profil) : la barre garde 4 onglets autour du « + ».
   const settingsItem = navItems.find((i) => i.href === "/settings")!;
-  const bottomNavItems = [...navItems.filter((i) => i.href !== "/settings"), settingsItem];
+  const bottomNavItems = isAthlete
+    ? navItems.filter((i) => i.href !== "/settings").map((i) => (i.href === "/athlete/messages" ? { ...i, badge: unreadMessages } : i))
+    : [...navItems.filter((i) => i.href !== "/settings"), settingsItem];
+  const today = todayISO();
 
   return (
     <>
@@ -77,6 +93,7 @@ export async function Nav({ user }: { user: User }) {
               {item.label}
             </Link>
           ))}
+          {isAthlete && <AddMenu variant="header" today={today} coachName={coachName} isFemale={gender === "female"} />}
           <NotificationBell notifications={notifications} />
           {userInfo}
           <form action={logoutAction}>
@@ -99,7 +116,10 @@ export async function Nav({ user }: { user: User }) {
 
       {/* Navigation principale au pouce sur mobile ; sur grand écran, la barre
           du haut (ou la barre latérale côté coach) suffit. */}
-      <BottomNav items={bottomNavItems} />
+      <BottomNav
+        items={bottomNavItems}
+        center={isAthlete ? <AddMenu variant="tab" today={today} coachName={coachName} isFemale={gender === "female"} /> : undefined}
+      />
     </>
   );
 }

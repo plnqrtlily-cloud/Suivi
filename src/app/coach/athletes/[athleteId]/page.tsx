@@ -1,3 +1,4 @@
+import { dbAll } from "@/lib/db";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser, isCoachLinkedToAthlete, findUserById } from "@/lib/auth";
@@ -361,6 +362,17 @@ export default async function AthleteDetailPage({
   }));
 
   // ---------- Santé ----------
+  const threadRows = injuries.length
+    ? await dbAll<{ injury_id: string; count: number; unread: number }>(
+        `SELECT injury_id, SUM(kind = 'message') as count,
+                SUM(kind = 'message' AND author_id != ? AND read_at IS NULL) as unread
+         FROM health_messages WHERE injury_id IN (${injuries.map(() => "?").join(",")}) GROUP BY injury_id`,
+        [user.id, ...injuries.map((i) => i.id)]
+      )
+    : [];
+  const healthThreads: Record<string, { count: number; unread: number }> = Object.fromEntries(
+    threadRows.map((r) => [r.injury_id, { count: Number(r.count), unread: Number(r.unread) }])
+  );
   const injuryViews: InjuryView[] = injuries.map((i) => ({
     id: i.id,
     label: i.zone,
@@ -375,6 +387,12 @@ export default async function AthleteDetailPage({
     advice: i.advice ?? null,
     impact: parseImpact(i.impact_json),
     followups: injuryFollowups.filter((f) => f.injury_id === i.id).map((f) => ({ id: f.id, date: f.follow_date, pain: f.pain, note: f.note })),
+    category: ((i as { category?: string }).category as InjuryView["category"]) ?? "blessure",
+    thread: healthThreads[i.id]
+      ? { count: healthThreads[i.id].count, unread: healthThreads[i.id].unread }
+      : (i as { reported_by?: string | null }).reported_by
+        ? { count: 0, unread: 0 }
+        : undefined,
   }));
   const healthSports = athleteSports.length ? athleteSports.map((sp: string) => ({ key: sp, label: sportLabel(sp) })) : [{ key: "general", label: "Entraînement" }];
   const ring = cycleShared ? cycleRing({ periodStarts, settings: cycleSettings, checkins: rangeCheckins, today, firstName }) : null;

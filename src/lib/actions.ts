@@ -1632,6 +1632,7 @@ export async function addCycleEntryAction(formData: FormData) {
   ]);
 
   revalidatePath("/athlete/profile");
+  revalidatePath("/athlete");
   revalidatePath("/coach");
 }
 

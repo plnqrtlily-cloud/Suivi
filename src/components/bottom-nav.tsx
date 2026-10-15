@@ -8,12 +8,15 @@ export interface BottomNavItem {
   href: string;
   label: string;
   icon: NavIconName;
+  badge?: number;
 }
 
 // Barre d'onglets fixée en bas sur mobile, façon Instagram/TikTok : les
 // destinations principales sont atteignables au pouce, sans ouvrir de menu.
 // Remplace le menu hamburger, qui cachait la navigation derrière un clic.
-export function BottomNav({ items }: { items: BottomNavItem[] }) {
+// `center` : un élément inséré au milieu de la barre (l'onglet « + » de
+// l'athlète), après la moitié des onglets.
+export function BottomNav({ items, center }: { items: BottomNavItem[]; center?: React.ReactNode }) {
   const pathname = usePathname();
 
   // L'onglet actif est celui dont le chemin correspond le mieux : on prend le
@@ -31,9 +34,16 @@ export function BottomNav({ items }: { items: BottomNavItem[] }) {
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <ul className="flex items-stretch">
-        {items.map((item) => {
+        {items.map((item, idx) => {
           const isActive = item.href === activeHref;
-          return (
+          const centerSlot =
+            center && idx === Math.ceil(items.length / 2) ? (
+              <li key="__center" className="flex flex-1 items-start justify-center">
+                {center}
+              </li>
+            ) : null;
+          return [
+            centerSlot,
             <li key={item.href} className="flex-1">
               <Link
                 href={item.href}
@@ -42,11 +52,18 @@ export function BottomNav({ items }: { items: BottomNavItem[] }) {
                   isActive ? "font-semibold text-moss-dark" : "text-slate"
                 }`}
               >
-                <NavIcon name={item.icon} className="h-[22px] w-[22px]" />
+                <span className="relative flex">
+                  <NavIcon name={item.icon} className="h-[22px] w-[22px]" />
+                  {!!item.badge && (
+                    <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#e8896a] px-1 text-[10px] font-bold text-white">
+                      {item.badge > 9 ? "9+" : item.badge}
+                    </span>
+                  )}
+                </span>
                 <span className="w-full truncate text-center">{item.label}</span>
               </Link>
-            </li>
-          );
+            </li>,
+          ];
         })}
       </ul>
     </nav>
