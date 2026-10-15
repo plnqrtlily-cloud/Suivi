@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateImportedActivityAction, deleteImportedActivityAction } from "@/lib/actions";
-import { Button, Field, SelectField } from "@/components/ui";
+import { Button, Field, SelectField, ErrorText } from "@/components/ui";
 
 export interface EditableActivity {
   id: string;
@@ -42,26 +42,42 @@ export function EditImportedActivityModal({ activity, className }: { activity: E
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [sport, setSport] = useState(activity.sport);
+  const [error, setError] = useState<string | undefined>();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
     setPending(true);
-    await updateImportedActivityAction(activity.id, new FormData(form));
+    setError(undefined);
+    try {
+      await updateImportedActivityAction(activity.id, new FormData(form));
+      setOpen(false);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+    }
     setPending(false);
-    setOpen(false);
-    router.refresh();
   }
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} aria-label="Modifier l'activité" className={className}>
-        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(true);
+        }}
+        aria-label="Modifier la séance"
+        title="Modifier"
+        className={`-m-1.5 p-1.5 ${className || ""}`}
+      >
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <path d="M13.5 3.5l3 3L7 16l-4 1 1-4z" />
         </svg>
       </button>
       {open && (
-        <Modal title="Modifier l'activité" subtitle="Ajustez les données de cette activité importée." onClose={() => setOpen(false)}>
+        <Modal title="Modifier la séance" subtitle="Corrigez les données de cette séance faite." onClose={() => setOpen(false)}>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Date" type="date" name="activityDate" required defaultValue={activity.activity_date} />
             <Field label="Heure (facultatif)" type="time" name="activityTime" defaultValue={activity.activity_time || ""} />
@@ -72,6 +88,7 @@ export function EditImportedActivityModal({ activity, className }: { activity: E
               <option value="swimming">Natation</option>
               <option value="climbing">Escalade</option>
               <option value="strength">Musculation</option>
+              <option value="other">Autre</option>
             </SelectField>
             <Field label="Durée (minutes)" type="number" name="durationMinutes" min={0} defaultValue={activity.duration_minutes ?? ""} />
             {sport !== "strength" && (
@@ -86,7 +103,7 @@ export function EditImportedActivityModal({ activity, className }: { activity: E
             )}
             <Field label="RPE ressenti (facultatif)" type="number" name="rpe" min={1} max={10} placeholder="1 à 10" defaultValue={activity.rpe ?? ""} />
             <Field label="Notes" name="notes" defaultValue={activity.notes || ""} />
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <Field
                 label={activity.route_points ? "Remplacer la trace GPS (.gpx)" : "Trace GPS (fichier .gpx, facultatif)"}
                 type="file"
@@ -94,7 +111,12 @@ export function EditImportedActivityModal({ activity, className }: { activity: E
                 accept=".gpx"
               />
             </div>
-            <div className="col-span-2">
+            {error && (
+              <div className="sm:col-span-2">
+                <ErrorText>{error}</ErrorText>
+              </div>
+            )}
+            <div className="sm:col-span-2">
               <Button type="submit" disabled={pending}>
                 {pending ? "Enregistrement…" : "Enregistrer"}
               </Button>
@@ -108,19 +130,28 @@ export function EditImportedActivityModal({ activity, className }: { activity: E
 
 export function DeleteImportedActivityButton({ id, className }: { id: string; className?: string }) {
   const router = useRouter();
+  const [pending, setPending] = useState(false);
   return (
     <button
       type="button"
+      disabled={pending}
       onClick={async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        await deleteImportedActivityAction(id);
-        router.refresh();
+        if (!confirm("Supprimer cette séance de votre calendrier ?")) return;
+        setPending(true);
+        try {
+          await deleteImportedActivityAction(id);
+          router.refresh();
+        } finally {
+          setPending(false);
+        }
       }}
-      aria-label="Supprimer l'activité"
-      className={className}
+      aria-label="Supprimer la séance"
+      title="Supprimer"
+      className={`-m-1.5 p-1.5 disabled:opacity-40 ${className || ""}`}
     >
-      ✕
+      {pending ? "…" : "✕"}
     </button>
   );
 }

@@ -11,11 +11,21 @@ import { DayLink } from "@/components/day-link";
 import { DeleteAvailabilityButton } from "@/components/delete-availability-button";
 import { SnapScrollNav } from "@/components/snap-scroll-nav";
 import { EditAvailabilityModal } from "@/components/availability-modal";
+import { EditImportedActivityModal, DeleteImportedActivityButton } from "@/components/imported-activity-modal";
 import { CalendarAddButton } from "./calendar-add-button";
-import type { AvailabilityBlock, Workout } from "@/lib/queries";
+import type { AvailabilityBlock, ImportedActivity, Workout } from "@/lib/queries";
 
 const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 const DAY_LETTERS = ["L", "M", "M", "J", "V", "S", "D"];
+
+// Une séance faite hors programmation : saisie par l'athlète, par son coach,
+// ou remontée d'une montre / d'une application.
+function doneLabel(a: ImportedActivity): string {
+  if (a.created_by) return "séance faite · renseignée par votre coach";
+  if (a.source === "garmin") return "séance faite · Garmin";
+  if (a.source === "strava") return "séance faite · Strava";
+  return "séance faite";
+}
 
 function shiftMonth(year: number, month: number, delta: number): [number, number] {
   const d = new Date(year, month - 1 + delta, 1);
@@ -53,18 +63,31 @@ function padGridTo42(grid: MonthCell[]): MonthCell[] {
 // Le contenu d'un panneau du défilement continu façon calendrier Apple : la
 // grille de jours d'un seul mois, sans l'en-tête (jours de la semaine, flèches)
 // qui reste commune aux trois panneaux.
-function MonthGridBody({ grid, workouts, blocks, today }: { grid: MonthCell[]; workouts: Workout[]; blocks: AvailabilityBlock[]; today: string }) {
+function MonthGridBody({
+  grid,
+  workouts,
+  imports,
+  blocks,
+  today,
+}: {
+  grid: MonthCell[];
+  workouts: Workout[];
+  imports: ImportedActivity[];
+  blocks: AvailabilityBlock[];
+  today: string;
+}) {
   return (
     <div className="grid grid-cols-7 gap-y-3">
       {grid.map((cell) => {
         const dayWorkouts = workouts.filter((w) => w.date === cell.date);
         const hasGoal = dayWorkouts.some((w) => w.category === "objectif" || w.category === "evenement");
         const hasBlock = blocks.some((b) => b.date === cell.date);
+        const hasDone = imports.some((a) => a.activity_date === cell.date);
         const isToday = cell.date === today;
         const trainingWorkouts = dayWorkouts.filter((w) => w.category !== "objectif" && w.category !== "evenement");
         const primaryTraining = trainingWorkouts[0];
         const extraTrainingCount = trainingWorkouts.length - (primaryTraining ? 1 : 0);
-        const extraCount = extraTrainingCount + (hasGoal ? 0 : 0);
+        const extraCount = extraTrainingCount;
 
         return (
           <DayLink key={cell.date} href={`/athlete/day/${cell.date}`} className="flex flex-col items-center gap-1 py-1">
@@ -83,6 +106,7 @@ function MonthGridBody({ grid, workouts, blocks, today }: { grid: MonthCell[]; w
               ) : (
                 <span className="h-1.5 w-1.5" />
               )}
+              {hasDone && <span className="h-1.5 w-1.5 rounded-full bg-clay" />}
               {hasGoal && <span className="h-1.5 w-1.5 rounded-sm bg-gold-light" />}
               {hasBlock && <span className="h-1.5 w-1.5 rounded-sm bg-ink" />}
               {extraCount > 0 && <span className="text-[8px] font-bold leading-none text-slate">+{extraCount}</span>}
@@ -207,7 +231,7 @@ async function WeekView({ athleteId, offset, today }: { athleteId: string; offse
                         <b className="font-semibold">{AVAILABILITY_SLOT_LABELS[b.time_of_day]}</b>
                         {b.reason && <span className="truncate text-white/70">— {b.reason}</span>}
                       </span>
-                      <span className="flex flex-shrink-0 items-center gap-2">
+                      <span className="flex flex-shrink-0 items-center gap-3">
                         <EditAvailabilityModal block={b} className="text-white/50 hover:text-white" />
                         <DeleteAvailabilityButton id={b.id} className="text-white/50 hover:text-white" />
                       </span>
@@ -232,10 +256,19 @@ async function WeekView({ athleteId, offset, today }: { athleteId: string; offse
                     </Link>
                   ))}
                   {dayImports.map((a) => (
-                    <div key={a.id} className="flex items-center gap-2 text-sm">
-                      <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-clay" />
-                      <span className="text-ink-soft">{sportLabel(a.sport)}</span>
-                      <span className="text-xs text-slate">activité importée</span>
+                    <div key={a.id} className="flex items-center justify-between gap-2 text-sm">
+                      <span className="flex min-w-0 flex-wrap items-center gap-2">
+                        <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-clay" />
+                        <span className="text-ink-soft">{sportLabel(a.sport)}</span>
+                        <span className="text-xs text-slate">
+                          {a.duration_minutes ? `${a.duration_minutes} min · ` : ""}
+                          {doneLabel(a)}
+                        </span>
+                      </span>
+                      <span className="flex flex-shrink-0 items-center gap-3 text-slate">
+                        <EditImportedActivityModal activity={a} className="hover:text-ink" />
+                        <DeleteImportedActivityButton id={a.id} className="hover:text-clay" />
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -265,8 +298,9 @@ async function MonthView({ athleteId, monthParam, today }: { athleteId: string; 
   // précédent au dernier jour affiché du panneau suivant.
   const rangeStart = prevGrid[0].date;
   const rangeEnd = nextGrid[nextGrid.length - 1].date;
-  const [allWorkouts, allBlocks] = await Promise.all([
+  const [allWorkouts, allImports, allBlocks] = await Promise.all([
     getWorkoutsForAthlete(athleteId, rangeStart, rangeEnd),
+    getImportedActivitiesForRange(athleteId, rangeStart, rangeEnd),
     getAvailabilityBlocksForRange(athleteId, rangeStart, rangeEnd),
   ]);
 
@@ -301,20 +335,23 @@ async function MonthView({ athleteId, monthParam, today }: { athleteId: string; 
         nextHref={nextHref}
         panes={[
           <div key="prev" style={{ height: MONTH_PANE_HEIGHT }}>
-            <MonthGridBody grid={prevGrid} workouts={allWorkouts} blocks={allBlocks} today={today} />
+            <MonthGridBody grid={prevGrid} workouts={allWorkouts} imports={allImports} blocks={allBlocks} today={today} />
           </div>,
           <div key="cur" style={{ height: MONTH_PANE_HEIGHT }}>
-            <MonthGridBody grid={grid} workouts={allWorkouts} blocks={allBlocks} today={today} />
+            <MonthGridBody grid={grid} workouts={allWorkouts} imports={allImports} blocks={allBlocks} today={today} />
           </div>,
           <div key="next" style={{ height: MONTH_PANE_HEIGHT }}>
-            <MonthGridBody grid={nextGrid} workouts={allWorkouts} blocks={allBlocks} today={today} />
+            <MonthGridBody grid={nextGrid} workouts={allWorkouts} imports={allImports} blocks={allBlocks} today={today} />
           </div>,
         ]}
       />
 
       <div className="mt-6 flex items-center gap-4 border-t border-line pt-4 text-[11px] text-slate">
         <span className="flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-moss" /> Séance
+          <span className="h-1.5 w-1.5 rounded-full bg-moss" /> Séance prévue
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-clay" /> Séance faite
         </span>
         <span className="flex items-center gap-1.5">
           <span className="h-1.5 w-1.5 rounded-sm bg-gold-light" /> Objectif / échéance

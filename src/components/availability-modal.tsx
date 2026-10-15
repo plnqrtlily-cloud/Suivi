@@ -79,16 +79,21 @@ function AddAvailabilityForm({ defaultDate, onDone }: { defaultDate: string; onD
 function EditAvailabilityForm({ existing, onDone }: { existing: ExistingBlock; onDone: () => void }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | undefined>();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
     setPending(true);
-    await updateAvailabilityBlockAction(existing.id, new FormData(form));
+    setError(undefined);
+    try {
+      await updateAvailabilityBlockAction(existing.id, new FormData(form));
+      onDone();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+    }
     setPending(false);
-    form.reset();
-    onDone();
-    router.refresh();
   }
 
   return (
@@ -102,6 +107,7 @@ function EditAvailabilityForm({ existing, onDone }: { existing: ExistingBlock; o
         ))}
       </SelectField>
       <TextAreaField label="Motif (facultatif)" name="reason" rows={2} placeholder="ex. Rendez-vous médical" defaultValue={existing.reason || ""} />
+      <ErrorText>{error}</ErrorText>
       <Button type="submit" disabled={pending} className="mt-1">
         {pending ? "Enregistrement…" : "Enregistrer"}
       </Button>
@@ -161,8 +167,18 @@ export function EditAvailabilityModal({ block, className }: { block: ExistingBlo
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} aria-label="Modifier l'indisponibilité" className={className}>
-        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(true);
+        }}
+        aria-label="Modifier l'indisponibilité"
+        title="Modifier"
+        className={`-m-1.5 p-1.5 ${className || ""}`}
+      >
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <path d="M13.5 3.5l3 3L7 16l-4 1 1-4z" />
         </svg>
       </button>

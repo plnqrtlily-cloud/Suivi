@@ -97,7 +97,7 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
             {b.created_by && <span className="text-white/50"> · renseignée par votre coach</span>}
           </span>
         </span>
-        <span className="flex flex-shrink-0 items-center gap-2">
+        <span className="flex flex-shrink-0 items-center gap-3">
           <EditAvailabilityModal block={b} className="text-white/50 hover:text-white" />
           <DeleteAvailabilityButton id={b.id} className="text-white/50 hover:text-white" />
         </span>
@@ -123,7 +123,7 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
           <span className="flex flex-shrink-0 items-center gap-2">
             {e.status && <StatusBadge status={e.status} />}
             {e.activity && (
-              <span className="flex items-center gap-1.5 text-slate">
+              <span className="flex items-center gap-3 text-slate">
                 <EditImportedActivityModal activity={e.activity} className="hover:text-ink" />
                 <DeleteImportedActivityButton id={e.activity.id} className="hover:text-clay" />
               </span>
@@ -154,7 +154,7 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
       <main className="mx-auto max-w-3xl px-4 sm:px-6 py-10">
-        <Link href="/athlete" className="mb-4 inline-block text-sm text-moss-dark hover:underline">
+        <Link href="/athlete/programmation" className="mb-4 inline-block text-sm text-moss-dark hover:underline">
           ← Retour au calendrier
         </Link>
         <h1 className="mb-1 font-display text-3xl capitalize text-ink">{formattedDate}</h1>

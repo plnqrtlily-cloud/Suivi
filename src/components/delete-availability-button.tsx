@@ -14,13 +14,18 @@ export function DeleteAvailabilityButton({ id, className }: { id: string; classN
       onClick={async (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (!confirm("Supprimer cette indisponibilité ?")) return;
         setPending(true);
-        await deleteAvailabilityBlockAction(id);
-        router.refresh();
-        setPending(false);
+        try {
+          await deleteAvailabilityBlockAction(id);
+          router.refresh();
+        } finally {
+          setPending(false);
+        }
       }}
-      aria-label="Retirer l'indisponibilité"
-      className={`${className} disabled:opacity-40`}
+      aria-label="Supprimer l'indisponibilité"
+      title="Supprimer"
+      className={`-m-1.5 p-1.5 disabled:opacity-40 ${className || ""}`}
     >
       {pending ? "…" : "✕"}
     </button>

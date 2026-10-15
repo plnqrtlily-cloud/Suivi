@@ -10,7 +10,12 @@ import {
   getUserGender,
   getJournalForAthlete,
   getNextGoalForAthlete,
+  getAvailabilityBlocksForRange,
 } from "@/lib/queries";
+import { AVAILABILITY_SLOT_LABELS } from "@/lib/time-of-day";
+import { EditImportedActivityModal, DeleteImportedActivityButton } from "@/components/imported-activity-modal";
+import { EditAvailabilityModal } from "@/components/availability-modal";
+import { DeleteAvailabilityButton } from "@/components/delete-availability-button";
 import { AddJournalEntryForm } from "./add-journal-entry-form";
 import { estimateCyclePhase } from "@/lib/cycle";
 import { getWeekDates, todayISO, daysUntil } from "@/lib/dates";
@@ -95,6 +100,7 @@ export default async function AthleteDashboard({
     gender,
     nextGoal,
     activePeriods,
+    selectedBlocks,
   ] = await Promise.all([
       getJournalForAthlete(user.id, selectedDate),
       profileCompletion(user.id),
@@ -107,10 +113,11 @@ export default async function AthleteDashboard({
       // Le bloc en cours, pour que l'athlète sache dans quelle logique il
       // s'entraîne et pas seulement ce qu'il a à faire aujourd'hui.
       getTrainingPeriodsForRange(user.id, selectedDate, selectedDate),
+      getAvailabilityBlocksForRange(user.id, selectedDate, selectedDate),
     ]);
   const selectedCheckin = isToday ? todaysCheckin : otherDayCheckin;
   const primaryWorkout = [...selectedWorkouts].sort((a, b) => resolveTimeForSort(a.time).localeCompare(resolveTimeForSort(b.time)))[0];
-  const otherCount = selectedWorkouts.length + selectedImports.length - (primaryWorkout ? 1 : 0);
+  const otherCount = selectedWorkouts.length - (primaryWorkout ? 1 : 0);
 
   const cycleEstimate = gender === "female" ? await estimateCyclePhase(user.id) : null;
 
@@ -247,12 +254,7 @@ export default async function AthleteDashboard({
                 </Link>
               )}
             </>
-          ) : selectedImports.length > 0 ? (
-            <Link href={`/athlete/day/${selectedDate}`} className="block rounded-2xl border border-line bg-white p-4 text-sm hover:border-moss">
-              <p className="font-medium text-ink">{selectedImports.length} activité{selectedImports.length > 1 ? "s" : ""} importée{selectedImports.length > 1 ? "s" : ""}</p>
-              <p className="mt-0.5 text-slate">{selectedImports.map((a) => sportLabel(a.sport)).join(", ")} — voir le détail</p>
-            </Link>
-          ) : (
+          ) : selectedImports.length === 0 && selectedBlocks.length === 0 ? (
             <p className="text-sm text-slate">
               Aucune séance prévue ni activité enregistrée ce jour-là —{" "}
               <Link href="/athlete/programmation" className="font-medium text-moss-dark hover:underline">
@@ -260,6 +262,62 @@ export default async function AthleteDashboard({
               </Link>
               .
             </p>
+          ) : (
+            <p className="text-sm text-slate">Aucune séance prévue ce jour-là.</p>
+          )}
+
+          {/* Ce que l'athlète (ou son coach pour lui) a ajouté au calendrier ce
+              jour-là : chaque élément se modifie ou se supprime sur place. */}
+          {selectedImports.length > 0 && (
+            <>
+              <p className="mb-2 mt-5 text-[11px] font-bold uppercase tracking-wider text-slate">
+                Séance{selectedImports.length > 1 ? "s" : ""} faite{selectedImports.length > 1 ? "s" : ""}
+              </p>
+              <div className="flex flex-col gap-2">
+                {selectedImports.map((a) => (
+                  <div key={a.id} className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-white p-4 text-sm">
+                    <Link href={`/athlete/day/${selectedDate}`} className="min-w-0 flex-1">
+                      <p className="font-medium text-ink">{sportLabel(a.sport)}</p>
+                      <p className="mt-0.5 truncate text-slate">
+                        {[
+                          a.duration_minutes ? `${a.duration_minutes} min` : null,
+                          a.distance_km ? `${a.distance_km} km` : null,
+                          a.rpe ? `RPE ${a.rpe}` : null,
+                          a.created_by ? "renseignée par votre coach" : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "Séance faite"}
+                      </p>
+                    </Link>
+                    <span className="flex flex-shrink-0 items-center gap-3 text-slate">
+                      <EditImportedActivityModal activity={a} className="hover:text-ink" />
+                      <DeleteImportedActivityButton id={a.id} className="hover:text-clay" />
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {selectedBlocks.length > 0 && (
+            <>
+              <p className="mb-2 mt-5 text-[11px] font-bold uppercase tracking-wider text-slate">Indisponibilité</p>
+              <div className="flex flex-col gap-2">
+                {selectedBlocks.map((b) => (
+                  <div key={b.id} className="flex items-center justify-between gap-3 rounded-2xl bg-ink px-4 py-3 text-sm text-white">
+                    <span className="min-w-0 truncate">
+                      <b className="font-semibold">{AVAILABILITY_SLOT_LABELS[b.time_of_day]}</b>
+                      {b.reason && <span className="text-white/70"> — {b.reason}</span>}
+                      {b.created_by && <span className="text-white/50"> · renseignée par votre coach</span>}
+                    </span>
+                    <span className="flex flex-shrink-0 items-center gap-3">
+                      <EditAvailabilityModal block={b} className="text-white/60 hover:text-white" />
+                      <DeleteAvailabilityButton id={b.id} className="text-white/60 hover:text-white" />
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
 
           {/* Journal de bord regroupé ici avec le reste des informations du jour
