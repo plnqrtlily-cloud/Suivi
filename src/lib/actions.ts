@@ -2,7 +2,18 @@
 
 import { randomUUID } from "crypto";
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidatePath as nextRevalidatePath, refresh } from "next/cache";
+
+// Invalide la page puis renvoie la page affichée à jour dans la même réponse
+// que l'action (refresh), sans second aller-retour réseau côté navigateur.
+function revalidatePath(path: string, type?: "page" | "layout") {
+  nextRevalidatePath(path, type);
+  try {
+    refresh();
+  } catch {
+    // Appelé hors d'une Server Action (rendu serveur) : l'invalidation suffit.
+  }
+}
 import { dbGet, dbRun, dbAll, dbBatch } from "./db";
 import { todayISO, toISODate } from "./dates";
 import { endDateForWeeks, focusLabel, normalizeLoadPattern } from "./periodization";

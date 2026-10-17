@@ -13,6 +13,10 @@ import type { NextConfig } from "next";
 // navigateur) diffère de l'hôte local attendu.
 const nextConfig: NextConfig = {
   experimental: {
+    // Revenir sur un onglet déjà ouvert (Aujourd'hui, Calendrier, Messages…)
+    // s'affiche tout de suite pendant 30 s au lieu de tout recalculer ; une
+    // action qui modifie les données invalide ce cache.
+    staleTimes: { dynamic: 30 },
     serverActions: {
       bodySizeLimit: "55mb",
       allowedOrigins: ["*.trycloudflare.com"],

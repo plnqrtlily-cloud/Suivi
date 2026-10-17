@@ -1,6 +1,7 @@
 import { createClient, type Client } from "@libsql/client";
 import path from "path";
 import fs from "fs";
+import { createHash } from "crypto";
 
 // Base de données : en local (développement), fichier SQLite classique via le
 // moteur libSQL embarqué — aucun compte, aucune configuration nécessaire. En
@@ -855,7 +856,42 @@ async function migrateAthleteMeasurementsCheck(): Promise<void> {
   }
 }
 
+// Empreinte du schéma : change dès qu'une table ou une migration est ajoutée.
+// Elle est enregistrée en base après une initialisation complète ; tant
+// qu'elle n'a pas bougé, un démarrage à froid ne coûte qu'une requête au lieu
+// d'une centaine d'allers-retours vers Turso (CREATE TABLE + chaque ALTER).
+const SCHEMA_VERSION = createHash("sha1")
+  .update(SCHEMA_SQL)
+  .update(MIGRATIONS.join("\n"))
+  .update("checks-v1")
+  .digest("hex")
+  .slice(0, 16);
+
 async function init(): Promise<void> {
+  const t0 = Date.now();
+  try {
+    const rs = await client.execute(`SELECT v FROM _schema_meta WHERE k = 'version'`);
+    if (rs.rows[0]?.v === SCHEMA_VERSION) {
+      if (isRemote) console.log(`[db] schéma à jour (${Date.now() - t0} ms) · région ${process.env.VERCEL_REGION ?? "?"} · base ${tursoRegion()}`);
+      return;
+    }
+  } catch {
+    // Table absente : première initialisation sur cette base.
+  }
+  await fullInit();
+  await client.execute(`CREATE TABLE IF NOT EXISTS _schema_meta (k TEXT PRIMARY KEY, v TEXT)`);
+  await client.execute({ sql: `INSERT INTO _schema_meta (k, v) VALUES ('version', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v`, args: [SCHEMA_VERSION] });
+  if (isRemote) console.log(`[db] schéma initialisé (${Date.now() - t0} ms) · région ${process.env.VERCEL_REGION ?? "?"} · base ${tursoRegion()}`);
+}
+
+// Région de la base d'après son hôte (…-org.aws-eu-west-1.turso.io), pour
+// vérifier qu'elle est proche des fonctions Vercel — jamais l'URL entière.
+function tursoRegion(): string {
+  const m = url.match(/\.((?:aws|gcp|fly|azure)-[a-z0-9-]+)\.turso\.io/);
+  return m ? m[1] : "inconnue";
+}
+
+async function fullInit(): Promise<void> {
   await client.executeMultiple(SCHEMA_SQL);
   await migrateAvailabilityBlocksCheck();
   await migrateNotificationsCheck();

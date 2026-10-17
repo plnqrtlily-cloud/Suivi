@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { dbGet, dbRun } from "./db";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
@@ -84,7 +85,11 @@ export async function destroyAllSessionsForUser(userId: string): Promise<void> {
   await dbRun(`DELETE FROM app_sessions WHERE user_id = ?`, [userId]);
 }
 
-export async function getCurrentUser(): Promise<User | null> {
+// Mémorisé le temps d'une requête (React cache) : la page, la navigation et
+// les composants serveur qui l'appellent ne paient qu'une seule requête.
+export const getCurrentUser = cache(readCurrentUser);
+
+async function readCurrentUser(): Promise<User | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null;
