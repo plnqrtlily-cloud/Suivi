@@ -6,8 +6,7 @@ import { Card } from "@/components/ui";
 import { LogoutAllButton, DeleteAccountButton } from "./account-buttons";
 import { PushNotificationsToggle } from "@/components/push-notifications-toggle";
 import Link from "next/link";
-import { getCoachesForAthlete, getExternalConnections, getImportedActivities, getCalendarToken } from "@/lib/queries";
-import { SyncPanel } from "@/app/athlete/profile/sync-panel";
+import { getCoachesForAthlete, getCalendarToken } from "@/lib/queries";
 import { CalendarSyncPanel } from "@/app/athlete/profile/calendar-sync-panel";
 import { JoinCoachForm } from "@/app/athlete/join-coach-form";
 import { RevokeButton } from "@/app/coach/revoke-button";
@@ -28,20 +27,24 @@ export default async function SettingsPage() {
   // Connexions externes et coachs liés : regroupés ici plutôt que sur le profil,
   // qui concerne les données sportives de l'athlète (mesures, zones, blessures).
   const isAthlete = user.role === "athlete";
-  const [coaches, externalConnections, importedActivities, calendarToken] = isAthlete
-    ? await Promise.all([
-        getCoachesForAthlete(user.id),
-        getExternalConnections(user.id),
-        getImportedActivities(user.id),
-        getCalendarToken(user.id),
-      ])
-    : [[], [], [], null];
+  // La connexion Garmin / Strava est retirée tant qu'elle n'est pas au point.
+  const [coaches, calendarToken] = isAthlete
+    ? await Promise.all([getCoachesForAthlete(user.id), getCalendarToken(user.id)])
+    : [[], null];
 
   return (
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
-      <main className="mx-auto max-w-2xl px-4 sm:px-6 py-10">
-        <h1 className="mb-8 font-display text-3xl text-ink">Paramètres du compte</h1>
+      <main className="mx-auto max-w-2xl px-4 pb-28 pt-5 sm:px-6 lg:pb-10">
+        {isAthlete && (
+          <Link href="/athlete/profile" className="mb-2 inline-flex items-center gap-1 text-[15px] font-semibold text-moss-dark">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5l-5 5 5 5" />
+            </svg>
+            Moi
+          </Link>
+        )}
+        <h1 className="mb-6 text-[28px] font-bold tracking-tight text-ink">Paramètres</h1>
 
         <Card className="mb-6 rounded-3xl">
           <h2 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate">Notifications push</h2>
@@ -56,7 +59,7 @@ export default async function SettingsPage() {
         )}
 
         {isAthlete && (
-          <Card className="mb-6 rounded-3xl">
+          <Card className="mb-6 scroll-mt-4 rounded-3xl" id="coachs">
             <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Mes coachs</h2>
             {coaches.length === 0 && <p className="mb-3 text-sm text-slate">Aucun coach lié pour l&apos;instant.</p>}
             <ul className="mb-4 space-y-2 text-sm">
@@ -87,23 +90,12 @@ export default async function SettingsPage() {
         {/* La synchronisation de calendrier est un réglage de compte, pas une
             donnée sportive : sa place est ici, avec les autres connexions. */}
         {isAthlete && (
-          <Card className="mb-6 rounded-3xl">
+          <Card className="mb-6 scroll-mt-4 rounded-3xl" id="calendrier">
             <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Mon calendrier</h2>
             <p className="mb-3 text-xs text-slate">
               Synchronisez vos séances avec Google Agenda, Apple Calendrier ou Outlook.
             </p>
             <CalendarSyncPanel initialToken={calendarToken} />
-          </Card>
-        )}
-
-        {isAthlete && (
-          <Card className="mb-6 rounded-3xl">
-            <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">Montres & applications</h2>
-            <p className="mb-4 text-xs text-slate">
-              Connectez Garmin ou Strava pour importer vos activités automatiquement. L&apos;import manuel reste
-              disponible indépendamment.
-            </p>
-            <SyncPanel connections={externalConnections} activities={importedActivities} />
           </Card>
         )}
 

@@ -107,13 +107,19 @@ export function Card({
   children,
   className = "",
   rounded = "3xl",
+  id,
 }: {
   children: React.ReactNode;
   className?: string;
   rounded?: "lg" | "2xl" | "3xl";
+  id?: string;
 }) {
   const roundedClass = { lg: "rounded-lg", "2xl": "rounded-2xl", "3xl": "rounded-3xl" }[rounded];
-  return <div className={`${roundedClass} border border-line bg-white p-5 ${className}`}>{children}</div>;
+  return (
+    <div id={id} className={`${roundedClass} border border-line bg-white p-5 ${className}`}>
+      {children}
+    </div>
+  );
 }
 
 const STATUS_LABELS: Record<string, string> = {

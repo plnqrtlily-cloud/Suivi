@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { sendMessageAction } from "@/lib/actions";
 import { Avatar } from "@/components/avatar";
 
@@ -26,6 +27,8 @@ export function ConversationThread({
   otherPartyAvatarUserId,
   otherPartyHasAvatar,
   profileHref,
+  fullScreen = false,
+  backHref,
 }: {
   coachId: string;
   athleteId: string;
@@ -35,6 +38,10 @@ export function ConversationThread({
   otherPartyAvatarUserId: string;
   otherPartyHasAvatar: boolean;
   profileHref?: string;
+  // Plein écran (athlète sur téléphone) : la discussion occupe toute la page
+  // sous la barre du haut, avec un retour vers la liste.
+  fullScreen?: boolean;
+  backHref?: string;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -130,8 +137,21 @@ export function ConversationThread({
   const lastMine = [...shown].reverse().find((m) => m.sender_id === currentUserId);
 
   return (
-    <div className="flex h-[72vh] flex-col overflow-hidden rounded-3xl border border-line bg-white">
-      <div className="flex flex-col items-center gap-1 border-b border-[#e5e5ea] bg-[#f9f9f9] px-4 pb-2 pt-3">
+    <div
+      className={
+        fullScreen
+          ? "flex h-[calc(100dvh-61px-68px)] flex-col overflow-hidden bg-white lg:h-[calc(100dvh-61px)]"
+          : "flex h-[72vh] flex-col overflow-hidden rounded-3xl border border-line bg-white"
+      }
+    >
+      <div className="relative flex flex-col items-center gap-1 border-b border-[#e5e5ea] bg-[#f9f9f9] px-4 pb-2 pt-3">
+        {backHref && (
+          <Link href={backHref} aria-label="Retour aux messages" className="absolute left-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-[#0a84ff]">
+            <svg width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5l-5 5 5 5" />
+            </svg>
+          </Link>
+        )}
         <Avatar userId={otherPartyAvatarUserId} firstName={otherPartyName} hasAvatar={otherPartyHasAvatar} size="md" />
         <span className="flex items-center gap-0.5 text-[12px] text-ink">
           {otherPartyName}

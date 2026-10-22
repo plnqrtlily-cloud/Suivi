@@ -20,7 +20,12 @@ export async function Nav({ user }: { user: User }) {
     isAthlete ? getCoachesForAthlete(user.id) : Promise.resolve([]),
     isAthlete ? getUserGender(user.id) : Promise.resolve(null),
     isAthlete
-      ? dbGet<{ n: number }>(`SELECT COUNT(*) as n FROM messages WHERE athlete_id = ? AND sender_id != ? AND read_at IS NULL`, [user.id, user.id])
+      ? dbGet<{ n: number }>(
+          `SELECT (SELECT COUNT(*) FROM messages WHERE athlete_id = ? AND sender_id != ? AND read_at IS NULL)
+                + (SELECT COUNT(*) FROM health_messages h JOIN injuries i ON i.id = h.injury_id
+                   WHERE i.athlete_id = ? AND h.author_id != ? AND h.kind = 'message' AND h.read_at IS NULL) as n`,
+          [user.id, user.id, user.id, user.id]
+        )
       : Promise.resolve(undefined),
   ]);
   const unreadMessages = Number(unread?.n ?? 0);

@@ -28,7 +28,7 @@ export function JoinCoachForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex items-end gap-2">
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
         <Field label="Code d'invitation de votre coach" name="inviteToken" placeholder="ex. a1b2c3d4" />
       </div>
       <Button type="submit" disabled={pending}>

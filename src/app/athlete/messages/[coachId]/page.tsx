@@ -5,29 +5,23 @@ import { markMessagesReadAction } from "@/lib/actions";
 import { Nav } from "@/components/nav";
 import { ConversationThread } from "@/components/conversation-thread";
 
-export default async function AthleteMessagesPage({
-  params,
-}: {
-  params: Promise<{ coachId: string }>;
-}) {
+export default async function AthleteMessagesPage({ params }: { params: Promise<{ coachId: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "athlete") redirect("/coach/dashboard");
 
   const { coachId } = await params;
-  const [linked, coach] = await Promise.all([isCoachLinkedToAthlete(coachId, user.id), findUserById(coachId)]);
+  const [linked, coach, coachAvatar] = await Promise.all([isCoachLinkedToAthlete(coachId, user.id), findUserById(coachId), getUserAvatar(coachId)]);
   if (!linked || !coach) notFound();
 
   const [messages] = await Promise.all([getMessages(coachId, user.id), markMessagesReadAction(coachId, user.id)]);
 
+  // Discussion plein écran, comme Messages : pas de titre au-dessus, la
+  // conversation prend toute la place entre la barre du haut et celle du bas.
   return (
-    <div className="min-h-screen bg-paper">
+    <div className="min-h-screen bg-white">
       <Nav user={user} />
-      <main className="mx-auto max-w-2xl px-4 sm:px-6 py-10">
-        <h1 className="mb-1 font-display text-3xl text-ink">
-          Discussion avec {coach.first_name} {coach.last_name}
-        </h1>
-        <p className="mb-6 text-slate">Message direct à votre coach.</p>
+      <main className="mx-auto max-w-2xl">
         <ConversationThread
           coachId={coachId}
           athleteId={user.id}
@@ -35,7 +29,9 @@ export default async function AthleteMessagesPage({
           messages={messages}
           otherPartyName={coach.first_name}
           otherPartyAvatarUserId={coachId}
-          otherPartyHasAvatar={false}
+          otherPartyHasAvatar={!!coachAvatar?.avatar_path}
+          fullScreen
+          backHref="/athlete/messages"
         />
       </main>
     </div>
