@@ -53,19 +53,23 @@ function CopyButton({ text, label = "Copier" }: { text: string; label?: string }
  * d'e-mails est configuré, l'invitation part directement ; sinon (ou sans
  * e-mail) le coach récupère un lien et un message prêts à copier.
  */
+const NO_PENDING: PendingInvite[] = [];
+
 export function InviteForm({
-  pending = [],
+  pending = NO_PENDING,
   emailReady = false,
   onDone,
+  coachCode,
 }: {
   pending?: PendingInvite[];
   emailReady?: boolean;
   onDone?: () => void;
+  coachCode?: string;
 }) {
   const router = useRouter();
   const [busy, start] = useTransition();
   const [error, setError] = useState<{ text: string; limit: boolean } | null>(null);
-  const [result, setResult] = useState<{ url: string; emailed: boolean; to: string; name: string } | null>(null);
+  const [result, setResult] = useState<{ url: string; code: string; emailed: boolean; to: string; name: string } | null>(null);
   const [list, setList] = useState(pending);
   const [source, setSource] = useState(pending);
   if (source !== pending) {
@@ -89,6 +93,7 @@ export function InviteForm({
       setError(null);
       setResult({
         url: `${origin}/invite/${res.token}`,
+        code: res.token,
         emailed: res.emailed,
         to: String(fd.get("email") || ""),
         name: String(fd.get("firstName") || ""),
@@ -122,6 +127,9 @@ export function InviteForm({
             <span className="min-w-0 flex-1 truncate text-sm text-moss-dark">{result.url}</span>
             <CopyButton text={result.url} label="Copier le lien" />
           </div>
+          <p className="text-xs text-slate">
+            Déjà inscrit ? Il peut aussi saisir le code <b className="font-mono text-ink">{result.code}</b> dans Moi › Mes coachs.
+          </p>
           <div className="flex flex-wrap items-center gap-2">
             <CopyButton text={shareText} label="Copier le message" />
             <button type="button" onClick={() => setResult(null)} className="text-xs font-semibold text-moss-dark hover:underline">
@@ -185,6 +193,18 @@ export function InviteForm({
         </form>
       )}
 
+      {coachCode && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line px-3 py-2.5">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-ink">
+              Ton code coach : <b className="font-mono tracking-wider">{coachCode}</b>
+            </p>
+            <p className="text-xs text-slate">Un athlète déjà inscrit le saisit dans Moi › Mes coachs pour te rejoindre.</p>
+          </div>
+          <CopyButton text={coachCode} label="Copier le code" />
+        </div>
+      )}
+
       {list.length > 0 && (
         <div className="flex flex-col">
           <p className="mb-1 text-sm font-semibold text-ink">
@@ -240,7 +260,7 @@ export function InviteForm({
 }
 
 /** Bouton « Inviter un athlète » qui ouvre le formulaire dans une fenêtre. */
-export function InviteButton({ pending, emailReady }: { pending: PendingInvite[]; emailReady: boolean }) {
+export function InviteButton({ pending, emailReady, coachCode }: { pending: PendingInvite[]; emailReady: boolean; coachCode?: string }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!open) return;
@@ -283,7 +303,7 @@ export function InviteButton({ pending, emailReady }: { pending: PendingInvite[]
                 ×
               </button>
             </div>
-            <InviteForm pending={pending} emailReady={emailReady} onDone={() => setOpen(false)} />
+            <InviteForm pending={pending} emailReady={emailReady} coachCode={coachCode} onDone={() => setOpen(false)} />
           </div>
         </div>
       )}

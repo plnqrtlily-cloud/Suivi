@@ -36,7 +36,7 @@ export default async function RegisterPage({
         />
         <p className="mt-6 text-sm text-slate">
           Déjà un compte ?{" "}
-          <Link href="/login" className="text-moss-dark underline">
+          <Link href={invite ? `/login?invite=${invite}` : "/login"} className="text-moss-dark underline">
             Se connecter
           </Link>
         </p>

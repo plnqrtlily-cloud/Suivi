@@ -11,6 +11,7 @@ import { CalendarSyncPanel } from "@/app/athlete/profile/calendar-sync-panel";
 import { JoinCoachForm } from "@/app/athlete/join-coach-form";
 import { RevokeButton } from "@/app/coach/revoke-button";
 import { InviteForm } from "@/app/coach/invite-form";
+import { coachCodeFor } from "@/lib/linking";
 
 function DownloadIcon() {
   return (
@@ -20,7 +21,8 @@ function DownloadIcon() {
   );
 }
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ lien?: string }> }) {
+  const { lien } = await searchParams;
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
@@ -54,7 +56,7 @@ export default async function SettingsPage() {
         {!isAthlete && (
           <Card className="mb-6 rounded-3xl">
             <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Inviter un athlète</h2>
-            <InviteForm />
+            <InviteForm coachCode={coachCodeFor(user.id)} />
           </Card>
         )}
 
@@ -83,7 +85,7 @@ export default async function SettingsPage() {
                 </li>
               ))}
             </ul>
-            <JoinCoachForm />
+            <JoinCoachForm initialError={lien} />
           </Card>
         )}
 

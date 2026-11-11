@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { dbGet } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { joinCoachWithCodeAction } from "@/lib/actions";
+import Link from "next/link";
+import { linkAthleteWithCode } from "@/lib/linking";
 import { Button, Card } from "@/components/ui";
 
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
@@ -25,8 +26,36 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
     );
   }
 
+  // Pas connecté : on ne sait pas encore si l'athlète a un compte, on lui
+  // laisse le choix (créer un compte ou se connecter), l'invitation suit.
   if (!user) {
-    redirect(`/register?invite=${token}`);
+    const known = invite.invite_email
+      ? await dbGet<{ id: string }>(`SELECT id FROM users WHERE email = ?`, [String(invite.invite_email).toLowerCase()])
+      : undefined;
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-paper px-6">
+        <Card className="flex w-full max-w-sm flex-col gap-4 text-center">
+          <p className="text-ink">
+            <strong>
+              {invite.first_name} {invite.last_name}
+            </strong>{" "}
+            vous invite à rejoindre son suivi d&apos;entraînement sur Rythme.
+          </p>
+          <Link
+            href={known ? `/login?invite=${token}` : `/register?invite=${token}`}
+            className="rounded-full bg-moss px-5 py-2.5 text-sm font-semibold text-white hover:bg-moss-dark"
+          >
+            {known ? "Me connecter et accepter" : "Créer mon compte athlète"}
+          </Link>
+          <Link
+            href={known ? `/register?invite=${token}` : `/login?invite=${token}`}
+            className="text-sm font-semibold text-moss-dark hover:underline"
+          >
+            {known ? "Créer un autre compte" : "J'ai déjà un compte"}
+          </Link>
+        </Card>
+      </main>
+    );
   }
 
   if (user!.role !== "athlete") {
@@ -46,10 +75,8 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
 
   async function accept() {
     "use server";
-    const formData = new FormData();
-    formData.set("inviteToken", token);
-    await joinCoachWithCodeAction(formData);
-    redirect("/athlete");
+    const res = await linkAthleteWithCode(user!.id, token);
+    redirect("error" in res ? `/settings?lien=${encodeURIComponent(res.error)}#coachs` : "/athlete");
   }
 
   return (

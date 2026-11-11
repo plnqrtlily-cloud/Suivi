@@ -59,7 +59,7 @@ export function RegisterForm({
       />
       {role === "athlete" && (
         <Field
-          label="Code d'invitation de votre coach (facultatif)"
+          label="Code de votre coach (facultatif)"
           name="inviteToken"
           defaultValue={defaultInviteToken}
           placeholder="ex. a1b2c3d4"

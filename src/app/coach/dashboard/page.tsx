@@ -22,6 +22,7 @@ import { Avatar } from "@/components/avatar";
 import { Card } from "@/components/ui";
 import { CoachDesk } from "./coach-desk";
 import { InviteForm, InviteButton, type PendingInvite } from "../invite-form";
+import { coachCodeFor } from "@/lib/linking";
 import { isEmailConfigured } from "@/lib/email";
 import { sportIconPath } from "@/lib/sport-icons";
 
@@ -235,7 +236,7 @@ export default async function CoachDashboardPage({
         <main className="mx-auto max-w-5xl px-4 sm:px-6 py-8">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
             <h1 className="font-display text-3xl text-ink">Mes athlètes</h1>
-            {activeAthletes.length > 0 && <InviteButton key={planStatus.isPro ? "pro" : "free"} pending={pendingList} emailReady={emailReady} />}
+            {activeAthletes.length > 0 && <InviteButton key={planStatus.isPro ? "pro" : "free"} pending={pendingList} emailReady={emailReady} coachCode={coachCodeFor(user.id)} />}
           </div>
           <p className={planStatus.plan === "pro" ? "mb-6 text-slate" : "mb-1 text-slate"}>
             {activeAthletes.length} athlète{activeAthletes.length > 1 ? "s" : ""} suivi{activeAthletes.length > 1 ? "s" : ""}
@@ -293,7 +294,7 @@ export default async function CoachDashboardPage({
                 Générez un lien d&apos;invitation et transmettez-le. Dès qu&apos;il crée son compte, vous pourrez lui
                 programmer des séances et suivre sa forme au jour le jour.
               </p>
-              <InviteForm key={planStatus.isPro ? "pro" : "free"} pending={pendingList} emailReady={emailReady} />
+              <InviteForm key={planStatus.isPro ? "pro" : "free"} pending={pendingList} emailReady={emailReady} coachCode={coachCodeFor(user.id)} />
               {TEAMS_ENABLED && <p className="mt-3 text-xs text-slate">
                 Un sport collectif à suivre ?{" "}
                 <Link href="/coach/equipes" className="font-medium text-moss-dark hover:underline">

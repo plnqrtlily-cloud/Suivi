@@ -37,6 +37,7 @@ import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE
 import { parseGpx, simplifyRoute } from "./gpx";
 import { getResourceById, getBlocksForWorkout, getCoachPlanStatus, getTeamWithMembers } from "./queries";
 import { ADMIN_EMAIL, trialEndDate } from "./billing";
+import { linkAthleteWithCode } from "./linking";
 import { createNotification, markNotificationRead, markAllNotificationsRead } from "./notifications";
 import { sendEmail, isEmailConfigured, appBaseUrl } from "./email";
 import { isStripeConfigured, createCheckoutSession, createBillingPortalSession } from "./stripe";
@@ -51,12 +52,22 @@ import { PROFILE_DOMAINS, QUALITY_BASE, QUALITY_LIBRARY, type ProfileDomain } fr
 export async function loginAction(formData: FormData) {
   const email = String(formData.get("email") || "");
   const password = String(formData.get("password") || "");
+  const inviteToken = String(formData.get("inviteToken") || "").trim();
 
   const user = await findUserByEmail(email);
   if (!user || !verifyPassword(password, user.password_hash)) {
     return { error: "Email ou mot de passe incorrect." };
   }
+  if (inviteToken && user.role !== "athlete") {
+    return { error: "Cette invitation est destinée à un compte athlète : ce compte est un compte coach." };
+  }
   await createSession(user.id);
+  // Athlète déjà inscrit qui arrive par un lien d'invitation : la liaison se
+  // fait à la connexion, sans repasser par le formulaire d'inscription.
+  if (inviteToken) {
+    const res = await linkAthleteWithCode(user.id, inviteToken);
+    redirect("error" in res ? `/settings?lien=${encodeURIComponent(res.error)}#coachs` : "/athlete");
+  }
   redirect(user.role === "coach" ? "/coach/dashboard" : "/athlete");
 }
 
@@ -79,7 +90,11 @@ export async function registerAction(formData: FormData) {
     return { error: "Vous devez accepter les conditions d'utilisation pour créer un compte." };
   }
   if (await findUserByEmail(email)) {
-    return { error: "Un compte existe déjà avec cet email." };
+    return {
+      error: inviteToken
+        ? "Un compte existe déjà avec cet email. Connecte-toi avec « Déjà un compte ? » : l'invitation sera acceptée à la connexion."
+        : "Un compte existe déjà avec cet email.",
+    };
   }
 
   const user = await createUser({ email, password, role, firstName, lastName });
@@ -87,15 +102,7 @@ export async function registerAction(formData: FormData) {
 
   // Si un code d'invitation a été fourni (athlète invité par un coach), on active le lien.
   if (inviteToken && role === "athlete") {
-    const invite = await dbGet<any>(`SELECT * FROM coach_athlete_links WHERE invite_token = ? AND status = 'pending'`, [
-      inviteToken,
-    ]);
-    if (invite) {
-      await dbRun(
-        `UPDATE coach_athlete_links SET athlete_id = ?, status = 'active', accepted_at = datetime('now') WHERE id = ?`,
-        [user.id, invite.id]
-      );
-    }
+    await linkAthleteWithCode(user.id, inviteToken);
   }
 
   await createSession(user.id);
@@ -270,19 +277,11 @@ export async function joinCoachWithCodeAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
 
-  const token = String(formData.get("inviteToken") || "").trim();
-  const invite = await dbGet<any>(`SELECT * FROM coach_athlete_links WHERE invite_token = ? AND status = 'pending'`, [
-    token,
-  ]);
-  if (!invite) return { error: "Code d'invitation invalide ou déjà utilisé." };
-
-  await dbRun(
-    `UPDATE coach_athlete_links SET athlete_id = ?, status = 'active', accepted_at = datetime('now') WHERE id = ?`,
-    [user.id, invite.id]
-  );
-
+  const res = await linkAthleteWithCode(user.id, String(formData.get("inviteToken") || ""));
+  if ("error" in res) return { error: res.error };
   revalidatePath("/athlete");
-  return { success: true };
+  revalidatePath("/settings");
+  return { success: true, coachName: res.coachName, already: !!res.already };
 }
 
 // ---------- WORKOUTS (cf. prompt : "Création d'entraînement") ----------

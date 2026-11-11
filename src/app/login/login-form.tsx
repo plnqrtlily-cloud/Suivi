@@ -6,7 +6,7 @@ import { Field, Button, ErrorText } from "@/components/ui";
 
 type State = { error?: string } | undefined;
 
-export function LoginForm() {
+export function LoginForm({ inviteToken }: { inviteToken?: string }) {
   const [state, formAction, pending] = useActionState<State, FormData>(
     async (_prev, formData) => {
       const result = await loginAction(formData);
@@ -17,6 +17,7 @@ export function LoginForm() {
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
+      {inviteToken && <input type="hidden" name="inviteToken" value={inviteToken} />}
       <Field label="Email" type="email" name="email" required autoComplete="email" />
       <Field label="Mot de passe" type="password" name="password" required autoComplete="current-password" />
       <ErrorText>{state?.error}</ErrorText>
