@@ -27,7 +27,13 @@ export async function Nav({ user }: { user: User }) {
                    WHERE i.athlete_id = ? AND h.author_id != ? AND h.kind = 'message' AND h.read_at IS NULL) as n`,
           [user.id, user.id, user.id, user.id]
         )
-      : Promise.resolve(undefined),
+      : dbGet<{ n: number }>(
+          `SELECT (SELECT COUNT(*) FROM messages WHERE coach_id = ? AND sender_id != ? AND read_at IS NULL)
+                + (SELECT COUNT(*) FROM health_messages h JOIN injuries i ON i.id = h.injury_id
+                   JOIN coach_athlete_links l ON l.athlete_id = i.athlete_id AND l.coach_id = ? AND l.status = 'active'
+                   WHERE h.author_id != ? AND h.kind = 'message' AND h.read_at IS NULL) as n`,
+          [user.id, user.id, user.id, user.id]
+        ),
   ]);
   const unreadMessages = Number(unread?.n ?? 0);
   const coachName = coaches.length === 1 ? coaches[0].first_name : "ton coach";
@@ -63,21 +69,19 @@ export async function Nav({ user }: { user: User }) {
     </span>
   );
 
-  // Toutes les destinations passent dans la barre du bas plutôt qu'un
-  // sous-ensemble arbitraire : Équipes n'y figurait pas du tout jusqu'ici, ce
-  // qui la rendait injoignable sur mobile pour un coach (elle n'existe que
-  // dans la sidebar desktop). BottomNav répartit ses items en `flex-1` et
-  // tronque les libellés trop longs, donc élargir la liste (5 pour l'athlète,
-  // 7 pour le coach) reste lisible sans logique de troncature séparée à
-  // maintenir. Paramètres reste toujours en dernier : c'est la seule
-  // navigation sur mobile vers le compte, les connexions de montre et les
-  // coachs liés.
   // Côté athlète, « Moi » regroupe le profil et les paramètres (lien en tête
   // du profil) : la barre garde 4 onglets autour du « + ».
-  const settingsItem = navItems.find((i) => i.href === "/settings")!;
+  // Côté coach, même principe : 4 onglets courts autour d'un « + » central
+  // (Créer une séance) ; Paramètres passe en icône dans l'en-tête mobile.
+  const coachBottomItems: { href: string; label: string; icon: NavIconName; badge?: number }[] = [
+    { href: "/coach/dashboard", icon: "dashboard", label: "Accueil" },
+    { href: "/coach/planification", icon: "calendar", label: "Planning" },
+    { href: "/coach/messagerie", icon: "messages", label: "Messages", badge: unreadMessages },
+    { href: "/coach/resources", icon: "library", label: "Biblio" },
+  ];
   const bottomNavItems = isAthlete
     ? navItems.filter((i) => i.href !== "/settings").map((i) => (i.href === "/athlete/messages" ? { ...i, badge: unreadMessages } : i))
-    : [...navItems.filter((i) => i.href !== "/settings"), settingsItem];
+    : coachBottomItems;
   const today = todayISO();
 
   return (
@@ -113,8 +117,13 @@ export async function Nav({ user }: { user: User }) {
           </form>
         </nav>
 
-        <div className="flex items-center gap-2 lg:hidden">
+        <div className="flex items-center gap-1 lg:hidden">
           <NotificationBell notifications={notifications} />
+          {!isAthlete && (
+            <Link href="/settings" aria-label="Paramètres" className="flex h-9 w-9 items-center justify-center rounded-full text-ink-soft hover:bg-paper-dim">
+              <NavIcon name="settings" className="h-[20px] w-[20px]" />
+            </Link>
+          )}
         </div>
       </div>
 
@@ -124,7 +133,21 @@ export async function Nav({ user }: { user: User }) {
           du haut (ou la barre latérale côté coach) suffit. */}
       <BottomNav
         items={bottomNavItems}
-        center={isAthlete ? <AddMenu variant="tab" today={today} coachName={coachName} isFemale={gender === "female"} /> : undefined}
+        center={
+          isAthlete ? (
+            <AddMenu variant="tab" today={today} coachName={coachName} isFemale={gender === "female"} />
+          ) : (
+            <Link
+              href="/coach/nouvelle-seance"
+              aria-label="Créer une séance"
+              className="-mt-5 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#1b4b4f] text-white shadow-[0_6px_16px_rgba(27,75,79,0.35)]"
+            >
+              <svg width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+                <path d="M10 4.5v11M4.5 10h11" />
+              </svg>
+            </Link>
+          )
+        }
       />
     </>
   );

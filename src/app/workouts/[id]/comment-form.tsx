@@ -29,7 +29,7 @@ export function CommentForm({ workoutId }: { workoutId: string }) {
         <input
           name="body"
           placeholder="Ajouter un commentaire…"
-          className="flex-1 rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
+          className="min-w-0 flex-1 rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
         />
         <button
           type="button"

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { logoutAction } from "@/lib/actions";
 import { getCurrentUser } from "@/lib/auth";
 import { getPushPublicKey } from "@/lib/push";
 import { Nav } from "@/components/nav";
@@ -140,6 +141,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           </p>
           <DeleteAccountButton />
         </Card>
+
+        {/* Sur téléphone, la déconnexion n'existe nulle part ailleurs (la barre du haut est réservée à l'ordinateur). */}
+        <form action={logoutAction} className="mt-6 lg:hidden">
+          <button type="submit" className="w-full rounded-2xl border border-line bg-white py-3 text-[15px] font-semibold text-[#a4492a]">
+            Se déconnecter
+          </button>
+        </form>
       </main>
     </div>
   );

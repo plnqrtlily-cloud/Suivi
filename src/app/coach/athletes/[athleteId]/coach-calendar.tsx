@@ -131,6 +131,14 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
   const firstRef = useRef<string | null>(null);
   const loadingRef = useRef(false);
   const frameRef = useRef(0);
+  const panelRef = useRef<HTMLElement>(null);
+
+  // Sur téléphone, le panneau de détail s'ouvre sous le calendrier : on l'amène à l'écran.
+  useEffect(() => {
+    if (!panel || window.innerWidth >= 640) return;
+    const t = setTimeout(() => panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 320);
+    return () => clearTimeout(t);
+  }, [panel]);
 
   useEffect(() => {
     if (!toast) return;
@@ -439,13 +447,13 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
       </div>
 
       {/* Bilan */}
-      <div className="flex flex-wrap gap-x-16 gap-y-4">
+      <div className="flex flex-wrap gap-x-16 gap-y-3">
         {[
           { l: "Charge", v: nb(s.load), of: s.plannedLoad ? `${nb(s.plannedLoad)} UA` : "UA", p: bar(s.load, s.plannedLoad) },
           { l: "Temps", v: fmt(s.minutes), of: s.plannedMinutes ? fmt(s.plannedMinutes) : "", p: bar(s.minutes, s.plannedMinutes) },
           { l: "Séances", v: String(s.done), of: `${s.total} faites`, p: bar(s.done, s.total) },
         ].map((x) => (
-          <div key={x.l} className="flex w-[200px] flex-col gap-2">
+          <div key={x.l} className="flex w-full flex-col gap-2 sm:w-[200px]">
             <div className="flex items-baseline gap-2 text-sm text-slate">
               <span>{x.l}</span>
               <span className="flex-1" />
@@ -481,8 +489,9 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
           key="week"
           ref={scrollerRef}
           onScroll={onScroll}
-          className="relative -mx-1 grid snap-x snap-mandatory grid-flow-col gap-2 overflow-x-auto overscroll-x-contain px-1 pb-2 animate-expand-in [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          style={{ gridAutoColumns: `max(128px, calc((100% - ${6 * GAP}px) / 7))`, scrollPaddingLeft: 4 }}
+          // Téléphone : deux jours par écran ; ordinateur : la semaine entière.
+          className="relative -mx-1 grid snap-x snap-mandatory grid-flow-col gap-2 overflow-x-auto overscroll-x-contain px-1 pb-2 animate-expand-in [grid-auto-columns:calc((100%_-_8px)/2)] [scrollbar-width:none] sm:[grid-auto-columns:max(128px,calc((100%_-_48px)/7))] [&::-webkit-scrollbar]:hidden"
+          style={{ scrollPaddingLeft: 4 }}
         >
           {allDays.map((d) => (
             <DayCard
@@ -542,7 +551,7 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
       >
         <div className={panel ? "overflow-visible" : "overflow-hidden"}>
           {panel && (
-            <section className="relative rounded-[20px] border-2 border-ink bg-white p-6">
+            <section ref={panelRef} className="relative scroll-mt-4 rounded-[20px] border-2 border-ink bg-white p-4 sm:p-6">
               <button type="button" onClick={() => setPanel(null)} aria-label="Fermer" className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-full bg-paper text-ink-soft">
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M5 5l10 10M15 5L5 15" /></svg>
               </button>
@@ -719,7 +728,7 @@ function DayCard({
     <div
       data-date={day.date}
       onClick={(e) => { if ((e.target as HTMLElement).closest("button")) return; onOpenDay(); }}
-      className="relative flex min-h-[230px] snap-start cursor-pointer flex-col gap-3 rounded-2xl px-2.5 pb-2.5 pt-3 transition-colors"
+      className="relative flex min-h-[170px] snap-start sm:min-h-[230px] cursor-pointer flex-col gap-3 rounded-2xl px-2.5 pb-2.5 pt-3 transition-colors"
       style={{ background: day.isToday ? "#fffaf7" : "#ffffff", border: `2px solid ${isSel ? "#1b4b4f" : day.isToday ? "#e8896a" : "transparent"}` }}
     >
       {day.isToday && <div className="-mx-2.5 -mt-3 rounded-t-[13px] bg-gold-light py-1 text-center text-[11px] font-bold text-[#3b1f0c]">Aujourd&apos;hui</div>}
@@ -787,16 +796,16 @@ function MonthScroller({
   onOpenDay: (date: string) => void;
   onOpenEntry: (id: string) => void;
 }) {
-  const cols = "grid grid-cols-[repeat(7,minmax(0,1fr))_180px] gap-1.5";
+  const cols = "grid grid-cols-7 gap-1 sm:grid-cols-[repeat(7,minmax(0,1fr))_180px] sm:gap-1.5";
   return (
     <div
       ref={scrollerRef}
       onScroll={onScroll}
       className="relative -mx-1 h-[min(74vh,780px)] min-h-[460px] overflow-auto overscroll-contain px-1 animate-expand-in [scrollbar-width:thin]"
     >
-      <div className="min-w-[860px]">
+      <div className="sm:min-w-[860px]">
         <div ref={headRef} className={`${cols} sticky top-0 z-20 bg-paper px-1 pb-1.5 pt-0.5 text-xs font-semibold text-slate`}>
-          {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim", "Semaine"].map((l) => <span key={l}>{l}</span>)}
+          {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim", "Semaine"].map((l, i) => <span key={l} className={i === 7 ? "hidden sm:block" : "text-center sm:text-left"}>{l}</span>)}
         </div>
         <div className="flex flex-col gap-1.5 pb-2">
           {weeks.map((w) => (
@@ -808,30 +817,38 @@ function MonthScroller({
                   <div
                     key={d.date}
                     onClick={(e) => { if ((e.target as HTMLElement).closest("button")) return; onOpenDay(d.date); }}
-                    className="flex min-h-[104px] cursor-pointer flex-col gap-1.5 overflow-hidden rounded-xl px-2 py-2 transition-[background-color,opacity] duration-300"
+                    className="flex min-h-[64px] cursor-pointer flex-col gap-1 overflow-hidden rounded-lg px-1 py-1.5 sm:min-h-[104px] sm:gap-1.5 sm:rounded-xl sm:px-2 sm:py-2 transition-[background-color,opacity] duration-300"
                     style={{ background: d.isToday ? "#fffaf7" : inMonth ? "#ffffff" : "#f7f8f8", opacity: inMonth || d.isToday ? 1 : 0.75, border: `2px solid ${sel ? "#1b4b4f" : d.isToday ? "#e8896a" : "transparent"}` }}
                   >
                     <div className="flex items-baseline gap-1.5">
-                      <span className="text-[15px] font-bold transition-colors duration-300" style={{ color: d.isToday ? "#a4492a" : inMonth ? "#182220" : "#9aa39c" }}>{d.num}</span>
-                      {d.num === 1 && <span className="text-xs font-semibold text-slate">{MONTHS[parse(d.date).getMonth()]}</span>}
+                      <span className="text-[13px] font-bold transition-colors duration-300 sm:text-[15px]" style={{ color: d.isToday ? "#a4492a" : inMonth ? "#182220" : "#9aa39c" }}>{d.num}</span>
+                      {d.num === 1 && <span className="hidden text-xs font-semibold text-slate sm:inline">{MONTHS[parse(d.date).getMonth()]}</span>}
                       <span className="flex-1" />
                       {d.forme && (
-                        <span className="text-[11.5px] font-semibold" style={{ color: d.forme.score < 6 ? "#8a3a1f" : "#5b6660" }}>● {String(d.forme.score).replace(".", ",")}</span>
+                        <span className="hidden text-[11.5px] font-semibold sm:inline" style={{ color: d.forme.score < 6 ? "#8a3a1f" : "#5b6660" }}>● {String(d.forme.score).replace(".", ",")}</span>
                       )}
                     </div>
-                    <CycleLine day={d} compact />
+                    <span className="hidden sm:contents"><CycleLine day={d} compact /></span>
+                    {/* Téléphone : une petite barre par séance, le détail s'ouvre en touchant le jour. */}
+                    {d.entries.length > 0 && (
+                      <span className="flex flex-wrap gap-0.5 sm:hidden">
+                        {d.entries.map((e) => (
+                          <span key={e.id} className="h-1.5 w-3 rounded-full" style={{ background: e.isGoal ? "#a4492a" : STATUS_COLOR[e.status], opacity: e.isDraft ? 0.5 : 1 }} />
+                        ))}
+                      </span>
+                    )}
                     {d.entries.map((e) => (
-                      <button key={e.id} type="button" onClick={() => onOpenEntry(e.id)} className="truncate py-px pl-1.5 text-left text-[12.5px] font-semibold text-ink" style={{ borderLeft: e.isGoal ? "3px solid #a4492a" : BAR[e.status], opacity: e.isDraft ? 0.6 : 1 }}>
+                      <button key={e.id} type="button" onClick={() => onOpenEntry(e.id)} className="hidden truncate py-px pl-1.5 text-left sm:block text-[12.5px] font-semibold text-ink" style={{ borderLeft: e.isGoal ? "3px solid #a4492a" : BAR[e.status], opacity: e.isDraft ? 0.6 : 1 }}>
                         {e.title}
                       </button>
                     ))}
                     {d.blocks.map((b) => (
-                      <span key={b.id} className="text-[11.5px] text-slate">{b.label}</span>
+                      <span key={b.id} className="hidden text-[11.5px] text-slate sm:inline">{b.label}</span>
                     ))}
                   </div>
                 );
               })}
-              <WeekSummary w={w} open={popWeek === w.weekStart} toggle={() => setPopWeek(popWeek === w.weekStart ? null : w.weekStart)} onOpenEntry={onOpenEntry} />
+              <div className="hidden sm:block"><WeekSummary w={w} open={popWeek === w.weekStart} toggle={() => setPopWeek(popWeek === w.weekStart ? null : w.weekStart)} onOpenEntry={onOpenEntry} /></div>
             </div>
           ))}
         </div>

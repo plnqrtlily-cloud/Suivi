@@ -85,7 +85,7 @@ export default async function CoachMessageriePage() {
                     c.unread > 0 ? "border-moss/40" : "border-line"
                   }`}
                 >
-                  <Avatar userId={c.athleteId} firstName={c.link.first_name || "?"} hasAvatar={!!c.link.avatar_path} size="lg" />
+                  <Avatar userId={c.athleteId} firstName={c.link.first_name || "?"} hasAvatar={!!c.link.avatar_path} size="list" />
                   <div className="min-w-0 flex-1">
                     <p className={`truncate ${c.unread > 0 ? "font-semibold text-ink" : "font-medium text-ink"}`}>
                       {c.link.first_name} {c.link.last_name}

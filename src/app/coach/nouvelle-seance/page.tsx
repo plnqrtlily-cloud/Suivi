@@ -65,7 +65,7 @@ export default async function NouvelleSeancePage({
                     href={`/coach/nouvelle-seance?athlete=${a.athlete_id}`}
                     className="flex items-center gap-3 rounded-2xl border border-line bg-white p-4 hover:border-moss"
                   >
-                    <Avatar userId={a.athlete_id!} firstName={a.first_name || "?"} hasAvatar={!!a.avatar_path} size="lg" />
+                    <Avatar userId={a.athlete_id!} firstName={a.first_name || "?"} hasAvatar={!!a.avatar_path} size="list" />
                     <span className="min-w-0">
                       <span className="block truncate font-medium text-ink">
                         {a.first_name} {a.last_name}

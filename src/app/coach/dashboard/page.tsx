@@ -73,7 +73,7 @@ function AthleteCard({
     >
       {/* En-tête : identité */}
       <div className="mb-3 flex items-center gap-2.5">
-        <Avatar userId={athleteId} firstName={link.first_name || "?"} hasAvatar={!!link.avatar_path} size="lg" />
+        <Avatar userId={athleteId} firstName={link.first_name || "?"} hasAvatar={!!link.avatar_path} size="list" />
         <div className="min-w-0">
           <Link href={`/coach/athletes/${athleteId}`} className="block truncate font-medium text-ink hover:underline">
             {link.first_name} {link.last_name}
