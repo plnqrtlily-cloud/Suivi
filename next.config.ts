@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { TEAMS_ENABLED } from "./src/lib/features";
 
 // La limite par défaut des Server Actions Next.js est 1 Mo, ce qui bloquait
 // silencieusement l'upload de toute vraie photo/vidéo vers la bibliothèque de
@@ -21,6 +22,15 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "55mb",
       allowedOrigins: ["*.trycloudflare.com"],
     },
+  },
+  // Équipes mises de côté : les adresses /coach/equipes renvoient au tableau de bord.
+  async redirects() {
+    return TEAMS_ENABLED
+      ? []
+      : [
+          { source: "/coach/equipes", destination: "/coach/dashboard", permanent: false },
+          { source: "/coach/equipes/:path*", destination: "/coach/dashboard", permanent: false },
+        ];
   },
 };
 

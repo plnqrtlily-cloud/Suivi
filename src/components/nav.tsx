@@ -1,4 +1,5 @@
 import { logoutAction } from "@/lib/actions";
+import { TEAMS_ENABLED } from "@/lib/features";
 import { User } from "@/lib/auth";
 import { getNotifications } from "@/lib/notifications";
 import { getUserAvatar, getCoachesForAthlete, getUserGender } from "@/lib/queries";
@@ -35,7 +36,7 @@ export async function Nav({ user }: { user: User }) {
     ...(user.role === "coach"
       ? [
           { href: "/coach/dashboard", icon: "dashboard" as const, label: "Tableau de bord" },
-          { href: "/coach/equipes", icon: "pitch" as const, label: "Équipes" },
+          ...(TEAMS_ENABLED ? [{ href: "/coach/equipes", icon: "pitch" as const, label: "Équipes" }] : []),
           { href: "/coach/nouvelle-seance", icon: "add" as const, label: "Créer" },
           { href: "/coach/planification", icon: "calendar" as const, label: "Planification" },
           { href: "/coach/messagerie", icon: "messages" as const, label: "Messagerie" },

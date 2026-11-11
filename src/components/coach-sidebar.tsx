@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TEAMS_ENABLED } from "@/lib/features";
 import { logoutAction } from "@/lib/actions";
 import { User } from "@/lib/auth";
 import { getAthletesForCoach, getUnreadMessageCountForCoach } from "@/lib/queries";
@@ -21,7 +22,7 @@ export async function CoachSidebar({ user, activeHref }: { user: User; activeHre
 
   const sections: { href: string; label: string; icon: NavIconName; badge?: number }[] = [
     { href: "/coach/dashboard", icon: "dashboard", label: "Tableau de bord" },
-    { href: "/coach/equipes", icon: "pitch", label: "Équipes" },
+    ...(TEAMS_ENABLED ? [{ href: "/coach/equipes", icon: "pitch" as const, label: "Équipes" }] : []),
     { href: "/coach/nouvelle-seance", icon: "add", label: "Créer une séance" },
     { href: "/coach/planification", icon: "calendar", label: "Planification" },
     { href: "/coach/messagerie", icon: "messages", label: "Messagerie", badge: unreadCount || undefined },

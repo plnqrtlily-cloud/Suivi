@@ -46,7 +46,7 @@ export default async function TarifsPage({ searchParams }: { searchParams: Promi
             0€<span className="text-base font-normal text-slate"> pendant {TRIAL_DURATION_MONTHS} mois</span>
           </p>
           <ul className="mb-6 flex flex-col gap-2 text-sm text-ink-soft">
-            <li>Athlètes et équipes illimités</li>
+            <li>Athlètes illimités</li>
             <li>Toutes les fonctionnalités, sans restriction</li>
             <li>Sans carte bancaire</li>
           </ul>

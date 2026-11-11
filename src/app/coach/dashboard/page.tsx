@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { TEAMS_ENABLED } from "@/lib/features";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import {
@@ -256,7 +257,7 @@ export default async function CoachDashboardPage({
               }`}
             >
               {planStatus.plan === "pro"
-                ? "Bienvenue au plan Pro ! Athlètes et équipes illimités dès maintenant."
+                ? "Bienvenue au plan Pro ! Athlètes illimités dès maintenant."
                 : "Paiement reçu, confirmation en cours — rechargez la page dans quelques secondes si le plan Pro n'apparaît pas encore."}
             </p>
           )}
@@ -293,13 +294,13 @@ export default async function CoachDashboardPage({
                 programmer des séances et suivre sa forme au jour le jour.
               </p>
               <InviteForm key={planStatus.isPro ? "pro" : "free"} pending={pendingList} emailReady={emailReady} />
-              <p className="mt-3 text-xs text-slate">
+              {TEAMS_ENABLED && <p className="mt-3 text-xs text-slate">
                 Un sport collectif à suivre ?{" "}
                 <Link href="/coach/equipes" className="font-medium text-moss-dark hover:underline">
                   Créez une équipe
                 </Link>{" "}
                 pour visualiser tout l&apos;effectif sur un terrain.
-              </p>
+              </p>}
             </Card>
           ) : (
             <>
@@ -310,7 +311,7 @@ export default async function CoachDashboardPage({
                   today={today}
                   targets={[
                     { value: "club", label: "Club" },
-                    ...teams.map((t) => ({ value: `team:${t.id}`, label: `Équipe · ${t.name}` })),
+                    ...(TEAMS_ENABLED ? teams : []).map((t) => ({ value: `team:${t.id}`, label: `Équipe · ${t.name}` })),
                     ...activeAthletes.map((a) => ({ value: `athlete:${a.athlete_id}`, label: `Athlète · ${a.first_name}` })),
                   ]}
                 />

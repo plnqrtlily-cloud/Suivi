@@ -1,4 +1,5 @@
 import { dbAll } from "@/lib/db";
+import { TEAMS_ENABLED } from "@/lib/features";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser, isCoachLinkedToAthlete, findUserById } from "@/lib/auth";
@@ -419,7 +420,7 @@ export default async function AthleteDetailPage({
                 </h1>
                 <p className="text-sm text-ink-soft">
                   {sportsLine || athlete.email}
-                  {athleteTeams.map((t) => (
+                  {(TEAMS_ENABLED ? athleteTeams : []).map((t) => (
                     <span key={t.team_id}>
                       {" · "}
                       <Link href={`/coach/equipes/${t.team_id}`} className="hover:underline">
