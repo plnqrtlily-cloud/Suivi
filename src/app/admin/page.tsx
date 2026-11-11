@@ -1,11 +1,12 @@
 import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { getAllCoaches } from "@/lib/queries";
+import { getAllCoaches, getAllUsersForAdmin } from "@/lib/queries";
 import { ADMIN_EMAIL, computePlanStatus } from "@/lib/billing";
 import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
 import { Card } from "@/components/ui";
 import { SetPlanButton } from "./set-plan-button";
+import { DeleteUserButton } from "./delete-user-button";
 
 // Réservée au propriétaire de l'app (comparaison d'email plutôt qu'un
 // nouveau rôle en base — cf. plan) : notFound() plutôt qu'une page d'erreur
@@ -16,7 +17,7 @@ export default async function AdminPage() {
   if (!user) redirect("/login");
   if (user.email !== ADMIN_EMAIL) notFound();
 
-  const coaches = await getAllCoaches();
+  const [coaches, users] = await Promise.all([getAllCoaches(), getAllUsersForAdmin()]);
 
   return (
     <div className="flex min-h-screen bg-paper">
@@ -55,6 +56,28 @@ export default async function AdminPage() {
               );
             })}
             {coaches.length === 0 && <p className="text-slate">Aucun coach pour l&apos;instant.</p>}
+          </div>
+
+          <h2 className="mb-1 mt-10 font-display text-2xl text-ink">Tous les comptes</h2>
+          <p className="mb-4 text-slate">La suppression est définitive : le compte et toutes ses données sont effacés.</p>
+          <div className="flex flex-col divide-y divide-line overflow-hidden rounded-2xl border border-line bg-white">
+            {users.map((u) => {
+              const name = `${u.first_name} ${u.last_name}`.trim();
+              return (
+                <div key={u.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-ink">
+                      {name} <span className="text-sm text-slate">({u.email})</span>
+                    </p>
+                    <p className="text-sm text-slate">
+                      {u.role === "coach" ? "Coach" : "Athlète"}
+                      {u.coach_names ? ` · suivi par ${u.coach_names}` : ""} · inscrit le {u.created_at.slice(0, 10)}
+                    </p>
+                  </div>
+                  {u.id !== user.id && <DeleteUserButton userId={u.id} name={name} />}
+                </div>
+              );
+            })}
           </div>
         </main>
       </div>

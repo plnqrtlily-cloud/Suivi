@@ -197,6 +197,16 @@ export async function setCoachPlanAction(coachId: string, plan: "free" | "pro") 
   revalidatePath("/admin");
 }
 
+// Espace admin : suppression définitive d'un compte (coach ou athlète). Les
+// contraintes ON DELETE CASCADE effacent toutes ses données.
+export async function deleteUserAsAdminAction(userId: string) {
+  const user = await getCurrentUser();
+  if (!user || user.email !== ADMIN_EMAIL) throw new Error("Non autorisé.");
+  if (userId === user.id) throw new Error("Impossible de supprimer ton propre compte ici.");
+  await dbRun(`DELETE FROM users WHERE id = ?`, [userId]);
+  revalidatePath("/admin");
+}
+
 // Paiement en self-service (Stripe) : redirige vers une session de paiement
 // hébergée par Stripe plutôt que d'attendre un email + une bascule manuelle
 // via setCoachPlanAction — c'est le webhook (src/app/api/stripe/webhook)

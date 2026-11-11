@@ -152,6 +152,26 @@ export async function getAllCoaches(): Promise<AdminCoachRow[]> {
   );
 }
 
+export interface AdminUserRow {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: "coach" | "athlete";
+  created_at: string;
+  coach_names: string | null;
+}
+
+// Tous les comptes, pour l'espace admin (suppression d'un compte).
+export async function getAllUsersForAdmin(): Promise<AdminUserRow[]> {
+  return dbAll(
+    `SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.created_at,
+       (SELECT GROUP_CONCAT(c.first_name, ', ') FROM coach_athlete_links l JOIN users c ON c.id = l.coach_id
+         WHERE l.athlete_id = u.id AND l.status = 'active') as coach_names
+     FROM users u ORDER BY u.last_name COLLATE NOCASE, u.first_name COLLATE NOCASE`
+  );
+}
+
 export interface CoachLink {
   link_id: string;
   coach_id: string;
