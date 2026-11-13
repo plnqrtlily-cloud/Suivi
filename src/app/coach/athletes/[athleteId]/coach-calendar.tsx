@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -102,18 +102,6 @@ function entrySub(e: CalEntry): string {
   return [e.sportLabel, fmt(e.realMin ?? e.plannedMin), e.rpe ? `RPE ${e.rpe}` : null].filter(Boolean).join(" · ");
 }
 
-// Téléphone : la vue semaine devient un agenda vertical continu (les jours
-// défilent de haut en bas), plus naturel au pouce que 2 jours à l'horizontale.
-const PHONE_QUERY = "(max-width: 639px)";
-function subscribePhone(cb: () => void) {
-  const mq = window.matchMedia(PHONE_QUERY);
-  mq.addEventListener("change", cb);
-  return () => mq.removeEventListener("change", cb);
-}
-function useIsPhone() {
-  return useSyncExternalStore(subscribePhone, () => window.matchMedia(PHONE_QUERY).matches, () => false);
-}
-
 export function CoachCalendar({ data }: { data: CoachCalendarData }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -144,10 +132,8 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
   const loadingRef = useRef(false);
   const frameRef = useRef(0);
   const panelRef = useRef<HTMLElement>(null);
-  const isPhone = useIsPhone();
-  const phoneRef = useRef(isPhone);
-  // Défilement horizontal (semaine sur ordinateur) ou vertical (mois, et semaine sur téléphone).
-  const horizontal = view === "week" && !isPhone;
+  // Semaine : jours à l'horizontale ; mois : semaines à la verticale.
+  const horizontal = view === "week";
   // Aujourd'hui hors de l'écran : -1 avant, 1 après (bouton « Aujourd'hui » flottant).
   const [todayDir, setTodayDir] = useState<-1 | 0 | 1>(0);
   const [loadingDir, setLoadingDir] = useState<-1 | 0 | 1>(0);
@@ -181,10 +167,13 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
     const behavior: ScrollBehavior = smooth ? "smooth" : "auto";
     if (horizontal) {
       const el = sc.querySelector<HTMLElement>(`[data-date="${date}"]`);
-      if (el) sc.scrollTo({ left: el.offsetLeft, behavior });
-    } else if (view === "week") {
-      const el = sc.querySelector<HTMLElement>(`[data-date="${date}"]`);
-      if (el) sc.scrollTo({ top: el.offsetTop - AGENDA_HEAD, behavior });
+      if (!el) return;
+      // Sur téléphone (2 jours par écran), la semaine ne tient pas : si
+      // aujourd'hui y est, on se cale dessus plutôt que sur le lundi.
+      let left = el.offsetLeft;
+      const t = sc.querySelector<HTMLElement>(`[data-date="${data.today}"]`);
+      if (t && mondayOf(date) === mondayOf(data.today) && t.offsetLeft + t.offsetWidth > left + sc.clientWidth) left = t.offsetLeft;
+      sc.scrollTo({ left, behavior });
     } else {
       const el = sc.querySelector<HTMLElement>(`[data-date="${mondayOf(date)}"]`);
       if (el) sc.scrollTo({ top: el.offsetTop - (headRef.current?.offsetHeight ?? 0) - 6, behavior });
@@ -232,11 +221,7 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
     const sc = scrollerRef.current;
     const first = weeks[0]?.weekStart ?? null;
     const old = firstRef.current;
-    // Passage téléphone ↔ ordinateur (ou rotation) : on se replace sur la même date.
-    if (phoneRef.current !== isPhone) {
-      phoneRef.current = isPhone;
-      if (!jumpRef.current) jumpRef.current = { date: focus, smooth: false };
-    }
+
     firstRef.current = first;
     if (sc && old && first && old !== first && !jumpRef.current) {
       const oldEl = sc.querySelector<HTMLElement>(`[data-date="${old}"]`);
@@ -254,7 +239,7 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
     if (sc) locateToday(sc);
     // scrollToDate ne dépend que de la vue et du DOM déjà rendu.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weeks, view, isPhone]);
+  }, [weeks, view]);
 
   // Où est aujourd'hui par rapport à ce qui est à l'écran ?
   function locateToday(sc: HTMLDivElement) {
@@ -267,7 +252,7 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
       if (el.offsetLeft + el.offsetWidth < sc.scrollLeft) dir = -1;
       else if (el.offsetLeft > sc.scrollLeft + sc.clientWidth) dir = 1;
     } else {
-      if (el.offsetTop + el.offsetHeight < sc.scrollTop + AGENDA_HEAD) dir = -1;
+      if (el.offsetTop + el.offsetHeight < sc.scrollTop + (headRef.current?.offsetHeight ?? 0)) dir = -1;
       else if (el.offsetTop > sc.scrollTop + sc.clientHeight) dir = 1;
     }
     setTodayDir((cur) => (cur === dir ? cur : dir));
@@ -279,25 +264,14 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
       const sc = scrollerRef.current;
       if (!sc || !allDays.length) return;
       locateToday(sc);
-      if (view === "week" && !horizontal) {
-        // Agenda : la semaine affichée en titre est celle du jour en haut de l'écran.
-        const y = sc.scrollTop + AGENDA_HEAD + 4;
-        let top: string | undefined;
-        for (const r of sc.querySelectorAll<HTMLElement>("[data-date]")) {
-          if (r.offsetTop <= y) top = r.dataset.date;
-          else break;
-        }
-        const d = mondayOf(top ?? allDays[0].date);
-        if (d !== focus) setFocus(d);
-        if (sc.scrollTop < 900) loadMore(-1);
-        else if (sc.scrollTop + sc.clientHeight > sc.scrollHeight - 900) loadMore(1);
-      } else if (view === "week") {
+      if (view === "week") {
         const stride = (sc.scrollWidth + GAP) / allDays.length;
         const i = Math.max(0, Math.min(allDays.length - 1, Math.round(sc.scrollLeft / stride)));
         const d = allDays[i].date;
         if (d !== focus) setFocus(d);
-        if (sc.scrollLeft < stride * 10) loadMore(-1);
-        else if (sc.scrollLeft + sc.clientWidth > sc.scrollWidth - stride * 10) loadMore(1);
+        // On charge la suite 3 semaines avant le bord : le défilement ne bute jamais.
+        if (sc.scrollLeft < stride * 21) loadMore(-1);
+        else if (sc.scrollLeft + sc.clientWidth > sc.scrollWidth - stride * 21) loadMore(1);
       } else {
         // Mois affiché = celui du dimanche de la première ligne visible : la
         // ligne du 1er du mois contient toujours un dimanche de ce mois.
@@ -310,8 +284,8 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
           const m = `${w.days[6].date.slice(0, 7)}-01`;
           if (m !== focus) setFocus(m);
         }
-        if (sc.scrollTop < 700) loadMore(-1);
-        else if (sc.scrollTop + sc.clientHeight > sc.scrollHeight - 700) loadMore(1);
+        if (sc.scrollTop < 1200) loadMore(-1);
+        else if (sc.scrollTop + sc.clientHeight > sc.scrollHeight - 1200) loadMore(1);
       }
     });
   }
@@ -355,8 +329,6 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
     if (horizontal) {
       const stride = (sc.scrollWidth + GAP) / allDays.length;
       sc.scrollBy({ left: dir * 7 * stride, behavior: "smooth" });
-    } else if (view === "week") {
-      goTo(addDays(mondayOf(focus), dir * 7));
     } else {
       const [y, m] = focus.split("-").map(Number);
       const d = new Date(y, m - 1 + dir, 1);
@@ -576,13 +548,15 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
       {/* Calendrier : défilement continu dans les deux sens ; les semaines se
           chargent toutes seules à l'approche du bord. */}
       <div className="relative">
-        {view === "week" && horizontal ? (
+        {view === "week" ? (
           <div
             key="week"
             ref={scrollerRef}
             onScroll={onScroll}
-            className="relative -mx-1 grid snap-x snap-mandatory grid-flow-col gap-2 overflow-x-auto overscroll-x-contain px-1 pb-2 animate-expand-in [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            style={{ gridAutoColumns: `max(128px, calc((100% - ${6 * GAP}px) / 7))`, scrollPaddingLeft: 4 }}
+            // Défilement libre et continu ; il se cale doucement sur un jour en fin de geste.
+            // Téléphone : deux jours par écran ; ordinateur : la semaine entière.
+            className="relative -mx-1 grid snap-x snap-proximity grid-flow-col gap-2 overflow-x-auto overscroll-x-contain px-1 pb-2 animate-expand-in [grid-auto-columns:calc((100%_-_8px)/2)] [overflow-anchor:none] [scrollbar-width:none] sm:[grid-auto-columns:max(128px,calc((100%_-_48px)/7))] [&::-webkit-scrollbar]:hidden"
+            style={{ scrollPaddingLeft: 4 }}
           >
             {allDays.map((d) => (
               <DayCard
@@ -597,17 +571,6 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
               />
             ))}
           </div>
-        ) : view === "week" ? (
-          <AgendaScroller
-            key="agenda"
-            scrollerRef={scrollerRef}
-            onScroll={onScroll}
-            weeks={weeks}
-            panel={panel}
-            onOpenDay={(date) => open({ type: "day", date })}
-            onOpenEntry={(id) => open({ type: "entry", id })}
-            onAdd={(date) => open({ type: "add", date, mode: date <= data.today ? "done" : "todo" })}
-          />
         ) : (
           <MonthScroller
             key="month"
@@ -899,111 +862,6 @@ function DayCard({
       >
         +
       </button>
-    </div>
-  );
-}
-
-const AGENDA_HEAD = 38;
-
-function AgendaScroller({
-  scrollerRef,
-  onScroll,
-  weeks,
-  panel,
-  onOpenDay,
-  onOpenEntry,
-  onAdd,
-}: {
-  scrollerRef: React.RefObject<HTMLDivElement | null>;
-  onScroll: () => void;
-  weeks: CalWeek[];
-  panel: Panel;
-  onOpenDay: (date: string) => void;
-  onOpenEntry: (id: string) => void;
-  onAdd: (date: string) => void;
-}) {
-  return (
-    <div
-      ref={scrollerRef}
-      onScroll={onScroll}
-      className="relative -mx-1 h-[min(72vh,700px)] min-h-[420px] overflow-y-auto overscroll-contain px-1 animate-expand-in [overflow-anchor:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-    >
-      {weeks.map((w) => {
-        const a = parse(w.days[0].date);
-        const b = parse(w.days[6].date);
-        const range = a.getMonth() === b.getMonth() ? `${a.getDate()} – ${b.getDate()} ${MONTHS[b.getMonth()].slice(0, 4)}.` : `${a.getDate()} ${MONTHS[a.getMonth()].slice(0, 4)}. – ${b.getDate()} ${MONTHS[b.getMonth()].slice(0, 4)}.`;
-        return (
-          <section key={w.weekStart}>
-            <div className="sticky top-0 z-10 flex items-baseline gap-2 bg-paper px-1 text-xs font-semibold text-slate" style={{ height: AGENDA_HEAD, paddingTop: 12 }}>
-              <span className="text-ink">Sem. {w.number}</span>
-              <span>{range}</span>
-              {w.period && <span className="truncate">· {w.period}</span>}
-              <span className="flex-1" />
-              {w.total > 0 && (
-                <span className="flex-shrink-0">
-                  {w.done}/{w.total} faites{w.minutes ? ` · ${fmt(w.minutes)}` : ""}
-                </span>
-              )}
-            </div>
-            <div className="flex flex-col overflow-hidden rounded-2xl bg-white">
-              {w.days.map((d) => {
-                const sel = (panel?.type === "day" || panel?.type === "add") && panel.date === d.date;
-                return (
-                  <div
-                    key={d.date}
-                    data-date={d.date}
-                    onClick={(e) => { if ((e.target as HTMLElement).closest("button")) return; onOpenDay(d.date); }}
-                    className="flex cursor-pointer items-start gap-3 border-t border-paper-dim px-3 py-2.5 first:border-t-0"
-                    style={{ background: sel ? "#eef1f0" : d.isToday ? "#fffaf7" : undefined }}
-                  >
-                    <span className="flex w-9 flex-shrink-0 flex-col items-center pt-0.5">
-                      <span className="text-[10.5px] font-semibold uppercase" style={{ color: d.isToday ? "#a4492a" : "#5b6660" }}>{d.dow}</span>
-                      <span
-                        className={`flex h-7 w-7 items-center justify-center rounded-full text-[15px] font-bold ${d.isToday ? "bg-[#a4492a] text-white" : "text-ink"}`}
-                      >
-                        {d.num}
-                      </span>
-                    </span>
-                    <span className="flex min-w-0 flex-1 flex-col gap-1 pt-0.5">
-                      {d.entries.map((e) => (
-                        <button
-                          key={e.id}
-                          type="button"
-                          onClick={() => onOpenEntry(e.id)}
-                          className="rounded-r-lg py-0.5 pl-2.5 text-left"
-                          style={{ borderLeft: e.isGoal ? "3px solid #a4492a" : BAR[e.status], background: panel?.type === "entry" && panel.id === e.id ? "#eef1f0" : undefined, opacity: e.isDraft ? 0.6 : 1 }}
-                        >
-                          <span className="block truncate text-[14px] font-semibold leading-snug text-ink">{e.title}{e.isDraft ? " · brouillon" : ""}</span>
-                          <span className="block truncate text-xs leading-snug text-ink-soft">{entrySub(e)}</span>
-                        </button>
-                      ))}
-                      {d.blocks.map((b) => (
-                        <span key={b.id} className="pl-2.5 text-xs text-ink-soft">{b.label}{b.reason ? ` · ${b.reason}` : ""}</span>
-                      ))}
-                      {d.entries.length + d.blocks.length === 0 && <span className="pt-1 text-[13px] text-[#9aa39c]">Rien de prévu</span>}
-                      {(d.forme || d.cycle) && (
-                        <span className="flex flex-wrap gap-x-3 pl-0.5 text-[11.5px] text-slate">
-                          {d.forme && <span style={{ color: d.forme.score < 6 ? "#8a3a1f" : undefined }}>Forme {String(d.forme.score).replace(".", ",")}/10</span>}
-                          <CycleLine day={d} compact />
-                        </span>
-                      )}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => onAdd(d.date)}
-                      aria-label={`Ajouter le ${d.num}`}
-                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-lg text-moss hover:bg-paper-dim"
-                    >
-                      +
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        );
-      })}
-      <div className="h-3" />
     </div>
   );
 }
