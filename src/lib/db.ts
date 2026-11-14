@@ -464,6 +464,19 @@ CREATE TABLE IF NOT EXISTS coach_reminders (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Entretiens coach/athlète : transcription (dictée dans le navigateur) et
+-- résumé structuré produit par l'IA, d'où le coach reporte les infos au profil.
+CREATE TABLE IF NOT EXISTS interviews (
+  id TEXT PRIMARY KEY,
+  coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  athlete_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  transcript TEXT NOT NULL,
+  summary_json TEXT,
+  applied_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_interviews_athlete ON interviews(athlete_id, created_at);
+
 CREATE TABLE IF NOT EXISTS coach_athlete_notes (
   coach_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   athlete_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

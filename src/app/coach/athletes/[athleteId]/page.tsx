@@ -70,7 +70,8 @@ import { parseImpact } from "@/lib/injury-catalog";
 import { BodyMeasures } from "./body-measures";
 import { HealthTab, type InjuryView } from "./health-tab";
 import { NotesTab } from "./notes-tab";
-import { AthleteProfileEdit } from "./athlete-profile-edit";
+import { InterviewPanel, type InterviewView } from "./interview-panel";
+import { cleanSummary, aiAvailable } from "@/lib/interview-ai";
 import { ExerciseMaxesPanel } from "./exercise-maxes-panel";
 import { MeasurementsHistory } from "./measurements-history";
 
@@ -403,6 +404,17 @@ export default async function AthleteDetailPage({
     : null;
 
   const sportsLine = athleteSports.map((s: string) => sportLabel(s)).join(" · ");
+  const interviewRows = await dbAll<{ id: string; created_at: string; transcript: string; summary_json: string | null; applied_at: string | null }>(
+    `SELECT id, created_at, transcript, summary_json, applied_at FROM interviews WHERE coach_id = ? AND athlete_id = ? ORDER BY created_at DESC`,
+    [user.id, athleteId]
+  );
+  const interviews: InterviewView[] = interviewRows.map((r) => {
+    let summary = null;
+    try {
+      summary = r.summary_json ? cleanSummary(JSON.parse(r.summary_json)) : null;
+    } catch {}
+    return { id: r.id, createdAt: r.created_at, transcript: r.transcript, summary, appliedAt: r.applied_at };
+  });
 
   return (
     <div className="flex min-h-screen bg-paper">
@@ -430,7 +442,9 @@ export default async function AthleteDetailPage({
                     </span>
                   ))}
                 </p>
-                <AthleteProfileEdit athleteId={athleteId} gender={athleteGender ?? null} sports={athleteSports} />
+                <Link href={`/coach/athletes/${athleteId}?tab=notes#entretien`} className="text-[13px] font-semibold text-moss-dark hover:underline">
+                  {interviews.length ? "Entretien" : "Mener l'entretien de départ"}
+                </Link>
               </div>
             </div>
             <Link
@@ -522,6 +536,11 @@ export default async function AthleteDetailPage({
               ),
               notes: (
                 <NotesTab
+                  interview={
+                    <div id="entretien" className="scroll-mt-4">
+                      <InterviewPanel athleteId={athleteId} firstName={firstName} interviews={interviews} aiReady={aiAvailable()} />
+                    </div>
+                  }
                   athleteId={athleteId}
                   entries={coachNoteEntries}
                   profile={
