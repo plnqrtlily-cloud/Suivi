@@ -131,13 +131,16 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
   const firstRef = useRef<string | null>(null);
   const loadingRef = useRef(false);
   const frameRef = useRef(0);
+  // Pages mensuelles : quand on lâche le défilement près du début d'un mois,
+  // on s'y cale en douceur. Les déplacements faits par le code ne déclenchent rien.
+  const settleRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const progRef = useRef(0);
   const panelRef = useRef<HTMLElement>(null);
   // Semaine : jours à l'horizontale ; mois : semaines à la verticale.
   const horizontal = view === "week";
   // Aujourd'hui hors de l'écran : -1 avant, 1 après (bouton « Aujourd'hui » flottant).
   const [todayDir, setTodayDir] = useState<-1 | 0 | 1>(0);
   const [loadingDir, setLoadingDir] = useState<-1 | 0 | 1>(0);
-  const [jumpOpen, setJumpOpen] = useState(false);
 
   // Sur téléphone, le panneau de détail s'ouvre sous le calendrier : on l'amène à l'écran.
   useEffect(() => {
@@ -176,6 +179,7 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
       sc.scrollTo({ left, behavior });
     } else {
       const el = sc.querySelector<HTMLElement>(`[data-date="${mondayOf(date)}"]`);
+      progRef.current = Date.now() + (smooth ? 900 : 300);
       if (el) sc.scrollTo({ top: el.offsetTop - (headRef.current?.offsetHeight ?? 0) - 6, behavior });
     }
   }
@@ -228,7 +232,10 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
       const firstEl = sc.querySelector<HTMLElement>(`[data-date="${first}"]`);
       if (oldEl && firstEl) {
         if (horizontal) sc.scrollLeft += oldEl.offsetLeft - firstEl.offsetLeft;
-        else sc.scrollTop += oldEl.offsetTop - firstEl.offsetTop;
+        else {
+          progRef.current = Date.now() + 300;
+          sc.scrollTop += oldEl.offsetTop - firstEl.offsetTop;
+        }
       }
     }
     const jump = jumpRef.current;
@@ -258,7 +265,28 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
     setTodayDir((cur) => (cur === dir ? cur : dir));
   }
 
+  function settleOnMonth() {
+    const sc = scrollerRef.current;
+    if (!sc || view !== "month" || Date.now() < progRef.current) return;
+    const head = headRef.current?.offsetHeight ?? 0;
+    const y = sc.scrollTop + head + 6;
+    let best: HTMLElement | undefined;
+    for (const r of sc.querySelectorAll<HTMLElement>("[data-month-start]")) {
+      if (!best || Math.abs(r.offsetTop - y) < Math.abs(best.offsetTop - y)) best = r;
+    }
+    if (!best) return;
+    const diff = best.offsetTop - y;
+    // Seulement si on est déjà proche (moins d'une ligne et demie) : un arrêt
+    // en milieu de mois reste où il est.
+    if (diff !== 0 && Math.abs(diff) < best.offsetHeight * 1.5) {
+      progRef.current = Date.now() + 700;
+      sc.scrollTo({ top: best.offsetTop - head - 6, behavior: "smooth" });
+    }
+  }
+
   function onScroll() {
+    clearTimeout(settleRef.current);
+    if (view === "month") settleRef.current = setTimeout(settleOnMonth, 220);
     cancelAnimationFrame(frameRef.current);
     frameRef.current = requestAnimationFrame(() => {
       const sc = scrollerRef.current;
@@ -423,32 +451,7 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
       {/* En-tête */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex min-w-0 flex-col gap-1">
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setJumpOpen((o) => !o)}
-              aria-expanded={jumpOpen}
-              aria-label="Aller à un mois"
-              className="flex items-center gap-1.5 text-left text-[28px] font-bold leading-tight tracking-tight text-ink"
-            >
-              {head.title}
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`mt-1 flex-shrink-0 text-slate transition-transform ${jumpOpen ? "rotate-180" : ""}`}>
-                <path d="M5 8l5 5 5-5" />
-              </svg>
-            </button>
-            {jumpOpen && (
-              <MonthJump
-                current={view === "month" ? focus : addDays(focus, 3)}
-                today={data.today}
-                onPick={(m) => {
-                  setJumpOpen(false);
-                  setPanel(null);
-                  goTo(view === "month" ? m : mondayOf(m));
-                }}
-                onClose={() => setJumpOpen(false)}
-              />
-            )}
-          </div>
+          <h2 className="text-[28px] font-bold leading-tight tracking-tight text-ink">{head.title}</h2>
           <p className="min-h-5 text-sm text-slate">{head.subtitle}</p>
         </div>
         <span className="flex-1" />
@@ -866,49 +869,6 @@ function DayCard({
   );
 }
 
-// Choisir un mois pour y sauter : année avec flèches, puis les 12 mois.
-function MonthJump({ current, today, onPick, onClose }: { current: string; today: string; onPick: (date: string) => void; onClose: () => void }) {
-  const [year, setYear] = useState(Number(current.slice(0, 4)));
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("mousedown", onDown);
-    window.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey); };
-  }, [onClose]);
-  const cur = current.slice(0, 7);
-  const now = today.slice(0, 7);
-  return (
-    <div ref={ref} className="absolute left-0 top-full z-40 mt-2 w-[280px] rounded-2xl bg-white p-3 shadow-[0_12px_32px_rgba(24,34,32,0.2)] animate-expand-in">
-      <div className="mb-2 flex items-center justify-between">
-        <button type="button" onClick={() => setYear((y) => y - 1)} aria-label="Année précédente" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft hover:bg-paper-dim">‹</button>
-        <b className="text-[15px] text-ink">{year}</b>
-        <button type="button" onClick={() => setYear((y) => y + 1)} aria-label="Année suivante" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft hover:bg-paper-dim">›</button>
-      </div>
-      <div className="grid grid-cols-3 gap-1.5">
-        {MONTHS.map((m, i) => {
-          const key = `${year}-${String(i + 1).padStart(2, "0")}`;
-          const on = key === cur;
-          return (
-            <button
-              key={m}
-              type="button"
-              onClick={() => onPick(`${key}-01`)}
-              className={`rounded-xl py-2 text-[13px] font-semibold capitalize transition-colors ${on ? "bg-moss text-white" : key === now ? "bg-[#fbe3da] text-[#a4492a]" : "text-ink hover:bg-paper-dim"}`}
-            >
-              {m.slice(0, 4)}{m.length > 4 ? "." : ""}
-            </button>
-          );
-        })}
-      </div>
-      <button type="button" onClick={() => onPick(today)} className="mt-2 w-full rounded-xl py-2 text-[13px] font-semibold text-moss-dark hover:bg-paper-dim">
-        Revenir à aujourd&apos;hui
-      </button>
-    </div>
-  );
-}
-
 function MonthScroller({
   scrollerRef,
   headRef,
@@ -945,7 +905,7 @@ function MonthScroller({
         </div>
         <div className="flex flex-col gap-1.5 pb-2">
           {weeks.map((w) => (
-            <div key={w.weekStart} data-date={w.weekStart} className={cols}>
+            <div key={w.weekStart} data-date={w.weekStart} data-month-start={w.days.some((d) => d.num === 1) ? "" : undefined} className={cols}>
               {w.days.map((d) => {
                 const sel = panel?.type === "day" && panel.date === d.date;
                 const inMonth = d.date.startsWith(monthKey);
