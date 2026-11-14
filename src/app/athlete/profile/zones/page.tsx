@@ -27,7 +27,7 @@ export default async function ZonesPage() {
       {cols.length === 0 ? (
         <Panel>
           <p className="text-sm text-slate">
-            Tes zones apparaissent dès qu&apos;une FC max, une FTP, une PMA ou une VMA est renseignée, par toi dans Tests et mesures ou par ton coach.
+            Tes zones apparaîtront dès que ton coach aura renseigné ta FC max, ta FTP, ta PMA ou ta VMA, après vos premiers tests.
           </p>
         </Panel>
       ) : (

@@ -63,8 +63,8 @@ export default async function MoiPage() {
     ? `Dernier test : ${lastTest.customLabel ?? (lastTest.testSlug ? EFFORT_TEST_CATALOG[lastTest.testSlug]?.label : null) ?? "test"} · ${frShort(lastTest.testDate)}`
     : Object.keys(latest).length
       ? "Mesures et suivi de ton évolution"
-      : "Ajoute ta première mesure";
-  const zonesSub = latest.fc_max || latest.ftp || latest.pma_vma ? "FC, puissance, allure" : "Renseigne FC max, FTP ou VMA";
+      : "Renseignés par ton coach après vos tests";
+  const zonesSub = latest.fc_max || latest.ftp || latest.pma_vma ? "FC, puissance, allure" : "Calculées par ton coach après vos tests";
   const sportsLine = [sports.map((s) => sportLabel(s)).join(" · "), coachNames ? `suivi par ${coachNames}` : null].filter(Boolean).join(" · ");
 
   return (
@@ -72,7 +72,7 @@ export default async function MoiPage() {
       <Nav user={user} />
       <main className="mx-auto flex max-w-xl flex-col pb-28 lg:pb-10">
         <header className="flex flex-col items-center gap-2 px-5 pb-3.5 pt-6 text-center">
-          <Link href="/athlete/profile/infos" aria-label="Modifier ma photo et mes infos" className="rounded-full border-[3px] border-white shadow-[0_2px_10px_rgba(0,0,0,0.08)]">
+          <Link href="/athlete/profile/infos" aria-label="Ma photo et mes infos" className="rounded-full border-[3px] border-white shadow-[0_2px_10px_rgba(0,0,0,0.08)]">
             <Avatar userId={user.id} firstName={user.first_name} hasAvatar={!!avatar?.avatar_path} size="lg" />
           </Link>
           <b className="text-[22px] text-ink">

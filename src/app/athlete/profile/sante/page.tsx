@@ -67,7 +67,7 @@ export default async function SantePage() {
         </div>
       </Panel>
 
-      <Panel title="Historique" hint="Tes blessures passées, modifiables si une date ou une zone est fausse.">
+      <Panel title="Antécédents" hint={`Renseignés avec ${coachName} lors de votre entretien. Ce qu'il faut surveiller est indiqué sous chaque blessure.`}>
         {past.length ? <InjuriesList injuries={past} /> : <p className="text-sm text-slate">Aucun antécédent.</p>}
       </Panel>
 
@@ -79,10 +79,7 @@ export default async function SantePage() {
         ) : !gender ? (
           <Panel>
             <p className="text-sm text-slate">
-              Le suivi du cycle s&apos;affiche ici pour un profil féminin.{" "}
-              <Link href="/athlete/profile/infos" className="font-semibold text-moss-dark">
-                Renseigner mes infos
-              </Link>
+              Le suivi du cycle s&apos;affiche ici pour un profil féminin, une fois ton genre renseigné par {coachName}.
             </p>
           </Panel>
         ) : null}

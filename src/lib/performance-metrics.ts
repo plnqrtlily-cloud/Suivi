@@ -200,3 +200,21 @@ export function normalizeMetricName(name: string): string {
 export function customMetricKey(name: string): string {
   return "custom:" + normalizeMetricName(name).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
+
+// Ce que chaque repère apporte à l'athlète, en une phrase : affiché côté
+// athlète, qui consulte ses données (renseignées par le coach) sans les saisir.
+export const METRIC_TIPS: Record<string, string> = {
+  fc_max: "Ta fréquence cardiaque la plus haute : elle fixe le haut de tes zones cardio.",
+  fc_repos: "Mesurée au réveil : quelques battements de plus que d'habitude signalent souvent fatigue ou maladie qui arrive.",
+  fc_seuil: "La FC que tu tiens environ une heure à fond : au-dessus, l'effort devient vite difficile à maintenir.",
+  seuil_lactique_bpm: "Repère de FC où l'effort bascule : tes séances au seuil se calent juste autour.",
+  seuil_lactique_w: "Repère de puissance où l'effort bascule : tes séances au seuil se calent juste autour.",
+  hrv_ms: "Variabilité cardiaque : plus elle est haute par rapport à ta normale, mieux tu es récupéré.",
+  ftp: "La puissance que tu tiens environ une heure : tes zones de puissance à vélo en découlent.",
+  power_weight_wkg: "Ta puissance rapportée à ton poids : c'est elle qui compte dans les montées.",
+  pma_vma: "Ta puissance ou vitesse maximale aérobie : la base des séances de fractionné (en % de PMA/VMA).",
+  vo2max: "Ta capacité maximale à utiliser l'oxygène : un indicateur de ton potentiel d'endurance.",
+  weight_kg: "Suivi sur la durée plutôt qu'au jour le jour : il sert au calcul de ta puissance / poids.",
+  allure_natation_min_100m: "Allure tenable longtemps en natation : tes séries se calent dessus.",
+  coeff_fatigue_pct: "Écart entre ton meilleur et ton moins bon effort d'un test : plus il est bas, plus tu es résistant à la fatigue.",
+};

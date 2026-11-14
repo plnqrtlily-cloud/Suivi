@@ -994,7 +994,8 @@ export async function addMeasurementAction(formData: FormData) {
   // (même logique que pour les charges de référence) — athleteId n'est fourni
   // que dans ce cas ; sinon, l'athlète renseigne les siennes.
   const targetAthleteId = String(formData.get("athleteId") || "") || user.id;
-  const isSelf = user.role === "athlete" && targetAthleteId === user.id;
+  // Statistiques de performance : renseignées par le coach, plus par l'athlète.
+  const isSelf = false;
   const isLinkedCoach = user.role === "coach" && (await isCoachLinkedToAthlete(user.id, targetAthleteId));
   if (!isSelf && !isLinkedCoach) throw new Error("Non autorisé.");
 
@@ -1040,7 +1041,7 @@ export async function addMeasurementAction(formData: FormData) {
 export async function updateMeasurementAction(id: string, athleteId: string, formData: FormData) {
   const user = await getCurrentUser();
   if (!user) throw new Error("Non autorisé.");
-  const isSelf = user.role === "athlete" && user.id === athleteId;
+  const isSelf = false; // renseigné par le coach uniquement
   const isLinkedCoach = user.role === "coach" && (await isCoachLinkedToAthlete(user.id, athleteId));
   if (!isSelf && !isLinkedCoach) throw new Error("Non autorisé.");
 
@@ -1064,7 +1065,7 @@ export async function updateMeasurementAction(id: string, athleteId: string, for
 export async function deleteMeasurementAction(id: string, athleteId: string) {
   const user = await getCurrentUser();
   if (!user) throw new Error("Non autorisé.");
-  const isSelf = user.role === "athlete" && user.id === athleteId;
+  const isSelf = false; // renseigné par le coach uniquement
   const isLinkedCoach = user.role === "coach" && (await isCoachLinkedToAthlete(user.id, athleteId));
   if (!isSelf && !isLinkedCoach) throw new Error("Non autorisé.");
 
@@ -1074,23 +1075,6 @@ export async function deleteMeasurementAction(id: string, athleteId: string) {
   revalidatePath(`/coach/athletes/${athleteId}`);
 }
 
-export async function addInjuryAction(formData: FormData) {
-  const user = await getCurrentUser();
-  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
-
-  const zone = String(formData.get("zone") || "").trim();
-  const description = String(formData.get("description") || "").trim();
-  const dateStart = String(formData.get("dateStart") || "");
-  const dateEnd = String(formData.get("dateEnd") || "");
-  if (!zone || !dateStart) return;
-
-  await dbRun(
-    `INSERT INTO injuries (id, athlete_id, zone, description, date_start, date_end) VALUES (?, ?, ?, ?, ?, ?)`,
-    [randomUUID(), user.id, zone, description || null, dateStart, dateEnd || null]
-  );
-
-  revalidatePath("/athlete/profile");
-}
 
 // Blessure déclarée par le coach (constatée en séance, rapportée par un
 // kiné…) : même table que celle de l'athlète, qui la voit sur son profil.
@@ -1126,34 +1110,7 @@ export async function closeInjuryForAthleteAction(formData: FormData) {
   revalidatePath(`/coach/athletes/${row.athlete_id}`);
 }
 
-export async function updateInjuryAction(id: string, formData: FormData) {
-  const user = await getCurrentUser();
-  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
 
-  const zone = String(formData.get("zone") || "").trim();
-  const description = String(formData.get("description") || "").trim();
-  const dateStart = String(formData.get("dateStart") || "");
-  const dateEnd = String(formData.get("dateEnd") || "");
-  if (!zone || !dateStart) throw new Error("Zone et date de début requises.");
-
-  await dbRun(
-    `UPDATE injuries SET zone = ?, description = ?, date_start = ?, date_end = ? WHERE id = ? AND athlete_id = ?`,
-    [zone, description || null, dateStart, dateEnd || null, id, user.id]
-  );
-
-  revalidatePath("/athlete/profile");
-  revalidatePath(`/coach/athletes/${user.id}`);
-}
-
-export async function deleteInjuryAction(id: string) {
-  const user = await getCurrentUser();
-  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
-
-  await dbRun(`DELETE FROM injuries WHERE id = ? AND athlete_id = ?`, [id, user.id]);
-
-  revalidatePath("/athlete/profile");
-  revalidatePath(`/coach/athletes/${user.id}`);
-}
 
 // ---------- TESTS À L'EFFORT ----------
 // Renseignés par le coach à l'issue d'un test — cf. src/lib/effort-tests.ts
@@ -1442,7 +1399,7 @@ export async function addExerciseMaxAction(athleteId: string, formData: FormData
   if (!user) throw new Error("Non autorisé.");
   // L'athlète peut renseigner ses propres charges ; un coach lié peut aussi le
   // faire pour lui — même donnée, deux origines possibles.
-  const isSelf = user.role === "athlete" && user.id === athleteId;
+  const isSelf = false; // renseigné par le coach uniquement
   const isLinkedCoach = user.role === "coach" && (await isCoachLinkedToAthlete(user.id, athleteId));
   if (!isSelf && !isLinkedCoach) throw new Error("Non autorisé.");
 
@@ -1478,7 +1435,7 @@ export async function addExerciseMaxAction(athleteId: string, formData: FormData
 export async function deleteExerciseMaxAction(id: string, athleteId: string) {
   const user = await getCurrentUser();
   if (!user) throw new Error("Non autorisé.");
-  const isSelf = user.role === "athlete" && user.id === athleteId;
+  const isSelf = false; // renseigné par le coach uniquement
   const isLinkedCoach = user.role === "coach" && (await isCoachLinkedToAthlete(user.id, athleteId));
   if (!isSelf && !isLinkedCoach) throw new Error("Non autorisé.");
 
@@ -2090,16 +2047,19 @@ export async function unsubscribePushAction(endpoint: string) {
 // visibles uniquement sur les profils renseignés en genre féminin). Champ à part,
 // modifiable à tout moment depuis le profil — pas de choix figé à l'inscription,
 // cohérent avec l'onboarding progressif déjà en place sur le reste du profil.
+// Renseigné par le coach lors de l'entretien de départ (plus par l'athlète).
 export async function setGenderAction(formData: FormData) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+  const athleteId = String(formData.get("athleteId") || "");
+  if (!user || user.role !== "coach" || !(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
 
   const gender = String(formData.get("gender") || "");
-  const allowed = ["female", "male", "other", "prefer_not_to_say"];
+  const allowed = ["female", "male", "other", "prefer_not_to_say", ""];
   if (!allowed.includes(gender)) return;
 
-  await dbRun(`UPDATE users SET gender = ? WHERE id = ?`, [gender, user.id]);
+  await dbRun(`UPDATE users SET gender = ? WHERE id = ?`, [gender || null, athleteId]);
   revalidatePath("/athlete/profile");
+  revalidatePath(`/coach/athletes/${athleteId}`);
 }
 
 // Sport(s) pratiqué(s) par l'athlète (cf. demande coach : savoir sur quoi
@@ -2369,16 +2329,18 @@ export async function publishWorkoutAction(workoutId: string) {
   revalidatePath(`/coach/athletes/${workout.athlete_id}`);
 }
 
+// Sports pratiqués : renseignés par le coach lors de l'entretien de départ.
 export async function setAthleteSportsAction(formData: FormData) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+  const athleteId = String(formData.get("athleteId") || "");
+  if (!user || user.role !== "coach" || !(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
 
   const allowed = ["running", "cycling", "hiking", "swimming", "climbing", "strength", "other"];
   const selected = formData.getAll("sports").map(String).filter((s) => allowed.includes(s));
 
-  await dbRun(`UPDATE users SET sports_json = ? WHERE id = ?`, [JSON.stringify(selected), user.id]);
+  await dbRun(`UPDATE users SET sports_json = ? WHERE id = ?`, [JSON.stringify(selected), athleteId]);
   revalidatePath("/athlete/profile");
-  revalidatePath(`/coach/athletes/${user.id}`);
+  revalidatePath(`/coach/athletes/${athleteId}`);
 }
 
 // Notes privées du coach sur un athlète (points forts/faibles) — jamais

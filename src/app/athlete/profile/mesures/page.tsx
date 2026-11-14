@@ -1,13 +1,9 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getMeasurementsForAthlete, getLatestMeasurements, getEffortTestBatchesForAthlete } from "@/lib/queries";
-import { addMeasurementAction } from "@/lib/actions";
-import { todayISO } from "@/lib/dates";
-import { PERFORMANCE_METRICS, MEASUREMENT_DEVICES, computeDerivedMetrics, groupMetrics } from "@/lib/performance-metrics";
+import { PERFORMANCE_METRICS, METRIC_TIPS, computeDerivedMetrics } from "@/lib/performance-metrics";
 import { EFFORT_TEST_CATALOG } from "@/lib/effort-tests";
-import { Field, SelectField, Button } from "@/components/ui";
 import { PerformanceStats, type MeasurementPoint } from "../performance-stats";
-import { MeasurementsHistory } from "@/app/coach/athletes/[athleteId]/measurements-history";
 import { SubPage, Panel } from "../moi-ui";
 
 const METRICS = PERFORMANCE_METRICS.map((m) => ({ value: m.value, label: m.unit ? `${m.label} (${m.unit})` : m.label, group: m.group }));
@@ -32,9 +28,10 @@ export default async function MesuresPage() {
   }
   const latestDay = [...byDate.keys()].sort().reverse()[0];
   const derivedMetrics = latestDay ? computeDerivedMetrics(byDate.get(latestDay)!) : [];
+  const tips = PERFORMANCE_METRICS.filter((m) => latest[m.value] && METRIC_TIPS[m.value]).map((m) => ({ label: m.label.replace(/ \(.*\)$/, ""), tip: METRIC_TIPS[m.value] }));
 
   return (
-    <SubPage user={user} title="Tests et mesures" subtitle="Tes mesures et les tests faits avec ton coach">
+    <SubPage user={user} title="Tests et mesures" subtitle="Renseignés par ton coach après vos tests et l'entretien">
       {batches.length > 0 && (
         <Panel title="Mes tests à l'effort">
           <ul className="flex flex-col">
@@ -57,34 +54,19 @@ export default async function MesuresPage() {
           </ul>
         </Panel>
       )}
-        <Panel title="Mes mesures" hint="Touche un indicateur pour voir son évolution.">
+        <Panel title="Mes repères" hint="Touche un indicateur pour voir son évolution.">
           <PerformanceStats metrics={METRICS} latest={latest} seriesByMetric={seriesByMetric} />
-          <form action={addMeasurementAction} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
-            <SelectField label="Indicateur" name="metric" required>
-              {groupMetrics(METRICS).map(({ group, items }) => (
-                <optgroup key={group} label={group}>
-                  {items.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.label}
-                    </option>
-                  ))}
-                </optgroup>
+          {tips.length > 0 && (
+            <div className="mt-2 flex flex-col gap-2.5 border-t border-paper-dim pt-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate">À quoi ça te sert</p>
+              {tips.map((t) => (
+                <p key={t.label} className="text-[13px] leading-snug text-ink-soft">
+                  <b className="font-semibold text-ink">{t.label}</b> · {t.tip}
+                </p>
               ))}
-            </SelectField>
-            <Field label="Valeur" type="number" step="0.1" name="value" required />
-            <Field label="Date de la mesure" type="date" name="recordedAt" defaultValue={todayISO()} />
-            <SelectField label="Appareil utilisé" name="device">
-              {MEASUREMENT_DEVICES.map((d) => (
-                <option key={d.value} value={d.value}>
-                  {d.label}
-                </option>
-              ))}
-            </SelectField>
-            <Field label="Note (facultatif)" name="note" placeholder="Contexte, conditions de la mesure…" />
-            <div className="sm:col-span-2">
-              <Button type="submit">Ajouter une mesure</Button>
             </div>
-          </form>
+          )}
+          {Object.keys(latest).length === 0 && <p className="text-sm text-slate">Ton coach les renseignera après vos premiers tests.</p>}
           {derivedMetrics.length > 0 && (
             <div className="mt-4 rounded-2xl bg-paper-dim p-3">
               <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate">
@@ -100,14 +82,6 @@ export default async function MesuresPage() {
                 ))}
               </ul>
             </div>
-          )}
-          {historyAll.length > 0 && (
-            <details className="mt-4 text-sm text-slate">
-              <summary className="cursor-pointer">Historique des mesures</summary>
-              <div className="mt-2">
-                <MeasurementsHistory athleteId={user.id} history={historyAll} metrics={METRICS} />
-              </div>
-            </details>
           )}
         </Panel>
     </SubPage>

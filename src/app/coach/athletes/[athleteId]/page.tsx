@@ -70,6 +70,7 @@ import { parseImpact } from "@/lib/injury-catalog";
 import { BodyMeasures } from "./body-measures";
 import { HealthTab, type InjuryView } from "./health-tab";
 import { NotesTab } from "./notes-tab";
+import { AthleteProfileEdit } from "./athlete-profile-edit";
 import { ExerciseMaxesPanel } from "./exercise-maxes-panel";
 import { MeasurementsHistory } from "./measurements-history";
 
@@ -429,6 +430,7 @@ export default async function AthleteDetailPage({
                     </span>
                   ))}
                 </p>
+                <AthleteProfileEdit athleteId={athleteId} gender={athleteGender ?? null} sports={athleteSports} />
               </div>
             </div>
             <Link
