@@ -18,6 +18,7 @@ import { DeleteAvailabilityButton } from "@/components/delete-availability-butto
 import { EditAvailabilityModal } from "@/components/availability-modal";
 import { EditImportedActivityModal, DeleteImportedActivityButton } from "@/components/imported-activity-modal";
 import { CalendarAddButton } from "./calendar-add-button";
+import { ContinuousScroll } from "@/components/continuous-scroll";
 import { Chip, SportIcon, durationLabel, isGoal, statusKey } from "../athlete-ui";
 
 const DAY_SHORT = ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"];
@@ -187,13 +188,13 @@ function dayMinutes(date: string, workouts: Workout[], imports: ImportedActivity
 export default async function ProgrammationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; week?: string; month?: string; day?: string }>;
+  searchParams: Promise<{ view?: string; week?: string; month?: string; day?: string; from?: string; to?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "athlete") redirect("/coach/dashboard");
 
-  const { view, week, month, day } = await searchParams;
+  const { view, week, month, day, from, to } = await searchParams;
   const activeView = view === "month" ? "month" : "week";
   const today = todayISO();
 
@@ -201,6 +202,8 @@ export default async function ProgrammationPage({
     <div className="min-h-screen bg-[#f2f4f3]">
       <Nav user={user} />
       <main className="mx-auto flex max-w-xl flex-col pb-28 lg:pb-10">
+        {/* En-tête fixe : les semaines/mois défilent en continu dessous. */}
+        <div data-sticky-head className="sticky top-0 z-20 bg-[#f2f4f3]">
         <header className="flex flex-wrap items-end justify-between gap-3 px-5 pb-3 pt-6">
           <h1 className="text-[30px] font-bold leading-tight tracking-tight text-ink">Calendrier</h1>
           <CalendarAddButton defaultDate={today} />
@@ -221,22 +224,26 @@ export default async function ProgrammationPage({
             ))}
           </div>
         </div>
+        </div>
         {activeView === "week" ? (
-          <WeekView athleteId={user.id} offset={Number.isFinite(Number(week)) ? Number(week || 0) : 0} today={today} />
+          <WeekView athleteId={user.id} offset={Number.isFinite(Number(week)) ? Number(week || 0) : 0} fromParam={from} toParam={to} today={today} />
         ) : (
-          <MonthView athleteId={user.id} monthParam={month} dayParam={day} today={today} />
+          <MonthView athleteId={user.id} monthParam={month} dayParam={day} fromParam={from} toParam={to} today={today} />
         )}
       </main>
     </div>
   );
 }
 
-// Deux semaines d'affilée (celle demandée et la suivante), chaque jour sur
-// une ligne ; les liens en haut et en bas avancent d'une semaine.
-async function WeekView({ athleteId, offset, today }: { athleteId: string; offset: number; today: string }) {
-  const weeks = [getWeekDates(offset), getWeekDates(offset + 1)];
+// Les semaines s'enchaînent en défilement continu, chaque jour sur une ligne ;
+// la plage (from/to, en semaines par rapport à aujourd'hui) s'étend toute seule
+// en approchant du haut ou du bas.
+async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athleteId: string; offset: number; fromParam?: string; toParam?: string; today: string }) {
+  const lo = Number.isFinite(Number(fromParam)) && fromParam ? Math.min(Number(fromParam), offset) : offset - 2;
+  const hi = Number.isFinite(Number(toParam)) && toParam ? Math.max(Number(toParam), offset + 1) : offset + 5;
+  const weeks = Array.from({ length: hi - lo + 1 }, (_, i) => getWeekDates(lo + i));
   const from = weeks[0][0];
-  const to = weeks[1][6];
+  const to = weeks[weeks.length - 1][6];
   const [workouts, imports, blocks, periods] = await Promise.all([
     getWorkoutsForAthlete(athleteId, from, to),
     getImportedActivitiesForRange(athleteId, from, to),
@@ -244,12 +251,10 @@ async function WeekView({ athleteId, offset, today }: { athleteId: string; offse
     getTrainingPeriodsForRange(athleteId, from, to),
   ]);
 
-  const link = (o: number) => `/athlete/programmation?view=week&week=${o}`;
+  const range = (a: number, b: number) => `/athlete/programmation?view=week&week=${offset}&from=${a}&to=${b}`;
   return (
     <div className="flex flex-col gap-2 px-4">
-      <Link href={link(offset - 1)} scroll={false} className="self-center py-1 text-[13px] font-semibold text-moss-dark">
-        ↑ Semaine précédente
-      </Link>
+      <ContinuousScroll anchorId={`w-${getWeekDates(offset)[0]}`} prevHref={range(lo - 6, hi)} nextHref={range(lo, hi + 6)} rangeKey={`${lo}:${hi}`}>
       {weeks.map((dates) => {
         const planned = workouts.filter((w) => dates.includes(w.date) && !isGoal(w)).reduce((s, w) => s + (w.duration_minutes || 0), 0);
         const done =
@@ -265,7 +270,7 @@ async function WeekView({ athleteId, offset, today }: { athleteId: string; offse
           .filter(Boolean)
           .join(" · ");
         return (
-          <section key={dates[0]} className="flex flex-col gap-2.5 pb-3">
+          <section key={dates[0]} id={`w-${dates[0]}`} data-page className="flex flex-col gap-2.5 pb-3">
             <div className="flex flex-wrap items-baseline gap-x-2 px-1 pt-2">
               <b className="text-[15px] text-ink">{frRange(dates[0], dates[6])}</b>
               {summary && <span className="text-[12.5px] text-slate">{summary}</span>}
@@ -299,33 +304,61 @@ async function WeekView({ athleteId, offset, today }: { athleteId: string; offse
           </section>
         );
       })}
-      <Link href={link(offset + 1)} scroll={false} className="self-center py-2 text-[13px] font-semibold text-moss-dark">
-        Semaine suivante ↓
-      </Link>
+      </ContinuousScroll>
     </div>
   );
 }
 
 const DOT = { planned: PET, done: "#8a5a44", missed: "#e8896a", goal: "#c9a227", block: "#182220" };
 
-async function MonthView({ athleteId, monthParam, dayParam, today }: { athleteId: string; monthParam?: string; dayParam?: string; today: string }) {
-  const now = new Date(`${today}T00:00:00`);
-  const [year, month] = monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam.split("-").map(Number) : [now.getFullYear(), now.getMonth() + 1];
-  const grid = getMonthGrid(year, month);
+function addMonths(key: string, n: number) {
+  const [y, m] = key.split("-").map(Number);
+  const d = new Date(y, m - 1 + n, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function monthGrid42(key: string) {
+  const [y, m] = key.split("-").map(Number);
+  const grid = getMonthGrid(y, m);
   while (grid.length < 42) {
     const last = new Date(`${grid[grid.length - 1].date}T00:00:00`);
     last.setDate(last.getDate() + 1);
     grid.push({ date: toISODate(last), day: last.getDate(), inMonth: false });
   }
-  const monthKey = (y: number, m: number) => `${y}-${String(m).padStart(2, "0")}`;
-  const prev = new Date(year, month - 2, 1);
-  const next = new Date(year, month, 1);
-  const inMonthDates = grid.filter((c) => c.inMonth).map((c) => c.date);
-  const selected =
-    dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam) && inMonthDates.includes(dayParam) ? dayParam : inMonthDates.includes(today) ? today : inMonthDates[0];
+  return grid;
+}
+const MONTH_RE = /^\d{4}-\d{2}$/;
 
-  const from = grid[0].date;
-  const to = grid[grid.length - 1].date;
+// Les mois s'enchaînent en défilement continu (même grille qu'avant pour
+// chacun) ; le détail du jour choisi s'affiche sous son mois.
+async function MonthView({
+  athleteId,
+  monthParam,
+  dayParam,
+  fromParam,
+  toParam,
+  today,
+}: {
+  athleteId: string;
+  monthParam?: string;
+  dayParam?: string;
+  fromParam?: string;
+  toParam?: string;
+  today: string;
+}) {
+  const anchor = monthParam && MONTH_RE.test(monthParam) ? monthParam : today.slice(0, 7);
+  let lo = fromParam && MONTH_RE.test(fromParam) ? fromParam : addMonths(anchor, -2);
+  let hi = toParam && MONTH_RE.test(toParam) ? toParam : addMonths(anchor, 3);
+  if (lo > anchor) lo = anchor;
+  if (hi < anchor) hi = anchor;
+  const months: string[] = [];
+  for (let k = lo; k <= hi && months.length < 60; k = addMonths(k, 1)) months.push(k);
+  const grids = months.map((k) => ({ key: k, grid: monthGrid42(k) }));
+
+  const inRange = (d: string) => months.includes(d.slice(0, 7));
+  const selected = dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam) && inRange(dayParam) ? dayParam : inRange(today) ? today : `${anchor}-01`;
+
+  const from = grids[0].grid[0].date;
+  const to = grids[grids.length - 1].grid[41].date;
   const [workouts, imports, blocks] = await Promise.all([
     getWorkoutsForAthlete(athleteId, from, to),
     getImportedActivitiesForRange(athleteId, from, to),
@@ -342,84 +375,95 @@ async function MonthView({ athleteId, monthParam, dayParam, today }: { athleteId
     if (blocks.some((b) => b.date === date)) out.push(DOT.block);
     return out.slice(0, 4);
   };
-  const base = `/athlete/programmation?view=month&month=${monthKey(year, month)}`;
+  const base = `/athlete/programmation?view=month&from=${lo}&to=${hi}`;
+  const range = (a: string, b: string) => `/athlete/programmation?view=month&month=${anchor}&from=${a}&to=${b}${dayParam ? `&day=${dayParam}` : ""}`;
   const selDate = new Date(`${selected}T00:00:00`);
   const selTotal = dayMinutes(selected, workouts, imports);
   const selHas = workouts.some((w) => w.date === selected) || imports.some((a) => a.activity_date === selected) || blocks.some((b) => b.date === selected);
 
   return (
     <div className="flex flex-col">
-      <div className="flex flex-col gap-2.5 px-4">
-        <div className="flex items-center justify-between px-1">
-          <Link href={`/athlete/programmation?view=month&month=${monthKey(prev.getFullYear(), prev.getMonth() + 1)}`} scroll={false} aria-label="Mois précédent" className="flex h-9 w-9 items-center justify-center rounded-full text-slate hover:bg-white">
-            ‹
-          </Link>
-          <b className="text-base capitalize text-ink">{monthLabel(year, month)}</b>
-          <Link href={`/athlete/programmation?view=month&month=${monthKey(next.getFullYear(), next.getMonth() + 1)}`} scroll={false} aria-label="Mois suivant" className="flex h-9 w-9 items-center justify-center rounded-full text-slate hover:bg-white">
-            ›
-          </Link>
-        </div>
-        <div className="grid grid-cols-7 text-center text-[11px] font-bold text-slate">
-          {"LMMJVSD".split("").map((l, i) => (
-            <span key={i}>{l}</span>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-y-1">
-          {grid.map((c) => {
-            const sel = c.date === selected;
-            const ds = c.inMonth ? dots(c.date) : [];
-            return (
-              <Link
-                key={c.date}
-                href={c.inMonth ? `${base}&day=${c.date}` : `/athlete/programmation?view=month&month=${c.date.slice(0, 7)}&day=${c.date}`}
-                scroll={false}
-                className="flex flex-col items-center gap-[3px] py-1"
-              >
-                <span
-                  className={`flex h-[34px] w-[34px] items-center justify-center rounded-full text-[15px] ${
-                    sel ? "bg-[#1b4b4f] font-bold text-white" : c.date === today ? "font-bold text-[#1b4b4f] ring-2 ring-[#1b4b4f]/30" : c.inMonth ? "font-bold text-ink" : "text-line"
-                  }`}
-                >
-                  {c.day}
-                </span>
-                <span className="flex h-1.5 gap-0.5">
-                  {ds.map((col, i) => (
-                    <span key={i} className="h-1.5 w-1.5 rounded-full" style={{ background: col }} />
+      <ContinuousScroll anchorId={`m-${anchor}`} prevHref={range(addMonths(lo, -4), hi)} nextHref={range(lo, addMonths(hi, 4))} rangeKey={`${lo}:${hi}`} navKey={selected}>
+        {grids.map(({ key, grid }) => {
+          const [y, m] = key.split("-").map(Number);
+          const hasSel = selected.slice(0, 7) === key;
+          return (
+            <div key={key} id={`m-${key}`} data-page className="flex flex-col">
+              <div className="flex flex-col gap-2.5 px-4">
+                <div className="flex items-center justify-center px-1 py-1.5">
+                  <b className="text-base capitalize text-ink">{monthLabel(y, m)}</b>
+                </div>
+                <div className="grid grid-cols-7 text-center text-[11px] font-bold text-slate">
+                  {"LMMJVSD".split("").map((l, i) => (
+                    <span key={i}>{l}</span>
                   ))}
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-        <div className="flex flex-wrap gap-x-3 gap-y-1 px-1 pb-2 text-[11.5px] text-slate">
-          {[
-            [DOT.planned, "Séance prévue"],
-            [DOT.done, "Ajoutée par toi"],
-            [DOT.missed, "Pas faite"],
-            [DOT.goal, "Objectif"],
-            [DOT.block, "Indispo"],
-          ].map(([c, l]) => (
-            <span key={l} className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full" style={{ background: c }} />
-              {l}
-            </span>
-          ))}
-        </div>
-      </div>
-      <section className="mt-1 flex flex-col gap-2 rounded-t-[18px] bg-white px-4 pb-6 pt-3.5">
-        <div className="flex items-baseline">
-          <Link href={`/athlete/day/${selected}`} className="text-base font-bold capitalize text-ink">
-            {selDate.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
-          </Link>
-          <span className="flex-1" />
-          {selTotal > 0 && <span className="text-[12.5px] text-slate">{durationLabel(selTotal)}</span>}
-        </div>
-        {selHas ? (
-          <DayItems date={selected} today={today} workouts={workouts} imports={imports} blocks={blocks} muted />
-        ) : (
-          <p className="py-2 text-sm text-slate">Rien de prévu ce jour-là.</p>
-        )}
-      </section>
+                </div>
+                <div className="grid grid-cols-7 gap-y-1">
+                  {grid.map((c) => {
+                    const sel = c.inMonth && c.date === selected;
+                    const ds = c.inMonth ? dots(c.date) : [];
+                    return (
+                      <Link
+                        key={c.date}
+                        id={c.inMonth ? `d-${c.date}` : undefined}
+                        data-keep={c.inMonth ? "" : undefined}
+                        href={`${base}&month=${c.date.slice(0, 7)}&day=${c.date}`}
+                        scroll={false}
+                        className="flex flex-col items-center gap-[3px] py-1"
+                      >
+                        <span
+                          className={`flex h-[34px] w-[34px] items-center justify-center rounded-full text-[15px] ${
+                            sel ? "bg-[#1b4b4f] font-bold text-white" : c.inMonth && c.date === today ? "font-bold text-[#1b4b4f] ring-2 ring-[#1b4b4f]/30" : c.inMonth ? "font-bold text-ink" : "text-line"
+                          }`}
+                        >
+                          {c.day}
+                        </span>
+                        <span className="flex h-1.5 gap-0.5">
+                          {ds.map((col, i) => (
+                            <span key={i} className="h-1.5 w-1.5 rounded-full" style={{ background: col }} />
+                          ))}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+                {hasSel && (
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 px-1 pb-2 text-[11.5px] text-slate">
+                    {[
+                      [DOT.planned, "Séance prévue"],
+                      [DOT.done, "Ajoutée par toi"],
+                      [DOT.missed, "Pas faite"],
+                      [DOT.goal, "Objectif"],
+                      [DOT.block, "Indispo"],
+                    ].map(([c, l]) => (
+                      <span key={l} className="flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full" style={{ background: c }} />
+                        {l}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {hasSel && (
+                <section className="mb-4 mt-1 flex flex-col gap-2 rounded-[18px] bg-white px-4 pb-6 pt-3.5">
+                  <div className="flex items-baseline">
+                    <Link href={`/athlete/day/${selected}`} className="text-base font-bold capitalize text-ink">
+                      {selDate.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
+                    </Link>
+                    <span className="flex-1" />
+                    {selTotal > 0 && <span className="text-[12.5px] text-slate">{durationLabel(selTotal)}</span>}
+                  </div>
+                  {selHas ? (
+                    <DayItems date={selected} today={today} workouts={workouts} imports={imports} blocks={blocks} muted />
+                  ) : (
+                    <p className="py-2 text-sm text-slate">Rien de prévu ce jour-là.</p>
+                  )}
+                </section>
+              )}
+            </div>
+          );
+        })}
+      </ContinuousScroll>
     </div>
   );
 }

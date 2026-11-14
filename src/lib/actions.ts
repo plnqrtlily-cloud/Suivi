@@ -38,6 +38,8 @@ import { parseGpx, simplifyRoute } from "./gpx";
 import { getResourceById, getBlocksForWorkout, getCoachPlanStatus, getTeamWithMembers } from "./queries";
 import { ADMIN_EMAIL, trialEndDate } from "./billing";
 import { linkAthleteWithCode } from "./linking";
+import { loadPlanningRange } from "./planning-data";
+import { getAthletesForCoach } from "./queries";
 import { createNotification, markNotificationRead, markAllNotificationsRead } from "./notifications";
 import { sendEmail, isEmailConfigured, appBaseUrl } from "./email";
 import { isStripeConfigured, createCheckoutSession, createBillingPortalSession } from "./stripe";
@@ -3380,6 +3382,18 @@ export async function setSelfEvaluationAction(qualityId: string, level: number) 
 // --- Planification (tous les athlètes) : déplacer, retoucher, supprimer ---
 
 /** Déplace une séance vers un autre jour et/ou un autre athlète du coach. */
+// Planification : séances et indisponibilités d'une plage, chargées quand le
+// coach fait défiler la frise au-delà de ce qui est déjà affiché.
+export async function loadPlanningRangeAction(from: string, to: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) throw new Error("Plage invalide.");
+  const links = await getAthletesForCoach(user.id);
+  const ids = links.filter((l) => l.status === "active" && l.athlete_id).map((l) => l.athlete_id as string);
+  const { items, blocks } = await loadPlanningRange(user.id, ids, from, to, todayISO());
+  return { items, blocks };
+}
+
 export async function planningMoveWorkoutAction(params: { workoutId: string; athleteId: string; date: string }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");

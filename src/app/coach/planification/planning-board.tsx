@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   copyWeekAction,
+  loadPlanningRangeAction,
   createWorkoutAction,
   duplicateWorkoutAction,
   planningDeleteWorkoutAction,
@@ -127,9 +128,9 @@ type Panel = { type: "item"; id: string } | { type: "new"; athleteId: string; da
 export function PlanningBoard({
   athletes,
   items: initialItems,
-  blocks,
-  start,
-  days: nd,
+  blocks: initialBlocks,
+  start: initialStart,
+  days: initialDays,
   today,
 }: {
   athletes: PlanAthlete[];
@@ -141,12 +142,19 @@ export function PlanningBoard({
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
+  // Plage affichée : elle s'étend au fil du défilement (semaines chargées au bord).
+  const [start, setStart] = useState(initialStart);
+  const [nd, setNd] = useState(initialDays);
+  const initialEnd = addDays(initialStart, initialDays - 1);
   const [items, setItems] = useState(initialItems);
-  // Nouvelles données du serveur (après une action) : on repart d'elles.
+  const [extraBlocks, setExtraBlocks] = useState<PlanBlock[]>([]);
+  const blocks = useMemo(() => [...initialBlocks, ...extraBlocks], [initialBlocks, extraBlocks]);
+  // Nouvelles données du serveur (après une action) : on repart d'elles pour la
+  // fenêtre de départ, et on garde ce qui a été chargé en défilant au-delà.
   const [seen, setSeen] = useState(initialItems);
   if (seen !== initialItems) {
     setSeen(initialItems);
-    setItems(initialItems);
+    setItems((prev) => [...initialItems, ...prev.filter((x) => (x.date < initialStart || x.date > initialEnd) && !initialItems.some((y) => y.id === x.id))]);
   }
 
   const nw = nd / 7;
@@ -168,6 +176,10 @@ export function PlanningBoard({
 
   const stripRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef(0);
+  const loadingRef = useRef(false);
+  const shiftRef = useRef(0); // colonnes ajoutées à gauche, à compenser au prochain rendu
+  const settleRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const progRef = useRef(0);
 
   useEffect(() => {
     if (!toast) return;
@@ -188,7 +200,78 @@ export function PlanningBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
 
+  // Défilement continu : 8 semaines de plus sont chargées dès qu'on approche
+  // d'un bord ; à gauche, la position est compensée pour ne pas sauter.
+  const CHUNK = 8;
+  async function loadMore(dir: -1 | 1) {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    const from = dir < 0 ? addDays(start, -7 * CHUNK) : addDays(start, nd);
+    const to = addDays(from, 7 * CHUNK - 1);
+    try {
+      const res = await loadPlanningRangeAction(from, to);
+      setItems((prev) => [...prev.filter((x) => !res.items.some((y) => y.id === x.id)), ...res.items]);
+      setExtraBlocks((prev) => [...prev, ...res.blocks]);
+      if (dir < 0) {
+        shiftRef.current = view === "week" ? 7 * CHUNK : CHUNK;
+        setStart(from);
+        setFi((f) => f + 7 * CHUNK);
+        setMi((m) => m + CHUNK);
+      }
+      setNd((n) => n + 7 * CHUNK);
+    } catch {
+      // Hors ligne : on réessaiera au prochain défilement.
+    } finally {
+      loadingRef.current = false;
+    }
+  }
+  useLayoutEffect(() => {
+    const el = stripRef.current;
+    if (!el || !shiftRef.current) return;
+    progRef.current = Date.now() + 300;
+    el.scrollLeft += shiftRef.current * (el.scrollWidth / count);
+    shiftRef.current = 0;
+    clearTimeout(settleRef.current);
+    settleRef.current = setTimeout(settle, 350);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [start]);
+
+  // En fin de geste, calage doux : sur le lundi (vue semaine) ou sur la
+  // semaine du 1er du mois (vue mois) s'ils sont proches, sinon sur la
+  // colonne la plus proche.
+  function settle() {
+    const el = stripRef.current;
+    if (!el) return;
+    // Un déplacement fait par le code est en cours : on revérifiera juste après.
+    if (Date.now() < progRef.current) {
+      settleRef.current = setTimeout(settle, progRef.current - Date.now() + 60);
+      return;
+    }
+    const col = el.scrollWidth / count;
+    const pos = el.scrollLeft / col;
+    let target = Math.round(pos);
+    if (view === "week") {
+      const monday = Math.round(pos / 7) * 7;
+      if (el.clientWidth >= col * 4.5 || Math.abs(pos - monday) < 1.5) target = monday;
+    } else {
+      let best = -1;
+      for (let k = Math.max(0, Math.floor(pos) - 2); k <= Math.min(count - 1, Math.ceil(pos) + 2); k++) {
+        const w0 = parse(dayAt(7 * k));
+        const has1st = Array.from({ length: 7 }, (_, j) => new Date(w0.getFullYear(), w0.getMonth(), w0.getDate() + j).getDate()).includes(1);
+        if (has1st && (best < 0 || Math.abs(k - pos) < Math.abs(best - pos))) best = k;
+      }
+      if (best >= 0 && Math.abs(best - pos) < 1.5) target = best;
+    }
+    const left = Math.max(0, Math.min(el.scrollWidth - el.clientWidth, target * col));
+    if (Math.abs(left - el.scrollLeft) > 1) {
+      progRef.current = Date.now() + 700;
+      el.scrollTo({ left, behavior: "smooth" });
+    }
+  }
+
   function onScroll() {
+    clearTimeout(settleRef.current);
+    settleRef.current = setTimeout(settle, 220);
     cancelAnimationFrame(frameRef.current);
     frameRef.current = requestAnimationFrame(() => {
       const el = stripRef.current;
@@ -196,12 +279,15 @@ export function PlanningBoard({
       const i = Math.max(0, Math.min(count - per, Math.round(el.scrollLeft / (el.scrollWidth / count))));
       if (view === "week") setFi(i);
       else setMi(i);
+      if (i < per * 2) loadMore(-1);
+      else if (i > count - per * 3) loadMore(1);
     });
   }
   function jump(i: number) {
     const max = count - per;
     i = Math.max(0, Math.min(max, i));
     const el = stripRef.current;
+    progRef.current = Date.now() + 900;
     if (el) el.scrollTo({ left: i * (el.scrollWidth / count), behavior: "smooth" });
     else if (view === "week") setFi(i);
     else setMi(i);
@@ -222,7 +308,7 @@ export function PlanningBoard({
         after?.();
         router.refresh();
       } catch (e) {
-        setItems(initialItems);
+        setItems((prev) => [...initialItems, ...prev.filter((x) => x.date < initialStart || x.date > initialEnd)]);
         setToast(e instanceof Error ? e.message : "Une erreur est survenue.");
       }
     });
@@ -453,7 +539,7 @@ export function PlanningBoard({
             <div
               ref={stripRef}
               onScroll={onScroll}
-              className="min-w-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain [container-type:inline-size] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="min-w-0 flex-1 overflow-x-auto [overflow-anchor:none] overflow-y-hidden overscroll-x-contain [container-type:inline-size] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               <div className="flex w-max">
                 {view === "week"
@@ -465,7 +551,7 @@ export function PlanningBoard({
                       return (
                         <div
                           key={d}
-                          className="shrink-0 snap-start"
+                          className="shrink-0"
                           style={{ width: colWidth, borderLeft: dow(d) === 0 ? "1.5px solid #dfe5e3" : "1px solid #f1f3f2", background: isToday ? "#fffaf7" : "transparent" }}
                         >
                           <div className="flex h-[50px] min-w-0 flex-col justify-center gap-[3px] px-2">
@@ -578,7 +664,7 @@ export function PlanningBoard({
                       const w6 = addDays(w0, 6);
                       const isCur = w0 <= today && today <= w6;
                       return (
-                        <div key={w0} className="shrink-0 snap-start px-1" style={{ width: colWidth }}>
+                        <div key={w0} className="shrink-0 px-1" style={{ width: colWidth }}>
                           <div className="flex h-[50px] items-center px-1.5">
                             <span className={`whitespace-nowrap text-[12.5px] ${isCur ? "font-bold text-[#a4492a]" : "font-semibold text-slate"}`}>
                               S{isoWeek(w0)} · {frs(w0)}

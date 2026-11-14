@@ -2,12 +2,11 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { dbAll } from "@/lib/db";
 import { getAthletesForCoach } from "@/lib/queries";
-import { loadWorkoutsForAthletes } from "@/lib/dashboard-batch";
+import { loadPlanningRange } from "@/lib/planning-data";
 import { todayISO } from "@/lib/dates";
-import { sportLabelPlain } from "@/lib/sport-labels";
 import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
-import { PlanningBoard, type PlanAthlete, type PlanItem, type PlanBlock, type PlanStatus } from "./planning-board";
+import { PlanningBoard, type PlanAthlete } from "./planning-board";
 
 // Planification : tous les athlètes sur une frise qui défile jour par jour
 // (vue semaine) ou semaine par semaine (vue mois). Fenêtre chargée : 4 semaines
@@ -32,28 +31,6 @@ function mondayOf(s: string): string {
   return addDays(s, -((d.getDay() + 6) % 7));
 }
 
-function planStatus(status: string, date: string, today: string): PlanStatus {
-  switch (status) {
-    case "done":
-      return "done";
-    case "partial":
-      return "part";
-    case "not_done":
-    case "postponed":
-      return "miss";
-    default:
-      return date < today ? "miss" : "todo";
-  }
-}
-
-const TIME_OF_DAY: Record<string, string> = {
-  morning: "matin",
-  midday: "midi",
-  afternoon: "après-midi",
-  evening: "soir",
-  full_day: "",
-};
-
 export default async function PlanificationPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -67,16 +44,10 @@ export default async function PlanificationPage() {
   const active = links.filter((l) => l.status === "active" && l.athlete_id);
   const ids = active.map((l) => l.athlete_id as string);
 
-  const [workoutsMap, sportsRows, blockRows] = await Promise.all([
-    loadWorkoutsForAthletes(ids, start, end),
+  const [{ items, blocks, workoutsMap }, sportsRows] = await Promise.all([
+    loadPlanningRange(user.id, ids, start, end, today),
     ids.length
       ? dbAll<{ id: string; sports_json: string | null }>(`SELECT id, sports_json FROM users WHERE id IN (${ids.map(() => "?").join(",")})`, ids)
-      : Promise.resolve([]),
-    ids.length
-      ? dbAll<{ id: string; athlete_id: string; date: string; time_of_day: string; reason: string | null }>(
-          `SELECT id, athlete_id, date, time_of_day, reason FROM availability_blocks WHERE athlete_id IN (${ids.map(() => "?").join(",")}) AND date BETWEEN ? AND ? ORDER BY date ASC`,
-          [...ids, start, end]
-        )
       : Promise.resolve([]),
   ]);
 
@@ -86,27 +57,6 @@ export default async function PlanificationPage() {
       sportsOf.set(r.id, r.sports_json ? JSON.parse(r.sports_json) : []);
     } catch {
       sportsOf.set(r.id, []);
-    }
-  }
-
-  const items: PlanItem[] = [];
-  for (const id of ids) {
-    for (const w of workoutsMap.get(id) ?? []) {
-      const isGoal = w.category === "objectif" || w.category === "evenement";
-      items.push({
-        id: w.id,
-        athleteId: id,
-        date: w.date,
-        title: w.title,
-        sport: w.sport,
-        sportLabel: sportLabelPlain(w.sport),
-        minutes: isGoal ? 0 : w.duration_minutes ?? 0,
-        doneMinutes: w.status === "done" || w.status === "partial" ? w.actual_duration_minutes ?? w.duration_minutes ?? 0 : 0,
-        status: isGoal ? "goal" : planStatus(w.status, w.date, today),
-        isGoal,
-        isDraft: !!w.is_draft,
-        mine: w.coach_id === user.id,
-      });
     }
   }
 
@@ -123,13 +73,6 @@ export default async function PlanificationPage() {
     };
   });
   athletes.sort((a, b) => a.name.localeCompare(b.name, "fr"));
-
-  const blocks: PlanBlock[] = blockRows.map((b) => ({
-    id: b.id,
-    athleteId: b.athlete_id,
-    date: b.date,
-    label: ["Indispo", TIME_OF_DAY[b.time_of_day], b.reason].filter(Boolean).join(" · "),
-  }));
 
   return (
     <div className="flex min-h-screen bg-paper">

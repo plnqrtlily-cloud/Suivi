@@ -176,6 +176,7 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
       let left = el.offsetLeft;
       const t = sc.querySelector<HTMLElement>(`[data-date="${data.today}"]`);
       if (t && mondayOf(date) === mondayOf(data.today) && t.offsetLeft + t.offsetWidth > left + sc.clientWidth) left = t.offsetLeft;
+      progRef.current = Date.now() + (smooth ? 900 : 300);
       sc.scrollTo({ left, behavior });
     } else {
       const el = sc.querySelector<HTMLElement>(`[data-date="${mondayOf(date)}"]`);
@@ -231,7 +232,10 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
       const oldEl = sc.querySelector<HTMLElement>(`[data-date="${old}"]`);
       const firstEl = sc.querySelector<HTMLElement>(`[data-date="${first}"]`);
       if (oldEl && firstEl) {
-        if (horizontal) sc.scrollLeft += oldEl.offsetLeft - firstEl.offsetLeft;
+        if (horizontal) {
+          progRef.current = Date.now() + 300;
+          sc.scrollLeft += oldEl.offsetLeft - firstEl.offsetLeft;
+        }
         else {
           progRef.current = Date.now() + 300;
           sc.scrollTop += oldEl.offsetTop - firstEl.offsetTop;
@@ -267,7 +271,11 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
 
   function settleOnMonth() {
     const sc = scrollerRef.current;
-    if (!sc || view !== "month" || Date.now() < progRef.current) return;
+    if (!sc || view !== "month") return;
+    if (Date.now() < progRef.current) {
+      settleRef.current = setTimeout(settleOnMonth, progRef.current - Date.now() + 60);
+      return;
+    }
     const head = headRef.current?.offsetHeight ?? 0;
     const y = sc.scrollTop + head + 6;
     let best: HTMLElement | undefined;
@@ -284,9 +292,31 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
     }
   }
 
+  // Semaine : en fin de geste, on se cale sur le lundi le plus proche (la
+  // semaine entière tient à l'écran sur ordinateur) ; sur téléphone, où l'on
+  // voit 2 jours, sur le lundi s'il est proche, sinon sur le jour le plus proche.
+  function settleOnWeek() {
+    const sc = scrollerRef.current;
+    if (!sc || view !== "week" || !allDays.length) return;
+    if (Date.now() < progRef.current) {
+      settleRef.current = setTimeout(settleOnWeek, progRef.current - Date.now() + 60);
+      return;
+    }
+    const stride = (sc.scrollWidth + GAP) / allDays.length;
+    const pos = sc.scrollLeft / stride;
+    const monday = Math.round(pos / 7) * 7;
+    const fits = sc.clientWidth >= stride * 4.5;
+    const target = fits || Math.abs(pos - monday) < 1.5 ? monday : Math.round(pos);
+    const left = Math.max(0, Math.min(sc.scrollWidth - sc.clientWidth, target * stride));
+    if (Math.abs(left - sc.scrollLeft) > 1) {
+      progRef.current = Date.now() + 700;
+      sc.scrollTo({ left, behavior: "smooth" });
+    }
+  }
+
   function onScroll() {
     clearTimeout(settleRef.current);
-    if (view === "month") settleRef.current = setTimeout(settleOnMonth, 220);
+    settleRef.current = setTimeout(view === "month" ? settleOnMonth : settleOnWeek, 220);
     cancelAnimationFrame(frameRef.current);
     frameRef.current = requestAnimationFrame(() => {
       const sc = scrollerRef.current;
@@ -558,7 +588,7 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
             onScroll={onScroll}
             // Défilement libre et continu ; il se cale doucement sur un jour en fin de geste.
             // Téléphone : deux jours par écran ; ordinateur : la semaine entière.
-            className="relative -mx-1 grid snap-x snap-proximity grid-flow-col gap-2 overflow-x-auto overscroll-x-contain px-1 pb-2 animate-expand-in [grid-auto-columns:calc((100%_-_8px)/2)] [overflow-anchor:none] [scrollbar-width:none] sm:[grid-auto-columns:max(128px,calc((100%_-_48px)/7))] [&::-webkit-scrollbar]:hidden"
+            className="relative -mx-1 grid grid-flow-col gap-2 overflow-x-auto overscroll-x-contain px-1 pb-2 animate-expand-in [grid-auto-columns:calc((100%_-_8px)/2)] [overflow-anchor:none] [scrollbar-width:none] sm:[grid-auto-columns:max(128px,calc((100%_-_48px)/7))] [&::-webkit-scrollbar]:hidden"
             style={{ scrollPaddingLeft: 4 }}
           >
             {allDays.map((d) => (
