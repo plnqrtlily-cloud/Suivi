@@ -126,7 +126,14 @@ export function ensureStripeSetup(baseUrl: string): Promise<StripeSetup> {
       // Clé copiée depuis l'aperçu masqué du Dashboard (« sk_live_… ») au lieu
       // de la clé révélée en entier : message clair plutôt qu'une erreur HTTP.
       if (!/^(sk|rk)_(live|test)_[A-Za-z0-9]{20,}$/.test(String(process.env.STRIPE_SECRET_KEY).trim())) {
-        throw new Error("La clé STRIPE_SECRET_KEY est incomplète : dans Stripe, clique sur « Révéler » et copie la clé entière (sans « … »).");
+        // Diagnostic sans exposer la clé : préfixe (sk_/pk_…), longueur, points de suspension.
+        const k = String(process.env.STRIPE_SECRET_KEY).trim();
+        const hint = k.startsWith("pk_")
+          ? "c'est la clé publique (pk_…) : il faut la clé secrète (sk_live_…)."
+          : k.includes("…") || k.includes("...")
+            ? "c'est l'aperçu abrégé (avec « … ») : il faut la clé entière."
+            : `format inattendu (début « ${k.slice(0, 8)} », ${k.length} caractères).`;
+        throw new Error(`STRIPE_SECRET_KEY invalide — ${hint}`);
       }
       const prices = await ensurePrices();
       const [webhookId, portalId] = await Promise.all([ensureWebhook(baseUrl), ensurePortal(baseUrl, prices)]);
