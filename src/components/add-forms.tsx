@@ -6,7 +6,8 @@ import { addImportedActivityAction, addAvailabilityBlockAction, addJournalEntryA
 import { reportHealthAction } from "@/lib/health-actions";
 import { Button, Field, SelectField, TextAreaField, ErrorText } from "@/components/ui";
 import { AVAILABILITY_SLOT_LABELS } from "@/lib/time-of-day";
-import { DateRangePicker, dateRangeToList } from "@/components/date-range-picker";
+import { DaysPicker } from "@/components/days-picker";
+import { toISODate } from "@/lib/dates";
 import { PainScale } from "@/components/pain-scale";
 import type { HealthCategory, TrainingImpact } from "@/lib/health";
 
@@ -48,20 +49,19 @@ function useSubmit(onDone: () => void) {
   return { pending, error, setError, run };
 }
 
-function DaysField({ start, end, onChange, hint }: { start: string | null; end: string | null; onChange: (s: string | null, e: string | null) => void; hint: string }) {
+function DaysField({ dates, onChange, max }: { dates: string[]; onChange: (d: string[]) => void; max?: string }) {
   return (
     <div>
       <span className="mb-1.5 block text-sm font-medium text-ink-soft">Jour(s)</span>
-      <p className="mb-2 text-xs text-slate">{hint}</p>
-      <DateRangePicker start={start} end={end} onChange={({ start, end }) => onChange(start, end)} />
+      <DaysPicker value={dates} onChange={onChange} max={max} />
     </div>
   );
 }
 
 export function DoneActivityForm({ defaultDate, onDone, onCancel }: { defaultDate?: string; onDone: () => void; onCancel?: () => void }) {
   const [sport, setSport] = useState("running");
-  const [start, setStart] = useState<string | null>(defaultDate ?? null);
-  const [end, setEnd] = useState<string | null>(defaultDate ?? null);
+  const today = toISODate(new Date());
+  const [dates, setDates] = useState<string[]>(defaultDate && defaultDate <= today ? [defaultDate] : []);
   const { pending, error, setError, run } = useSubmit(onDone);
 
   return (
@@ -69,11 +69,10 @@ export function DoneActivityForm({ defaultDate, onDone, onCancel }: { defaultDat
       className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!start || !end) return setError("Choisissez au moins un jour.");
+        if (!dates.length) return setError("Choisissez au moins un jour.");
         const formData = new FormData(e.currentTarget);
         formData.set("sport", sport);
-        const dates = dateRangeToList(start, end);
-        // Une activité par jour de la plage : chacune reste modifiable seule.
+        // Une activité par jour choisi : chacune reste modifiable seule.
         run(() =>
           Promise.all(
             dates.map((date) => {
@@ -86,7 +85,7 @@ export function DoneActivityForm({ defaultDate, onDone, onCancel }: { defaultDat
         );
       }}
     >
-      <DaysField start={start} end={end} onChange={(s, e) => { setStart(s); setEnd(e); }} hint="Touchez un jour, ou un second pour couvrir une période (stage, trek…)." />
+      <DaysField dates={dates} onChange={setDates} max={today} />
       <div className="grid grid-cols-2 gap-3">
         <Field label="Heure (facultatif)" type="time" name="activityTime" />
         <SelectField label="Sport" value={sport} onChange={(e) => setSport(e.target.value)}>
@@ -111,26 +110,25 @@ export function DoneActivityForm({ defaultDate, onDone, onCancel }: { defaultDat
 }
 
 export function UnavailabilityForm({ defaultDate, onDone, onCancel }: { defaultDate?: string; onDone: () => void; onCancel?: () => void }) {
-  const [start, setStart] = useState<string | null>(defaultDate ?? null);
-  const [end, setEnd] = useState<string | null>(defaultDate ?? null);
+  const [dates, setDates] = useState<string[]>(defaultDate ? [defaultDate] : []);
   const { pending, error, setError, run } = useSubmit(onDone);
   return (
     <form
       className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!start || !end) return setError("Choisissez au moins un jour.");
+        if (!dates.length) return setError("Choisissez au moins un jour.");
         const fd = new FormData(e.currentTarget);
         run(() =>
           addAvailabilityBlockAction({
-            dates: dateRangeToList(start, end),
+            dates,
             timeOfDay: String(fd.get("timeOfDay") || "full_day"),
             reason: String(fd.get("reason") || ""),
           })
         );
       }}
     >
-      <DaysField start={start} end={end} onChange={(s, e) => { setStart(s); setEnd(e); }} hint="Touchez un jour, ou un second pour couvrir une période (déplacement, vacances…)." />
+      <DaysField dates={dates} onChange={setDates} />
       <SelectField label="Moment" name="timeOfDay" defaultValue="full_day">
         {Object.entries(AVAILABILITY_SLOT_LABELS).map(([value, label]) => (
           <option key={value} value={value}>

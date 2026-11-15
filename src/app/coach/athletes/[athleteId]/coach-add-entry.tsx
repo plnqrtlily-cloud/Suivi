@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { coachAddActivityAction, coachAddAvailabilityBlockAction, coachDeleteEntryAction } from "@/lib/actions";
 import { Button, Field, SelectField, TextAreaField, ErrorText } from "@/components/ui";
 import { AVAILABILITY_SLOT_LABELS } from "@/lib/time-of-day";
-import { DateRangePicker, dateRangeToList } from "@/components/date-range-picker";
+import { DaysPicker } from "@/components/days-picker";
 
 const SPORTS = [
   { value: "running", label: "Course à pied" },
@@ -50,25 +50,22 @@ export function CoachAddEntryButton({
   const [sport, setSport] = useState("running");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | undefined>();
-  const [rangeStart, setRangeStart] = useState<string | null>(defaultDate);
-  const [rangeEnd, setRangeEnd] = useState<string | null>(defaultDate);
+  const [dates, setDates] = useState<string[]>([defaultDate]);
 
   function close() {
     setOpen(false);
     setError(undefined);
-    setRangeStart(defaultDate);
-    setRangeEnd(defaultDate);
+    setDates([defaultDate]);
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
     const formData = new FormData(form);
-    if (!rangeStart || !rangeEnd) {
+    if (!dates.length) {
       setError("Choisissez au moins un jour.");
       return;
     }
-    const dates = dateRangeToList(rangeStart, rangeEnd);
     if (mode === "done" && dates.some((d) => d > today)) {
       setError("Une séance déjà faite ne peut pas être datée dans le futur — choisissez « Séance à faire ».");
       return;
@@ -115,18 +112,10 @@ export function CoachAddEntryButton({
     );
   }
 
-  const datePicker = (hint: string) => (
+  const datePicker = (max?: string) => (
     <div>
       <span className="mb-1.5 block text-sm font-medium text-ink-soft">Jour(s)</span>
-      <p className="mb-2 text-xs text-slate">{hint}</p>
-      <DateRangePicker
-        start={rangeStart}
-        end={rangeEnd}
-        onChange={({ start, end }) => {
-          setRangeStart(start);
-          setRangeEnd(end);
-        }}
-      />
+      <DaysPicker value={dates} onChange={setDates} max={max} />
     </div>
   );
 
@@ -176,7 +165,7 @@ export function CoachAddEntryButton({
                 Une séance que {athleteFirstName} a faite sans la saisir (racontée à l&apos;oral, par message…). Elle
                 apparaîtra dans son calendrier comme renseignée par vous et comptera dans sa charge.
               </p>
-              {datePicker("Cliquez un jour, ou un second pour couvrir une période (stage, trek…).")}
+              {datePicker(today)}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="Heure (facultatif)" type="time" name="activityTime" />
                 <SelectField label="Sport" value={sport} onChange={(e) => setSport(e.target.value)}>
@@ -203,7 +192,7 @@ export function CoachAddEntryButton({
                 {athleteFirstName} n&apos;est pas disponible — l&apos;indisponibilité s&apos;affichera sur son planning
                 comme sur le vôtre.
               </p>
-              {datePicker("Cliquez un jour, ou un second pour couvrir une période (déplacement, vacances…).")}
+              {datePicker()}
               <SelectField label="Moment" name="timeOfDay" defaultValue="full_day">
                 {Object.entries(AVAILABILITY_SLOT_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>

@@ -22,6 +22,7 @@ import type { CoachCalendarData, CalDay, CalEntry, CalWeek, EntryStatus } from "
 import { CYCLE_DAY_STYLE } from "@/lib/cycle-types";
 import { WorkoutStructure } from "@/components/workout-structure";
 import { CalendarEventForm, EventDetail, EventFlag } from "@/components/calendar-events";
+import { DaysPicker } from "@/components/days-picker";
 import { eventKind, eventSubtitle, type CalendarEventView } from "@/lib/calendar-event-kinds";
 
 // Calendrier coach : défilement continu, jour après jour en vue semaine et
@@ -768,9 +769,24 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
                     setPanel({ type: "day", date: panel.date });
                     router.refresh();
                   }}
-                  onActivity={(fd) => run(() => coachAddActivityAction(data.athleteId, fd), "Séance faite ajoutée", () => setPanel({ type: "day", date: panel.date }))}
-                  onUnavailable={(timeOfDay, reason) =>
-                    run(() => coachAddAvailabilityBlockAction({ athleteId: data.athleteId, dates: [panel.date], timeOfDay, reason }), "Indisponibilité ajoutée", () => setPanel({ type: "day", date: panel.date }))
+                  onActivity={(fd, dates) =>
+                    run(
+                      // Une séance faite par jour choisi : chacune reste modifiable seule.
+                      () =>
+                        Promise.all(
+                          dates.map((d) => {
+                            const perDay = new FormData();
+                            fd.forEach((v, k) => perDay.set(k, v));
+                            perDay.set("activityDate", d);
+                            return coachAddActivityAction(data.athleteId, perDay);
+                          })
+                        ),
+                      dates.length > 1 ? `${dates.length} séances faites ajoutées` : "Séance faite ajoutée",
+                      () => setPanel({ type: "day", date: panel.date })
+                    )
+                  }
+                  onUnavailable={(timeOfDay, reason, dates) =>
+                    run(() => coachAddAvailabilityBlockAction({ athleteId: data.athleteId, dates, timeOfDay, reason }), dates.length > 1 ? `${dates.length} indisponibilités ajoutées` : "Indisponibilité ajoutée", () => setPanel({ type: "day", date: panel.date }))
                   }
                 />
               )}
@@ -959,7 +975,7 @@ function EventChip({ ev, on, onClick }: { ev: CalendarEventView; on: boolean; on
       <span className="mt-px"><EventFlag kind={ev.kind} size={14} /></span>
       <span className="min-w-0">
         <span className="block text-[12.5px] font-bold leading-snug text-ink">{ev.title}</span>
-        <span className="block text-[11.5px] leading-snug" style={{ color }}>{eventKind(ev.kind).label}{ev.time ? ` · ${ev.time}` : ""}{ev.mine ? "" : ` · ${ev.authorName}`}</span>
+        <span className="block text-[11.5px] leading-snug" style={{ color }}>{eventSubtitle(ev, "vous").replace(/ · par vous$/, "").replace(/ · par /, " · ")}</span>
       </span>
     </button>
   );
@@ -1632,12 +1648,20 @@ function AddPanel({
   setMode: (m: AddMode) => void;
   pending: boolean;
   onEventDone: () => void;
-  onActivity: (fd: FormData) => void;
-  onUnavailable: (timeOfDay: string, reason: string) => void;
+  onActivity: (fd: FormData, dates: string[]) => void;
+  onUnavailable: (timeOfDay: string, reason: string, dates: string[]) => void;
 }) {
   const [slot, setSlot] = useState("full_day");
   const [reason, setReason] = useState("");
-  const future = date > data.today;
+  // Le jour cliqué est présélectionné ; d'autres jours peuvent s'y ajouter.
+  const [dates, setDates] = useState<string[]>([date]);
+  const [doneDates, setDoneDates] = useState<string[]>(date <= data.today ? [date] : []);
+  const daysField = (value: string[], onChange: (d: string[]) => void, max?: string) => (
+    <div className="max-w-sm">
+      <span className="mb-1.5 block text-sm font-bold text-ink">Jour(s)</span>
+      <DaysPicker value={value} onChange={onChange} max={max} />
+    </div>
+  );
   const input = "rounded-[10px] border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink";
   return (
     <div>
@@ -1665,16 +1689,13 @@ function AddPanel({
       )}
 
       {mode === "done" && (
-        future ? (
-          <p className="text-sm text-slate">Une séance déjà faite ne peut pas être dans le futur.</p>
-        ) : (
           <form
             action={(fd) => {
-              fd.set("activityDate", date);
-              onActivity(fd);
+              if (doneDates.length) onActivity(fd, doneDates);
             }}
             className="flex flex-col gap-4"
           >
+            {daysField(doneDates, setDoneDates, data.today)}
             <div className="grid gap-3 sm:grid-cols-5">
               <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Activité
                 <select name="sport" defaultValue="cycling" className={input}>{SPORTS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}</select>
@@ -1685,20 +1706,20 @@ function AddPanel({
               <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">FC moyenne<input name="avgHr" type="number" min={30} max={230} className={input} /></label>
             </div>
             <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Notes<textarea name="notes" rows={2} placeholder="Ce que l'athlète vous a dit de la séance…" className={`${input} resize-y`} /></label>
-            <div><button type="submit" disabled={pending} className={pillMain}>Enregistrer</button></div>
+            <div><button type="submit" disabled={pending || !doneDates.length} className={pillMain}>Enregistrer{doneDates.length > 1 ? ` (${doneDates.length} jours)` : ""}</button></div>
           </form>
-        )
       )}
 
       {mode === "todo" && (
         <div className="flex flex-col items-start gap-3">
-          <p className="text-sm text-ink-soft">La séance se construit dans l&apos;éditeur, avec la date déjà renseignée.</p>
+          <p className="text-sm text-ink-soft">La séance se construit dans l&apos;éditeur, avec ce jour déjà coché ; vous pourrez y ajouter d&apos;autres jours.</p>
           <Link href={`/coach/athletes/${data.athleteId}/new-workout?date=${date}`} className={pillMain}>Construire la séance</Link>
         </div>
       )}
 
       {mode === "unavailable" && (
         <div className="flex flex-col gap-4">
+          {daysField(dates, setDates)}
           <div className="grid gap-3 sm:grid-cols-[1fr_2fr]">
             <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Moment
               <select value={slot} onChange={(ev) => setSlot(ev.target.value)} className={input}>
@@ -1713,7 +1734,7 @@ function AddPanel({
               <input value={reason} onChange={(ev) => setReason(ev.target.value)} placeholder="Déplacement, examens…" className={input} />
             </label>
           </div>
-          <div><button type="button" disabled={pending} onClick={() => onUnavailable(slot, reason)} className={pillMain}>Enregistrer</button></div>
+          <div><button type="button" disabled={pending || !dates.length} onClick={() => onUnavailable(slot, reason, dates)} className={pillMain}>Enregistrer{dates.length > 1 ? ` (${dates.length} jours)` : ""}</button></div>
         </div>
       )}
     </div>

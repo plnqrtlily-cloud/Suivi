@@ -15,6 +15,7 @@ import {
   publishWorkoutsAction,
 } from "@/lib/actions";
 import { Avatar } from "@/components/avatar";
+import { DaysPicker } from "@/components/days-picker";
 
 // Planification : tous les athlètes sur une frise horaire. Vue semaine : la
 // frise défile jour par jour (7 jours visibles), vue mois : semaine par semaine
@@ -173,6 +174,9 @@ export function PlanningBoard({
   const [over, setOver] = useState<string | null>(null);
   const [toast, setToast] = useState("");
   const [edit, setEdit] = useState(false);
+  // Jours de la séance rapide : le jour de la case cliquée, et d'autres au besoin.
+  const [newDays, setNewDays] = useState<string[]>([]);
+  const [pickDays, setPickDays] = useState(false);
   const [form, setForm] = useState({ title: "", sport: "cycling", minutes: "60", date: "" });
   const [dup, setDup] = useState<string[]>([]);
   const [err, setErr] = useState("");
@@ -384,6 +388,7 @@ export function PlanningBoard({
     setEdit(false);
     setErr("");
     setForm({ title: "", sport: a ? guessSport(a) : "cycling", minutes: "60", date });
+    setNewDays([date]);
     setPanel((p) => (p?.type === "new" && p.athleteId === athleteId && p.date === date ? null : { type: "new", athleteId, date }));
   }
   function openItem(id: string) {
@@ -816,10 +821,10 @@ export function PlanningBoard({
                       sport: form.sport,
                       category: "entrainement",
                       title,
-                      dates: [newCell.date],
+                      dates: newDays.length ? newDays : [newCell.date],
                       durationMinutes: Number(form.minutes) || 60,
                     }),
-                  `Séance ajoutée pour ${who}`,
+                  newDays.length > 1 ? `${newDays.length} séances ajoutées pour ${who}` : `Séance ajoutée pour ${who}`,
                   () => setPanel(null)
                 );
               }}
@@ -827,8 +832,16 @@ export function PlanningBoard({
               Ajouter
             </button>
           </div>
+          {pickDays && (
+            <div className="max-w-sm">
+              <DaysPicker value={newDays} onChange={setNewDays} />
+            </div>
+          )}
           <div className="flex items-center gap-3 text-[13px]">
             {err && <span className="text-[#a4492a]">{err}</span>}
+            <button type="button" onClick={() => setPickDays((v) => !v)} className="font-semibold text-moss hover:underline">
+              {pickDays ? "Masquer les jours" : newDays.length > 1 ? `${newDays.length} jours choisis · modifier` : "Ajouter d'autres jours"}
+            </button>
             <span className="flex-1" />
             <Link href={`/coach/athletes/${newCell.athleteId}/new-workout?date=${newCell.date}`} className="font-semibold text-slate hover:text-moss">
               Éditeur complet →

@@ -788,6 +788,10 @@ const MIGRATIONS: string[] = [
   // Essai côté athlète (cf. src/lib/access.ts) : début de la période passée
   // avec des coachs non abonnés. Remis à zéro dès qu'un coach payant le suit.
   `ALTER TABLE users ADD COLUMN athlete_trial_start TEXT`,
+  // Entraînement renseigné dans le calendrier partagé (type « entrainement ») :
+  // sport et durée prévue (cf. src/lib/calendar-events.ts).
+  `ALTER TABLE calendar_events ADD COLUMN sport TEXT`,
+  `ALTER TABLE calendar_events ADD COLUMN duration_minutes INTEGER`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

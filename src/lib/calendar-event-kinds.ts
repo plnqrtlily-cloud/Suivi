@@ -2,6 +2,7 @@
 // utilisable par les composants client.
 
 export const EVENT_KINDS = [
+  { value: "entrainement", label: "Entraînement", color: "#3f6f6c" },
   { value: "competition", label: "Compétition", color: "#a4492a" },
   { value: "stage", label: "Stage", color: "#1b4b4f" },
   { value: "rdv", label: "Rendez-vous", color: "#e8896a" },
@@ -26,6 +27,9 @@ export interface CalendarEventView {
   time: string | null;
   location: string | null;
   notes: string | null;
+  /** Entraînement : sport et durée prévue. */
+  sport: string | null;
+  durationMinutes: number | null;
   authorName: string;
   mine: boolean;
 }
@@ -47,9 +51,26 @@ export function eventDateLabel(start: string, end: string) {
  * Sous-titre d'un événement : type · date(s) ou heure · lieu · auteur.
  * `you` : « toi » côté athlète, « vous » côté coach (registre de chaque espace).
  */
+export const TRAINING_SPORTS = [
+  { value: "cycling", label: "Vélo" },
+  { value: "running", label: "Course à pied" },
+  { value: "strength", label: "Renforcement" },
+  { value: "hiking", label: "Randonnée" },
+  { value: "swimming", label: "Natation" },
+  { value: "climbing", label: "Escalade" },
+  { value: "other", label: "Autre" },
+];
+
+function minutesLabel(m: number) {
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return h ? `${h} h${r ? ` ${String(r).padStart(2, "0")}` : ""}` : `${r} min`;
+}
+
 export function eventSubtitle(e: CalendarEventView, you: "toi" | "vous" = "toi") {
   const multi = e.startDate !== e.endDate;
-  return [eventKind(e.kind).label, multi ? eventDateLabel(e.startDate, e.endDate) : e.time, e.location, e.mine ? `par ${you}` : `par ${e.authorName}`]
+  const training = e.kind === "entrainement" ? [TRAINING_SPORTS.find((s) => s.value === e.sport)?.label, e.durationMinutes ? minutesLabel(e.durationMinutes) : null] : [];
+  return [e.kind === "entrainement" && e.sport ? null : eventKind(e.kind).label, ...training, multi ? eventDateLabel(e.startDate, e.endDate) : e.time, e.location, e.mine ? `par ${you}` : `par ${e.authorName}`]
     .filter(Boolean)
     .join(" · ");
 }

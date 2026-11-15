@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { addAvailabilityBlockAction, updateAvailabilityBlockAction } from "@/lib/actions";
 import { Button, SelectField, Field, TextAreaField, ErrorText } from "@/components/ui";
 import { AVAILABILITY_SLOT_LABELS, AVAILABILITY_SLOT_ORDER, type AvailabilitySlot } from "@/lib/time-of-day";
-import { DateRangePicker, dateRangeToList } from "@/components/date-range-picker";
+import { DaysPicker } from "@/components/days-picker";
 
 interface ExistingBlock {
   id: string;
@@ -19,15 +19,14 @@ interface ExistingBlock {
 // créé côté serveur, cf. addAvailabilityBlockAction.
 function AddAvailabilityForm({ defaultDate, onDone }: { defaultDate: string; onDone: () => void }) {
   const router = useRouter();
-  const [rangeStart, setRangeStart] = useState<string | null>(defaultDate);
-  const [rangeEnd, setRangeEnd] = useState<string | null>(defaultDate);
+  const [dates, setDates] = useState<string[]>([defaultDate]);
   const [timeOfDay, setTimeOfDay] = useState<AvailabilitySlot>("morning");
   const [error, setError] = useState<string | undefined>();
   const [pending, setPending] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!rangeStart || !rangeEnd) {
+    if (!dates.length) {
       setError("Choisissez au moins un jour.");
       return;
     }
@@ -35,7 +34,7 @@ function AddAvailabilityForm({ defaultDate, onDone }: { defaultDate: string; onD
     setError(undefined);
     const formData = new FormData(e.currentTarget);
     await addAvailabilityBlockAction({
-      dates: dateRangeToList(rangeStart, rangeEnd),
+      dates,
       timeOfDay,
       reason: String(formData.get("reason") || ""),
     });
@@ -48,14 +47,7 @@ function AddAvailabilityForm({ defaultDate, onDone }: { defaultDate: string; onD
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <div>
         <span className="mb-1.5 block text-sm font-medium text-ink-soft">Jour(s)</span>
-        <DateRangePicker
-          start={rangeStart}
-          end={rangeEnd}
-          onChange={({ start, end }) => {
-            setRangeStart(start);
-            setRangeEnd(end);
-          }}
-        />
+        <DaysPicker value={dates} onChange={setDates} />
       </div>
       <SelectField label="Créneau" name="timeOfDay" value={timeOfDay} onChange={(e) => setTimeOfDay(e.target.value as AvailabilitySlot)}>
         {AVAILABILITY_SLOT_ORDER.map((t) => (

@@ -5,13 +5,13 @@ import { createPortal } from "react-dom";
 import { DoneActivityForm, UnavailabilityForm, Segmented } from "@/components/add-forms";
 import { CalendarEventForm } from "@/components/calendar-events";
 
-// Point d'entrée depuis le calendrier : un événement (compétition, stage,
+// Point d'entrée depuis le calendrier : un entraînement prévu, un événement (compétition, stage,
 // rendez-vous… partagé avec le coach), une séance faite de son côté (hors
 // programmation du coach) ou une indisponibilité. Mêmes formulaires que
 // l'onglet + de la barre du bas.
 export function CalendarAddButton({ defaultDate }: { defaultDate: string }) {
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"event" | "activity" | "unavailable">("event");
+  const [mode, setMode] = useState<"training" | "event" | "activity" | "unavailable">("training");
   const close = () => setOpen(false);
 
   return (
@@ -41,14 +41,18 @@ export function CalendarAddButton({ defaultDate }: { defaultDate: string }) {
                   value={mode}
                   onChange={(v) => setMode(v as typeof mode)}
                   options={[
+                    { value: "training", label: "Entraînement" },
                     { value: "event", label: "Événement" },
-                    { value: "activity", label: "Séance faite" },
-                    { value: "unavailable", label: "Indisponibilité" },
+                    { value: "activity", label: "Faite" },
+                    { value: "unavailable", label: "Indispo" },
                   ]}
                 />
               </div>
-              {mode === "event" ? (
-                <CalendarEventForm defaultDate={defaultDate} onDone={close} onCancel={close} />
+              {mode === "training" ? (
+                // À venir ou habituel : visible par le coach, qui est prévenu.
+                <CalendarEventForm key="training" initialKind="entrainement" defaultDate={defaultDate} onDone={close} onCancel={close} />
+              ) : mode === "event" ? (
+                <CalendarEventForm key="event" defaultDate={defaultDate} onDone={close} onCancel={close} />
               ) : mode === "activity" ? (
                 <DoneActivityForm defaultDate={defaultDate} onDone={close} onCancel={close} />
               ) : (

@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { DoneActivityForm, HealthReportForm, JournalNoteForm, PeriodForm, UnavailabilityForm } from "./add-forms";
 import { CalendarEventForm } from "./calendar-events";
 
-type Choice = "event" | "done" | "health" | "unavailable" | "note" | "period";
+type Choice = "training" | "event" | "done" | "health" | "unavailable" | "note" | "period";
 
 const ICONS: Record<Choice, string> = {
+  training: "M3 10h3l2-5 4 10 2-5h3",
   event: "M5 17.5V3M5 3.5h10l-2.2 3.5 2.2 3.5H5",
   done: "M4.5 10.5l3.5 3.5 7.5-8",
   health: "M10 16.5s-6-3.6-6-8.2A3.3 3.3 0 0110 6.3a3.3 3.3 0 016 2c0 4.6-6 8.2-6 8.2z",
@@ -14,8 +15,9 @@ const ICONS: Record<Choice, string> = {
   note: "M13.5 3.5l3 3L7 16l-4 1 1-4z",
   period: "M10 3.5s-4.5 5-4.5 8.2a4.5 4.5 0 009 0C14.5 8.5 10 3.5 10 3.5z",
 };
-const COLORS: Record<Choice, string> = { event: "#a4492a", done: "#8a5a44", health: "#a4492a", unavailable: "#182220", note: "#1b4b4f", period: "#e8896a" };
+const COLORS: Record<Choice, string> = { training: "#3f6f6c", event: "#a4492a", done: "#8a5a44", health: "#a4492a", unavailable: "#182220", note: "#1b4b4f", period: "#e8896a" };
 const LABELS: Record<Choice, string> = {
+  training: "Un entraînement prévu",
   event: "Un événement (compétition, stage…)",
   done: "Une séance que j'ai faite",
   health: "Blessure, maladie ou état",
@@ -24,6 +26,7 @@ const LABELS: Record<Choice, string> = {
   period: "Mes règles",
 };
 const TITLES: Record<Choice, string> = {
+  training: "Nouvel entraînement",
   event: "Nouvel événement",
   done: "Séance faite",
   health: "Comment tu vas ?",
@@ -55,7 +58,7 @@ export function AddMenu({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [choice, setChoice] = useState<Choice | null>(null);
-  const choices: Choice[] = ["event", "done", "health", "unavailable", "note", ...(isFemale ? (["period"] as Choice[]) : [])];
+  const choices: Choice[] = ["training", "event", "done", "health", "unavailable", "note", ...(isFemale ? (["period"] as Choice[]) : [])];
 
   useEffect(() => {
     if (!menuOpen && !choice) return;
@@ -146,7 +149,8 @@ export function AddMenu({
                 <Icon d="M5 5l10 10M15 5L5 15" size={20} />
               </button>
             </div>
-            {choice === "event" && <CalendarEventForm defaultDate={today} onDone={close} onCancel={close} />}
+            {choice === "training" && <CalendarEventForm key="training" initialKind="entrainement" defaultDate={today} onDone={close} onCancel={close} />}
+            {choice === "event" && <CalendarEventForm key="event" defaultDate={today} onDone={close} onCancel={close} />}
             {choice === "done" && <DoneActivityForm onDone={close} />}
             {choice === "unavailable" && <UnavailabilityForm onDone={close} />}
             {choice === "note" && <JournalNoteForm defaultDate={today} onDone={close} />}

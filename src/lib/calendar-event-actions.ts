@@ -6,6 +6,7 @@ import { getCurrentUser } from "./auth";
 import { dbRun } from "./db";
 import { EVENT_KINDS } from "./calendar-event-kinds";
 import { canManageAthleteCalendar, getCalendarEvent, notifyEventChange } from "./calendar-events";
+import { consecutiveRuns } from "./day-runs";
 
 // Ajout, modification et suppression d'un événement du calendrier partagé,
 // par l'athlète ou par l'un de ses coachs (cf. src/lib/calendar-events.ts).
@@ -30,9 +31,13 @@ export interface CalendarEventInput {
   title: string;
   startDate: string;
   endDate?: string;
+  /** À la création : jours choisis un par un ; un événement par suite de jours consécutifs. */
+  dates?: string[];
   time?: string;
   location?: string;
   notes?: string;
+  sport?: string;
+  durationMinutes?: number;
 }
 
 function clean(input: CalendarEventInput) {
@@ -51,6 +56,8 @@ function clean(input: CalendarEventInput) {
     time,
     location: input.location?.trim().slice(0, 120) || null,
     notes: input.notes?.trim().slice(0, 2000) || null,
+    sport: kind === "entrainement" && input.sport ? input.sport.slice(0, 30) : null,
+    duration_minutes: kind === "entrainement" && input.durationMinutes && input.durationMinutes > 0 ? Math.min(Math.round(input.durationMinutes), 1440) : null,
   };
 }
 
@@ -76,14 +83,25 @@ export async function createCalendarEventAction(input: CalendarEventInput) {
   if (!me) throw new Error("Non autorisé.");
   const athleteId = me.role === "athlete" ? me.id : String(input.athleteId || "");
   const user = await requireManager(athleteId);
-  const e = clean(input);
-  await dbRun(
-    `INSERT INTO calendar_events (id, athlete_id, author_id, updated_by, kind, title, start_date, end_date, time, location, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [randomUUID(), athleteId, user.id, user.id, e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes]
-  );
-  await notifyEventChange(user, athleteId, "added", e);
-  revalidateCalendars(athleteId, [e.start_date, e.end_date]);
+  const days = [...new Set((input.dates?.length ? input.dates : [input.startDate]).filter((d) => DATE_RE.test(d)))].sort().slice(0, 366);
+  if (!days.length) throw new Error("Choisissez au moins un jour.");
+  // Un entraînement par jour (deux sorties = deux entraînements) ; un
+  // événement par suite de jours consécutifs (un stage de 3 jours = un seul).
+  const runs: [string, string][] = input.kind === "entrainement" ? days.map((d) => [d, d]) : consecutiveRuns(days);
+  let first: ReturnType<typeof clean> | null = null;
+  for (const [start, end] of runs) {
+    // L'heure n'a de sens que pour un seul jour : clean() l'écarte sinon.
+    const e = clean({ ...input, startDate: start, endDate: end, time: days.length === 1 ? input.time : "" });
+    first ??= e;
+    await dbRun(
+      `INSERT INTO calendar_events (id, athlete_id, author_id, updated_by, kind, title, start_date, end_date, time, location, notes, sport, duration_minutes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [randomUUID(), athleteId, user.id, user.id, e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes, e.sport, e.duration_minutes]
+    );
+  }
+  // Une seule notification, même pour plusieurs dates.
+  await notifyEventChange(user, athleteId, "added", first!, runs.length > 1 ? days : undefined);
+  revalidateCalendars(athleteId, days);
 }
 
 export async function updateCalendarEventAction(id: string, input: CalendarEventInput) {
@@ -92,9 +110,9 @@ export async function updateCalendarEventAction(id: string, input: CalendarEvent
   const user = await requireManager(row.athlete_id);
   const e = clean(input);
   await dbRun(
-    `UPDATE calendar_events SET kind = ?, title = ?, start_date = ?, end_date = ?, time = ?, location = ?, notes = ?,
+    `UPDATE calendar_events SET kind = ?, title = ?, start_date = ?, end_date = ?, time = ?, location = ?, notes = ?, sport = ?, duration_minutes = ?,
        updated_by = ?, updated_at = datetime('now') WHERE id = ?`,
-    [e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes, user.id, id]
+    [e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes, e.sport, e.duration_minutes, user.id, id]
   );
   await notifyEventChange(user, row.athlete_id, "updated", e);
   revalidateCalendars(row.athlete_id, [row.start_date, e.start_date, e.end_date]);

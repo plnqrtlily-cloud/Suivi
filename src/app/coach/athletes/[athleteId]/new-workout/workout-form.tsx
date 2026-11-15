@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createWorkoutAction, updateWorkoutAction, saveWorkoutTemplateAction, createWorkoutBulkAction, publishWorkoutAction } from "@/lib/actions";
 import { Button, ErrorText } from "@/components/ui";
-import { DateRangePicker, dateRangeToList } from "@/components/date-range-picker";
+import { DaysPicker } from "@/components/days-picker";
 import { StrengthBuilder, BlockRow, LibraryResource, sortBlocksByGroupOrder } from "./strength-builder";
 import type { IntervalItem } from "./interval-builder";
 import { StructureBuilder, toBlocs, defaultStructure, adaptStructure, type BlocItem, type StructureItem, type ZoneLabels } from "./structure-builder";
@@ -118,11 +118,11 @@ export function WorkoutForm({
   const [color, setColor] = useState(initial?.color ?? COLORS[0]);
   const [blocks, setBlocks] = useState<BlockRow[]>(initial?.blocks ?? []);
   const [links, setLinks] = useState<{ label: string; url: string }[]>(initial?.links ?? []);
-  const [rangeStart, setRangeStart] = useState<string | null>(defaultDate ?? null);
-  const [rangeEnd, setRangeEnd] = useState<string | null>(defaultDate ?? null);
-  // Filtre facultatif appliqué à la plage de dates : ex. cocher Lun/Mer/Ven sur
-  // une plage de 4 semaines pour ne créer la séance que ces jours-là plutôt que
-  // tous les jours consécutifs de la plage.
+  // Jours de la séance à créer : le jour d'où l'on vient est présélectionné,
+  // d'autres peuvent s'ajouter (jours au choix ou période).
+  const [dates, setDates] = useState<string[]>(defaultDate ? [defaultDate] : []);
+  // Filtre facultatif sur une période : ex. cocher Lun/Mer/Ven sur 4 semaines
+  // pour ne créer la séance que ces jours-là.
   const [weekdayFilter, setWeekdayFilter] = useState<number[]>([]);
   const [alsoSendTo, setAlsoSendTo] = useState<string[]>([]);
   const [error, setError] = useState<string | undefined>();
@@ -239,18 +239,17 @@ export function WorkoutForm({
       return;
     }
 
-    if (!defaultDate && (!rangeStart || !rangeEnd)) {
+    if (!dates.length) {
       setError("Choisissez au moins un jour dans le calendrier.");
       return;
     }
     setPending(true);
     setError(undefined);
-    let dates = defaultDate ? [defaultDate] : dateRangeToList(rangeStart!, rangeEnd!);
-    // N'applique le filtre que si au moins un jour est coché ET que la plage
-    // couvre plusieurs jours — sur un jour unique, le filtre n'aurait pas de sens.
-    if (weekdayFilter.length > 0 && dates.length > 1) {
-      dates = dates.filter((d) => weekdayFilter.includes(new Date(`${d}T00:00:00`).getDay()));
-      if (dates.length === 0) {
+    let chosen = dates;
+    // Filtre de jours de semaine, seulement s'il est affiché (plus d'une semaine choisie).
+    if (weekdayFilter.length > 0 && dates.length > 7) {
+      chosen = dates.filter((d) => weekdayFilter.includes(new Date(`${d}T00:00:00`).getDay()));
+      if (chosen.length === 0) {
         setError("Aucun jour de la plage sélectionnée ne correspond aux jours de semaine cochés.");
         setPending(false);
         return;
@@ -263,7 +262,7 @@ export function WorkoutForm({
         category,
         priority: String(formData.get("priority") || ""),
         title: String(formData.get("title")),
-        dates,
+        dates: chosen,
         time: String(formData.get("time") || ""),
         durationMinutes: duration ? Number(duration) : undefined,
         description: String(formData.get("description") || ""),
@@ -282,7 +281,7 @@ export function WorkoutForm({
           category,
           priority: String(formData.get("priority") || ""),
           title: String(formData.get("title")),
-          dates,
+          dates: chosen,
           time: String(formData.get("time") || ""),
           durationMinutes: duration ? Number(duration) : undefined,
           description: String(formData.get("description") || ""),
@@ -309,7 +308,8 @@ export function WorkoutForm({
     ...TIME_OF_DAY_ORDER.map((slot) => ({ value: slot as TimeMode, label: TIME_OF_DAY_LABELS[slot] })),
     { value: "precise", label: "Heure précise" },
   ];
-  const knownDate = initial?.date ?? defaultDate;
+  // En modification, la séance garde sa date (elle se déplace depuis le calendrier).
+  const knownDate = initial?.date;
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -403,9 +403,9 @@ export function WorkoutForm({
         {!knownDate && (
           <div>
             <span className="mb-1.5 block text-sm font-bold text-ink">Jour(s)</span>
-            <p className="mb-2 text-xs text-slate">Un jour pour une séance unique, ou un deuxième jour pour la répéter sur toute la période.</p>
-            <DateRangePicker start={rangeStart} end={rangeEnd} onChange={({ start, end }) => { setRangeStart(start); setRangeEnd(end); }} />
-            {rangeStart && rangeEnd && rangeStart !== rangeEnd && (
+            <p className="mb-2 text-xs text-slate">Une séance identique est créée pour chaque jour choisi.</p>
+            <DaysPicker value={dates} onChange={setDates} />
+            {dates.length > 7 && (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="text-xs font-medium text-ink-soft">Seulement certains jours :</span>
                 {[
