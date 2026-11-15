@@ -29,7 +29,7 @@ async function stripeCall(method: "GET" | "POST", path: string, params: Record<s
   const response = await fetch(`https://api.stripe.com/v1/${path}${method === "GET" && qs ? `?${qs}` : ""}`, {
     method,
     headers: {
-      Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
+      Authorization: `Bearer ${String(process.env.STRIPE_SECRET_KEY).trim()}`,
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: method === "POST" ? qs : undefined,
@@ -123,6 +123,11 @@ let setupPromise: Promise<StripeSetup> | null = null;
 export function ensureStripeSetup(baseUrl: string): Promise<StripeSetup> {
   if (!setupPromise) {
     setupPromise = (async () => {
+      // Clé copiée depuis l'aperçu masqué du Dashboard (« sk_live_… ») au lieu
+      // de la clé révélée en entier : message clair plutôt qu'une erreur HTTP.
+      if (!/^(sk|rk)_(live|test)_[A-Za-z0-9]{20,}$/.test(String(process.env.STRIPE_SECRET_KEY).trim())) {
+        throw new Error("La clé STRIPE_SECRET_KEY est incomplète : dans Stripe, clique sur « Révéler » et copie la clé entière (sans « … »).");
+      }
       const prices = await ensurePrices();
       const [webhookId, portalId] = await Promise.all([ensureWebhook(baseUrl), ensurePortal(baseUrl, prices)]);
       return { prices, webhookId, portalId, livemode: !String(process.env.STRIPE_SECRET_KEY).includes("_test_") };
