@@ -20,6 +20,7 @@ import {
   getTrainingPeriods,
   getCheckinsForRange,
   getCoachNoteEntries,
+  getCoachNotes,
   getPersonalRecordsForAthlete,
   getUnreadMessageCount,
   getLastUnreadMessage,
@@ -71,6 +72,7 @@ import { BodyMeasures } from "./body-measures";
 import { HealthTab, type InjuryView } from "./health-tab";
 import { NotesTab } from "./notes-tab";
 import { AthleteProfileEdit } from "./athlete-profile-edit";
+import { InterviewPanel } from "./interview-panel";
 import { ExerciseMaxesPanel } from "./exercise-maxes-panel";
 import { MeasurementsHistory } from "./measurements-history";
 
@@ -403,6 +405,7 @@ export default async function AthleteDetailPage({
     : null;
 
   const sportsLine = athleteSports.map((s: string) => sportLabel(s)).join(" · ");
+  const interviewNotes = await getCoachNotes(user.id, athleteId);
 
   return (
     <div className="flex min-h-screen bg-paper">
@@ -430,7 +433,12 @@ export default async function AthleteDetailPage({
                     </span>
                   ))}
                 </p>
-                <AthleteProfileEdit athleteId={athleteId} gender={athleteGender ?? null} sports={athleteSports} />
+                <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <AthleteProfileEdit athleteId={athleteId} gender={athleteGender ?? null} sports={athleteSports} />
+                  <Link href={`/coach/athletes/${athleteId}?tab=notes#entretien`} className="text-[13px] font-semibold text-moss-dark hover:underline">
+                    {interviewNotes && (interviewNotes.context || interviewNotes.objectives || interviewNotes.constraints || interviewNotes.strengths || interviewNotes.weaknesses) ? "Voir l'entretien" : "Renseigner l'entretien"}
+                  </Link>
+                </span>
               </div>
             </div>
             <Link
@@ -522,6 +530,11 @@ export default async function AthleteDetailPage({
               ),
               notes: (
                 <NotesTab
+                  interview={
+                    <div id="entretien" className="scroll-mt-4">
+                      <InterviewPanel athleteId={athleteId} firstName={firstName} notes={interviewNotes ?? null} />
+                    </div>
+                  }
                   athleteId={athleteId}
                   entries={coachNoteEntries}
                   profile={

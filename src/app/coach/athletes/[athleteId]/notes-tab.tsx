@@ -163,15 +163,18 @@ export function NotesTab({
   entries,
   profile,
   footer,
+  interview,
 }: {
   athleteId: string;
   entries: CoachNoteEntry[];
   profile?: React.ReactNode;
   footer?: React.ReactNode;
+  interview?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-6">
       <TabHeader title="Notes" />
+      {interview}
       {profile}
       <Journal athleteId={athleteId} entries={entries} />
       {footer}
