@@ -581,6 +581,26 @@ CREATE TABLE IF NOT EXISTS effort_test_results (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_effort_test_results_athlete ON effort_test_results(athlete_id);
+-- Événements du calendrier (compétition, stage, rendez-vous…), partagés entre
+-- l'athlète et ses coachs : chacun peut en ajouter, modifier ou supprimer, et
+-- l'autre partie est notifiée (cf. src/lib/calendar-events.ts). Distincts des
+-- séances (workouts), qui restent la programmation du coach.
+CREATE TABLE IF NOT EXISTS calendar_events (
+  id TEXT PRIMARY KEY,
+  athlete_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  author_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  kind TEXT NOT NULL DEFAULT 'autre',
+  title TEXT NOT NULL,
+  start_date TEXT NOT NULL,
+  end_date TEXT NOT NULL,
+  time TEXT,
+  location TEXT,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_athlete ON calendar_events(athlete_id, start_date);
 `;
 
 let initialized: Promise<void> | null = null;

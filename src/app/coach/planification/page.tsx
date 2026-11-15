@@ -1,3 +1,4 @@
+import { AutoRefresh } from "@/components/auto-refresh";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { dbAll } from "@/lib/db";
@@ -81,6 +82,7 @@ export default async function PlanificationPage() {
         <div className="lg:hidden">
           <Nav user={user} />
         </div>
+        <AutoRefresh />
         <main className="mx-auto max-w-[1360px] px-4 py-8 sm:px-6">
           <PlanningBoard athletes={athletes} items={items} blocks={blocks} start={start} days={7 * WEEKS_TOTAL} today={today} />
         </main>

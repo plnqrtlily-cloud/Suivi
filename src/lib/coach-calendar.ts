@@ -1,6 +1,8 @@
 // Chargement du calendrier coach (vue semaine ou mois) : toutes les requêtes
 // de la période en une fois, puis mise en forme dans CoachCalendarData.
 
+import { getCalendarEvents } from "./calendar-events";
+import { eventsOn } from "./calendar-event-kinds";
 import {
   getWorkoutsForAthlete,
   getImportedActivitiesForRange,
@@ -168,12 +170,13 @@ export async function loadCalendarWeeks(params: {
   );
   const to = weeksDates[weeksDates.length - 1][6].date;
 
-  const [workouts, imports, blocks, checkins, periods] = await Promise.all([
+  const [workouts, imports, blocks, checkins, periods, events] = await Promise.all([
     getWorkoutsForAthlete(athleteId, from, to, true),
     getImportedActivitiesForRange(athleteId, from, to),
     getAvailabilityBlocksForRange(athleteId, from, to),
     getCheckinsForRange(athleteId, from, to),
     getTrainingPeriods(athleteId),
+    getCalendarEvents([athleteId], from, to, coachId),
   ]);
   const ids = workouts.map((w) => w.id);
   const strengthIds = workouts.filter((w) => w.sport === "strength").map((w) => w.id);
@@ -285,6 +288,7 @@ export async function loadCalendarWeeks(params: {
           reason: b.reason,
           createdByMe: b.created_by === coachId,
         })),
+      events: eventsOn(events, date),
       forme:
         c && score != null
           ? {

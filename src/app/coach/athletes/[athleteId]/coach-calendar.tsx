@@ -21,6 +21,8 @@ import {
 import type { CoachCalendarData, CalDay, CalEntry, CalWeek, EntryStatus } from "@/lib/coach-calendar-types";
 import { CYCLE_DAY_STYLE } from "@/lib/cycle-types";
 import { WorkoutStructure } from "@/components/workout-structure";
+import { CalendarEventForm, EventDetail, EventFlag } from "@/components/calendar-events";
+import { eventKind, eventSubtitle, type CalendarEventView } from "@/lib/calendar-event-kinds";
 
 // Calendrier coach : défilement continu, jour après jour en vue semaine et
 // semaine après semaine en vue mois (d'autres semaines se chargent au fil du
@@ -66,10 +68,13 @@ const SPORTS = [
   { value: "other", label: "Divers" },
 ];
 
+type AddMode = "event" | "done" | "todo" | "unavailable";
+
 type Panel =
   | { type: "day"; date: string }
   | { type: "entry"; id: string }
-  | { type: "add"; date: string; mode: "done" | "todo" | "unavailable" }
+  | { type: "event"; id: string }
+  | { type: "add"; date: string; mode: AddMode }
   | { type: "copy" }
   | null;
 
@@ -160,6 +165,14 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
     for (const d of allDays) {
       const e = d.entries.find((x) => x.id === id);
       if (e) return { entry: e, day: d };
+    }
+    return null;
+  };
+
+  const findEvent = (id: string): CalendarEventView | null => {
+    for (const d of allDays) {
+      const e = d.events.find((x) => x.id === id);
+      if (e) return e;
     }
     return null;
   };
@@ -600,6 +613,7 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
                 setHoverForme={setHoverForme}
                 onOpenDay={() => open({ type: "day", date: d.date })}
                 onOpenEntry={(id) => open({ type: "entry", id })}
+                onOpenEvent={(id) => open({ type: "event", id })}
                 onAdd={() => open({ type: "add", date: d.date, mode: d.date <= data.today ? "done" : "todo" })}
               />
             ))}
@@ -617,6 +631,7 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
             setPopWeek={setPopWeek}
             onOpenDay={(date) => open({ type: "day", date })}
             onOpenEntry={(id) => open({ type: "entry", id })}
+            onOpenEvent={(id) => open({ type: "event", id })}
           />
         )}
 
@@ -681,7 +696,29 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
               <button type="button" onClick={() => setPanel(null)} aria-label="Fermer" className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-full bg-paper text-ink-soft">
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M5 5l10 10M15 5L5 15" /></svg>
               </button>
-              {panel.type === "day" && <DayPanel day={allDays.find((d) => d.date === panel.date)} weeks={weeks} data={data} onOpenEntry={(id) => open({ type: "entry", id })} onDelete={(kind, id) => run(() => coachDeleteEntryAction(kind, id), "Supprimé")} />}
+              {panel.type === "day" && (
+                <DayPanel
+                  day={allDays.find((d) => d.date === panel.date)}
+                  weeks={weeks}
+                  data={data}
+                  onOpenEntry={(id) => open({ type: "entry", id })}
+                  onOpenEvent={(id) => open({ type: "event", id })}
+                  onAddEvent={() => open({ type: "add", date: panel.date, mode: "event" })}
+                  onDelete={(kind, id) => run(() => coachDeleteEntryAction(kind, id), "Supprimé")}
+                />
+              )}
+              {panel.type === "event" && (() => {
+                const ev = findEvent(panel.id);
+                if (!ev) return <p className="text-sm text-slate">Cet événement n&apos;est plus dans la période affichée.</p>;
+                return (
+                  <div>
+                    <PanelHead date={longDate(ev.startDate)} title="Événement" />
+                    <div className="max-w-xl">
+                      <EventDetail key={ev.id} event={ev} you="vous" athleteId={data.athleteId} onClose={() => setPanel(null)} onChanged={() => setToast("Événement mis à jour")} />
+                    </div>
+                  </div>
+                );
+              })()}
               {panel.type === "entry" && (() => {
                 const f = findEntry(panel.id);
                 if (!f) return <p className="text-sm text-slate">Cette entrée n&apos;est plus dans la période affichée.</p>;
@@ -726,6 +763,11 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
                   mode={panel.mode}
                   setMode={(mode) => setPanel({ ...panel, mode })}
                   pending={pending}
+                  onEventDone={() => {
+                    setToast("Événement ajouté · notification envoyée");
+                    setPanel({ type: "day", date: panel.date });
+                    router.refresh();
+                  }}
                   onActivity={(fd) => run(() => coachAddActivityAction(data.athleteId, fd), "Séance faite ajoutée", () => setPanel({ type: "day", date: panel.date }))}
                   onUnavailable={(timeOfDay, reason) =>
                     run(() => coachAddAvailabilityBlockAction({ athleteId: data.athleteId, dates: [panel.date], timeOfDay, reason }), "Indisponibilité ajoutée", () => setPanel({ type: "day", date: panel.date }))
@@ -838,6 +880,7 @@ function DayCard({
   setHoverForme,
   onOpenDay,
   onOpenEntry,
+  onOpenEvent,
   onAdd,
 }: {
   day: CalDay;
@@ -846,10 +889,11 @@ function DayCard({
   setHoverForme: (d: string | null) => void;
   onOpenDay: () => void;
   onOpenEntry: (id: string) => void;
+  onOpenEvent: (id: string) => void;
   onAdd: () => void;
 }) {
   const isSel = (selected?.type === "day" && selected.date === day.date) || (selected?.type === "add" && selected.date === day.date);
-  const empty = day.entries.length + day.blocks.length === 0;
+  const empty = day.entries.length + day.blocks.length + day.events.length === 0;
   return (
     <div
       data-date={day.date}
@@ -867,6 +911,9 @@ function DayCard({
         <FormeLine day={day} hoverForme={hoverForme} setHoverForme={setHoverForme} />
         <CycleLine day={day} />
       </div>
+      {day.events.map((ev) => (
+        <EventChip key={ev.id} ev={ev} on={selected?.type === "event" && selected.id === ev.id} onClick={() => onOpenEvent(ev.id)} />
+      ))}
       {day.entries.map((e) => {
         const on = selected?.type === "entry" && selected.id === e.id;
         return (
@@ -899,6 +946,25 @@ function DayCard({
   );
 }
 
+// Événement partagé dans une carte de jour (vue semaine) : bandeau coloré par type.
+function EventChip({ ev, on, onClick }: { ev: CalendarEventView; on: boolean; onClick: () => void }) {
+  const color = eventKind(ev.kind).color;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-start gap-1.5 rounded-lg px-2 py-1.5 text-left transition-colors"
+      style={{ background: on ? `${color}2e` : `${color}17`, boxShadow: on ? `inset 0 0 0 1.5px ${color}` : undefined }}
+    >
+      <span className="mt-px"><EventFlag kind={ev.kind} size={14} /></span>
+      <span className="min-w-0">
+        <span className="block text-[12.5px] font-bold leading-snug text-ink">{ev.title}</span>
+        <span className="block text-[11.5px] leading-snug" style={{ color }}>{eventKind(ev.kind).label}{ev.time ? ` · ${ev.time}` : ""}{ev.mine ? "" : ` · ${ev.authorName}`}</span>
+      </span>
+    </button>
+  );
+}
+
 function MonthScroller({
   scrollerRef,
   headRef,
@@ -910,6 +976,7 @@ function MonthScroller({
   setPopWeek,
   onOpenDay,
   onOpenEntry,
+  onOpenEvent,
 }: {
   scrollerRef: React.RefObject<HTMLDivElement | null>;
   headRef: React.RefObject<HTMLDivElement | null>;
@@ -921,6 +988,7 @@ function MonthScroller({
   setPopWeek: (w: string | null) => void;
   onOpenDay: (date: string) => void;
   onOpenEntry: (id: string) => void;
+  onOpenEvent: (id: string) => void;
 }) {
   const cols = "grid grid-cols-7 gap-1 sm:grid-cols-[repeat(7,minmax(0,1fr))_180px] sm:gap-1.5";
   return (
@@ -956,6 +1024,19 @@ function MonthScroller({
                     </div>
                     <span className="hidden sm:contents"><CycleLine day={d} compact /></span>
                     {/* Téléphone : une petite barre par séance, le détail s'ouvre en touchant le jour. */}
+                    {d.events.length > 0 && (
+                      <span className="flex flex-col gap-0.5 sm:hidden">
+                        {d.events.map((ev) => (
+                          <span key={ev.id} className="truncate rounded px-1 text-[10px] font-bold leading-[15px] text-white" style={{ background: eventKind(ev.kind).color }}>{ev.title}</span>
+                        ))}
+                      </span>
+                    )}
+                    {d.events.map((ev) => (
+                      <button key={ev.id} type="button" onClick={() => onOpenEvent(ev.id)} className="hidden items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-left text-[12px] font-bold sm:flex" style={{ background: `${eventKind(ev.kind).color}1a`, color: eventKind(ev.kind).color }}>
+                        <EventFlag kind={ev.kind} size={12} />
+                        <span className="truncate text-ink">{ev.title}</span>
+                      </button>
+                    ))}
                     {d.entries.length > 0 && (
                       <span className="flex flex-wrap gap-0.5 sm:hidden">
                         {d.entries.map((e) => (
@@ -1057,7 +1138,23 @@ function PanelHead({ date, title, children }: { date: string; title: string; chi
 const pill = "rounded-full border border-line bg-white px-4 py-2 text-[13.5px] font-semibold text-moss transition-colors hover:bg-paper disabled:opacity-50";
 const pillMain = "rounded-full bg-moss px-4 py-2 text-[13.5px] font-semibold text-white transition-opacity disabled:opacity-50";
 
-function DayPanel({ day, weeks, data, onOpenEntry, onDelete }: { day?: CalDay; weeks: CalWeek[]; data: CoachCalendarData; onOpenEntry: (id: string) => void; onDelete: (kind: "activity" | "availability", id: string) => void }) {
+function DayPanel({
+  day,
+  weeks,
+  data,
+  onOpenEntry,
+  onOpenEvent,
+  onAddEvent,
+  onDelete,
+}: {
+  day?: CalDay;
+  weeks: CalWeek[];
+  data: CoachCalendarData;
+  onOpenEntry: (id: string) => void;
+  onOpenEvent: (id: string) => void;
+  onAddEvent: () => void;
+  onDelete: (kind: "activity" | "availability", id: string) => void;
+}) {
   if (!day) return null;
   const f = day.forme;
   return (
@@ -1065,7 +1162,21 @@ function DayPanel({ day, weeks, data, onOpenEntry, onDelete }: { day?: CalDay; w
       <PanelHead date={`Semaine ${weeks.find((w) => w.days.includes(day))?.number ?? ""}`} title={longDate(day.date)} />
       <div className="grid gap-7 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="flex flex-col gap-3">
-          <b className="text-sm text-ink">Séances et activités</b>
+          <div className="flex items-center gap-3">
+            <b className="text-sm text-ink">Événements</b>
+            <button type="button" onClick={onAddEvent} className="text-[13px] font-semibold text-moss hover:underline">+ Ajouter</button>
+          </div>
+          {day.events.length === 0 && <p className="-mt-1 text-[13px] text-slate">Aucun événement (compétition, stage, rendez-vous…).</p>}
+          {day.events.map((ev) => (
+            <button key={ev.id} type="button" onClick={() => onOpenEvent(ev.id)} className="flex items-center gap-2.5 border-l-[3px] py-1 pl-3 text-left" style={{ borderLeftColor: eventKind(ev.kind).color }}>
+              <EventFlag kind={ev.kind} size={16} />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-ink">{ev.title}</span>
+                <span className="mt-0.5 block text-[13px] text-ink-soft">{eventSubtitle(ev, "vous")}</span>
+              </span>
+            </button>
+          ))}
+          <b className="mt-2 text-sm text-ink">Séances et activités</b>
           {day.entries.length === 0 && day.blocks.length === 0 && <p className="text-[13.5px] text-slate">Rien de prévu ce jour-là.</p>}
           {day.entries.map((e) => (
             <button key={e.id} type="button" onClick={() => onOpenEntry(e.id)} className="py-1 pl-3 text-left" style={{ borderLeft: e.isGoal ? "3px solid #a4492a" : BAR[e.status] }}>
@@ -1511,14 +1622,16 @@ function AddPanel({
   mode,
   setMode,
   pending,
+  onEventDone,
   onActivity,
   onUnavailable,
 }: {
   data: CoachCalendarData;
   date: string;
-  mode: "done" | "todo" | "unavailable";
-  setMode: (m: "done" | "todo" | "unavailable") => void;
+  mode: AddMode;
+  setMode: (m: AddMode) => void;
   pending: boolean;
+  onEventDone: () => void;
   onActivity: (fd: FormData) => void;
   onUnavailable: (timeOfDay: string, reason: string) => void;
 }) {
@@ -1528,12 +1641,13 @@ function AddPanel({
   const input = "rounded-[10px] border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink";
   return (
     <div>
-      <PanelHead date={longDate(date)} title={mode === "unavailable" ? "Nouvelle indisponibilité" : mode === "done" ? "Séance déjà faite" : "Nouvelle séance"} />
+      <PanelHead date={longDate(date)} title={mode === "event" ? "Nouvel événement" : mode === "unavailable" ? "Nouvelle indisponibilité" : mode === "done" ? "Séance déjà faite" : "Nouvelle séance"} />
       <div className="mb-5 flex self-start">
         <div className="flex rounded-full bg-paper-dim p-[3px]">
           {([
-            ["done", "Séance faite"],
             ["todo", "Séance à faire"],
+            ["done", "Séance faite"],
+            ["event", "Événement"],
             ["unavailable", "Indisponibilité"],
           ] as const).map(([m, l]) => (
             <button key={m} type="button" onClick={() => setMode(m)} className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${mode === m ? "bg-white text-ink shadow-sm" : "text-slate"}`}>
@@ -1542,6 +1656,13 @@ function AddPanel({
           ))}
         </div>
       </div>
+
+      {mode === "event" && (
+        <div className="max-w-xl">
+          <p className="mb-4 text-[13px] text-slate">Compétition, stage, rendez-vous… visible aussi par {data.athleteName}, qui est prévenu par une notification.</p>
+          <CalendarEventForm athleteId={data.athleteId} defaultDate={date} onDone={onEventDone} />
+        </div>
+      )}
 
       {mode === "done" && (
         future ? (

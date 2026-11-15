@@ -50,6 +50,9 @@ export interface PlanBlock {
   athleteId: string;
   date: string;
   label: string;
+  /** Événement partagé (compétition, stage…) : couleur et type. Absent pour une indisponibilité. */
+  color?: string;
+  kindLabel?: string;
 }
 
 const COLOR: Record<PlanStatus, string> = { done: "#1b4b4f", part: "#e8896a", miss: "#9aa39c", todo: "#1b4b4f", goal: "#a4492a" };
@@ -648,11 +651,19 @@ export function PlanningBoard({
                                     + {list.length - shown.length} autre{list.length - shown.length > 1 ? "s" : ""}
                                   </span>
                                 )}
-                                {block && (
+                                {block && block.color ? (
+                                  <span
+                                    title={`${block.kindLabel} · ${block.label}`}
+                                    className="shrink-0 truncate rounded-md px-1.5 py-[3px] text-[10.5px] font-bold leading-tight"
+                                    style={{ background: `${block.color}1f`, color: block.color }}
+                                  >
+                                    ⚑ {block.label}
+                                  </span>
+                                ) : block ? (
                                   <span className="shrink-0 truncate rounded-md bg-[repeating-linear-gradient(135deg,#f3ece6_0,#f3ece6_6px,#faf6f2_6px,#faf6f2_12px)] px-1.5 py-[3px] text-[10.5px] leading-tight text-[#7a6a5c]">
                                     {block.label}
                                   </span>
-                                )}
+                                ) : null}
                               </div>
                             );
                           })}

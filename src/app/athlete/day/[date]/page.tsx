@@ -10,6 +10,9 @@ import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, TIME_OF_DAY_HINTS, groupByTimeOf
 import { todayISO } from "@/lib/dates";
 import { classifyHr } from "@/lib/hr-zones";
 import { DeleteAvailabilityButton } from "@/components/delete-availability-button";
+import { AddEventButton, EventRow } from "@/components/calendar-events";
+import { AutoRefresh } from "@/components/auto-refresh";
+import { getCalendarEvents } from "@/lib/calendar-events";
 import { EditAvailabilityModal } from "@/components/availability-modal";
 import { EditImportedActivityModal, DeleteImportedActivityButton } from "@/components/imported-activity-modal";
 import { RouteMap } from "@/components/route-map";
@@ -37,12 +40,13 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
   const { date } = await params;
   if (!DATE_RE.test(date)) notFound();
 
-  const [workouts, imports, checkin, blocks, latest] = await Promise.all([
+  const [workouts, imports, checkin, blocks, latest, events] = await Promise.all([
     getWorkoutsForAthlete(user.id, date, date),
     getImportedActivitiesForRange(user.id, date, date),
     getCheckinForDate(user.id, date),
     getAvailabilityBlocksForRange(user.id, date, date),
     getLatestMeasurements(user.id),
+    getCalendarEvents([user.id], date, date, user.id),
   ]);
   const today = todayISO();
   const isToday = date === today;
@@ -153,6 +157,7 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
   return (
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
+      <AutoRefresh />
       <main className="mx-auto max-w-3xl px-4 sm:px-6 py-10">
         <Link href="/athlete/programmation" className="mb-4 inline-block text-sm text-moss-dark hover:underline">
           ← Retour au calendrier
@@ -160,6 +165,22 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
         <h1 className="mb-1 font-display text-3xl capitalize text-ink">{formattedDate}</h1>
         {isToday && <p className="mb-6 text-sm text-moss-dark">Aujourd&apos;hui</p>}
         {!isToday && <div className="mb-6" />}
+
+        <section className="mb-8">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="font-display text-xl text-ink">Événements</h2>
+            <AddEventButton defaultDate={date} label="Ajouter" />
+          </div>
+          {events.length ? (
+            <div className="flex flex-col gap-2">
+              {events.map((e) => (
+                <EventRow key={e.id} event={e} you="toi" />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-slate">Compétition, stage, rendez-vous… ton coach voit ce que tu ajoutes ici.</p>
+          )}
+        </section>
 
         <section className="mb-8">
           <h2 className="mb-3 font-display text-xl text-ink">Séances &amp; activités</h2>

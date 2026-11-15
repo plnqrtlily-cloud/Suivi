@@ -19,6 +19,10 @@ import { EditAvailabilityModal } from "@/components/availability-modal";
 import { EditImportedActivityModal, DeleteImportedActivityButton } from "@/components/imported-activity-modal";
 import { CalendarAddButton } from "./calendar-add-button";
 import { ContinuousScroll } from "@/components/continuous-scroll";
+import { EventRow } from "@/components/calendar-events";
+import { AutoRefresh } from "@/components/auto-refresh";
+import { getCalendarEvents } from "@/lib/calendar-events";
+import { eventKind, eventsOn, type CalendarEventView } from "@/lib/calendar-event-kinds";
 import { Chip, SportIcon, durationLabel, isGoal, statusKey } from "../athlete-ui";
 
 const DAY_SHORT = ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"];
@@ -89,6 +93,7 @@ function DayItems({
   workouts,
   imports,
   blocks,
+  events,
   muted = false,
 }: {
   date: string;
@@ -96,6 +101,7 @@ function DayItems({
   workouts: Workout[];
   imports: ImportedActivity[];
   blocks: AvailabilityBlock[];
+  events: CalendarEventView[];
   muted?: boolean;
 }) {
   const ws = sortByTime(
@@ -109,6 +115,9 @@ function DayItems({
   const bs = blocks.filter((b) => b.date === date);
   return (
     <>
+      {eventsOn(events, date).map((e) => (
+        <EventRow key={e.id} event={e} you="toi" />
+      ))}
       {bs.map((b) => (
         <div key={b.id} className="flex items-center gap-2 rounded-xl bg-ink px-3 py-2.5 text-[13px] text-white">
           <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
@@ -201,6 +210,7 @@ export default async function ProgrammationPage({
   return (
     <div className="min-h-screen bg-[#f2f4f3]">
       <Nav user={user} />
+      <AutoRefresh />
       <main className="mx-auto flex max-w-xl flex-col pb-28 lg:pb-10">
         {/* En-tête fixe : les semaines/mois défilent en continu dessous. */}
         <div data-sticky-head className="sticky top-0 z-20 bg-[#f2f4f3]">
@@ -244,11 +254,12 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
   const weeks = Array.from({ length: hi - lo + 1 }, (_, i) => getWeekDates(lo + i));
   const from = weeks[0][0];
   const to = weeks[weeks.length - 1][6];
-  const [workouts, imports, blocks, periods] = await Promise.all([
+  const [workouts, imports, blocks, periods, events] = await Promise.all([
     getWorkoutsForAthlete(athleteId, from, to),
     getImportedActivitiesForRange(athleteId, from, to),
     getAvailabilityBlocksForRange(athleteId, from, to),
     getTrainingPeriodsForRange(athleteId, from, to),
+    getCalendarEvents([athleteId], from, to, athleteId),
   ]);
 
   const range = (a: number, b: number) => `/athlete/programmation?view=week&week=${offset}&from=${a}&to=${b}`;
@@ -279,7 +290,10 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
               const isToday = date === today;
               const total = dayMinutes(date, workouts, imports);
               const has =
-                workouts.some((w) => w.date === date) || imports.some((a) => a.activity_date === date) || blocks.some((b) => b.date === date);
+                workouts.some((w) => w.date === date) ||
+                imports.some((a) => a.activity_date === date) ||
+                blocks.some((b) => b.date === date) ||
+                eventsOn(events, date).length > 0;
               return (
                 <div key={date} className={`flex gap-3 ${date < today ? "opacity-80" : ""}`}>
                   <Link href={`/athlete/day/${date}`} className="flex w-10 flex-shrink-0 flex-col items-center gap-0.5 pt-1">
@@ -293,7 +307,7 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
                   <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-b border-paper-dim pb-3">
                     <div className="flex min-h-1 justify-end">{total > 0 && <span className="text-xs font-semibold text-slate">{durationLabel(total)}</span>}</div>
                     {has ? (
-                      <DayItems date={date} today={today} workouts={workouts} imports={imports} blocks={blocks} />
+                      <DayItems date={date} today={today} workouts={workouts} imports={imports} blocks={blocks} events={events} />
                     ) : (
                       <span className="py-1.5 text-[13px] text-slate">Repos</span>
                     )}
@@ -359,12 +373,16 @@ async function MonthView({
 
   const from = grids[0].grid[0].date;
   const to = grids[grids.length - 1].grid[41].date;
-  const [workouts, imports, blocks] = await Promise.all([
+  const [workouts, imports, blocks, events] = await Promise.all([
     getWorkoutsForAthlete(athleteId, from, to),
     getImportedActivitiesForRange(athleteId, from, to),
     getAvailabilityBlocksForRange(athleteId, from, to),
+    getCalendarEvents([athleteId], from, to, athleteId),
   ]);
 
+  // Les événements sont marqués d'un petit trait (et non d'un point) pour ne
+  // pas se confondre avec les séances.
+  const dashes = (date: string) => eventsOn(events, date).slice(0, 2).map((e) => eventKind(e.kind).color);
   const dots = (date: string) => {
     const out: string[] = [];
     for (const w of workouts.filter((x) => x.date === date)) {
@@ -379,7 +397,11 @@ async function MonthView({
   const range = (a: string, b: string) => `/athlete/programmation?view=month&month=${anchor}&from=${a}&to=${b}${dayParam ? `&day=${dayParam}` : ""}`;
   const selDate = new Date(`${selected}T00:00:00`);
   const selTotal = dayMinutes(selected, workouts, imports);
-  const selHas = workouts.some((w) => w.date === selected) || imports.some((a) => a.activity_date === selected) || blocks.some((b) => b.date === selected);
+  const selHas =
+    workouts.some((w) => w.date === selected) ||
+    imports.some((a) => a.activity_date === selected) ||
+    blocks.some((b) => b.date === selected) ||
+    eventsOn(events, selected).length > 0;
 
   return (
     <div className="flex flex-col">
@@ -402,6 +424,7 @@ async function MonthView({
                   {grid.map((c) => {
                     const sel = c.inMonth && c.date === selected;
                     const ds = c.inMonth ? dots(c.date) : [];
+                    const es = c.inMonth ? dashes(c.date) : [];
                     return (
                       <Link
                         key={c.date}
@@ -419,7 +442,10 @@ async function MonthView({
                           {c.day}
                         </span>
                         <span className="flex h-1.5 gap-0.5">
-                          {ds.map((col, i) => (
+                          {es.map((col, i) => (
+                            <span key={`e${i}`} className="h-1.5 w-3 rounded-full" style={{ background: col }} />
+                          ))}
+                          {ds.slice(0, es.length ? 2 : 4).map((col, i) => (
                             <span key={i} className="h-1.5 w-1.5 rounded-full" style={{ background: col }} />
                           ))}
                         </span>
@@ -429,6 +455,10 @@ async function MonthView({
                 </div>
                 {hasSel && (
                   <div className="flex flex-wrap gap-x-3 gap-y-1 px-1 pb-2 text-[11.5px] text-slate">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-1.5 w-3 rounded-full" style={{ background: eventKind("competition").color }} />
+                      Événement
+                    </span>
                     {[
                       [DOT.planned, "Séance prévue"],
                       [DOT.done, "Ajoutée par toi"],
@@ -454,7 +484,7 @@ async function MonthView({
                     {selTotal > 0 && <span className="text-[12.5px] text-slate">{durationLabel(selTotal)}</span>}
                   </div>
                   {selHas ? (
-                    <DayItems date={selected} today={today} workouts={workouts} imports={imports} blocks={blocks} muted />
+                    <DayItems date={selected} today={today} workouts={workouts} imports={imports} blocks={blocks} events={events} muted />
                   ) : (
                     <p className="py-2 text-sm text-slate">Rien de prévu ce jour-là.</p>
                   )}

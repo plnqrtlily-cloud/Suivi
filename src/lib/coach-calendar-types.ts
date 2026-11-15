@@ -2,6 +2,7 @@
 // client n'a plus qu'à les afficher. Fichier sans import serveur.
 
 import type { CycleDay } from "./cycle-types";
+import type { CalendarEventView } from "./calendar-event-kinds";
 
 /**
  * todo : à faire · noreport : date passée sans retour de l'athlète ·
@@ -79,6 +80,8 @@ export interface CalDay {
   isPast: boolean;
   entries: CalEntry[];
   blocks: CalBlock[];
+  /** Événements partagés (compétition, stage…) qui couvrent ce jour. */
+  events: CalendarEventView[];
   forme: CalForme | null;
   cycle: CycleDay | null;
 }

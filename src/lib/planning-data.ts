@@ -3,6 +3,8 @@
 import { dbAll } from "./db";
 import { loadWorkoutsForAthletes } from "./dashboard-batch";
 import { sportLabelPlain } from "./sport-labels";
+import { getCalendarEvents } from "./calendar-events";
+import { eventKind } from "./calendar-event-kinds";
 import type { PlanItem, PlanBlock, PlanStatus } from "@/app/coach/planification/planning-board";
 
 function planStatus(status: string, date: string, today: string): PlanStatus {
@@ -28,7 +30,7 @@ const TIME_OF_DAY: Record<string, string> = {
 };
 
 export async function loadPlanningRange(coachId: string, ids: string[], start: string, end: string, today: string) {
-  const [workoutsMap, blockRows] = await Promise.all([
+  const [workoutsMap, blockRows, events] = await Promise.all([
     loadWorkoutsForAthletes(ids, start, end),
     ids.length
       ? dbAll<{ id: string; athlete_id: string; date: string; time_of_day: string; reason: string | null }>(
@@ -36,6 +38,7 @@ export async function loadPlanningRange(coachId: string, ids: string[], start: s
           [...ids, start, end]
         )
       : Promise.resolve([]),
+    getCalendarEvents(ids, start, end, coachId),
   ]);
   const items: PlanItem[] = [];
   for (const id of ids) {
@@ -63,5 +66,19 @@ export async function loadPlanningRange(coachId: string, ids: string[], start: s
     date: b.date,
     label: ["Indispo", TIME_OF_DAY[b.time_of_day], b.reason].filter(Boolean).join(" · "),
   }));
-  return { items, blocks, workoutsMap };
+  // Événements partagés (compétition, stage…) : un repère coloré chaque jour
+  // qu'ils couvrent, placé avant l'indisponibilité éventuelle du même jour.
+  const eventBlocks: PlanBlock[] = [];
+  for (const e of events) {
+    for (let d = e.startDate < start ? start : e.startDate; d <= e.endDate && d <= end; d = nextDay(d)) {
+      eventBlocks.push({ id: `${e.id}|${d}`, athleteId: e.athleteId, date: d, label: e.title, color: eventKind(e.kind).color, kindLabel: eventKind(e.kind).label });
+    }
+  }
+  return { items, blocks: [...eventBlocks, ...blocks], workoutsMap };
+}
+
+function nextDay(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const x = new Date(y, m - 1, d + 1);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
 }

@@ -1,3 +1,4 @@
+import { AutoRefresh } from "@/components/auto-refresh";
 import { dbAll } from "@/lib/db";
 import { TEAMS_ENABLED } from "@/lib/features";
 import { redirect, notFound } from "next/navigation";
@@ -416,6 +417,7 @@ export default async function AthleteDetailPage({
         <div className="lg:hidden">
           <Nav user={user} />
         </div>
+        <AutoRefresh />
         <main className="mx-auto max-w-[1360px] px-4 py-8 sm:px-6">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">

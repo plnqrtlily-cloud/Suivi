@@ -1,3 +1,6 @@
+import { AddEventButton, EventRow } from "@/components/calendar-events";
+import { AutoRefresh } from "@/components/auto-refresh";
+import { getCalendarEvents } from "@/lib/calendar-events";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser, isCoachLinkedToAthlete, findUserById } from "@/lib/auth";
@@ -49,11 +52,12 @@ export default async function CoachAthleteDayPage({ params }: { params: Promise<
   const athlete = await findUserById(athleteId);
   if (!athlete) notFound();
 
-  const [workouts, imports, blocks, latest] = await Promise.all([
+  const [workouts, imports, blocks, latest, events] = await Promise.all([
     getWorkoutsForAthlete(athleteId, date, date),
     getImportedActivitiesForRange(athleteId, date, date),
     getAvailabilityBlocksForRange(athleteId, date, date),
     getLatestMeasurements(athleteId),
+    getCalendarEvents([athleteId], date, date, user.id),
   ]);
   const today = todayISO();
   const isToday = date === today;
@@ -161,6 +165,7 @@ export default async function CoachAthleteDayPage({ params }: { params: Promise<
         <div className="lg:hidden">
           <Nav user={user} />
         </div>
+      <AutoRefresh />
       <main className="mx-auto max-w-3xl px-4 sm:px-6 py-10">
         <Link href={`/coach/athletes/${athleteId}`} className="mb-4 inline-block text-sm text-moss-dark hover:underline">
           ← Retour à {athlete.first_name}
@@ -168,6 +173,22 @@ export default async function CoachAthleteDayPage({ params }: { params: Promise<
         <h1 className="mb-1 font-display text-3xl capitalize text-ink">{formattedDate}</h1>
         {isToday && <p className="mb-6 text-sm text-moss-dark">Aujourd&apos;hui</p>}
         {!isToday && <div className="mb-6" />}
+
+        <section className="mb-8">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="font-display text-xl text-ink">Événements</h2>
+            <AddEventButton athleteId={athleteId} defaultDate={date} label="Ajouter" />
+          </div>
+          {events.length ? (
+            <div className="flex flex-col gap-2">
+              {events.map((e) => (
+                <EventRow key={e.id} event={e} you="vous" athleteId={athleteId} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-slate">Compétition, stage, rendez-vous… {athlete.first_name} voit ce que vous ajoutez ici.</p>
+          )}
+        </section>
 
         <section>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
