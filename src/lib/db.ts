@@ -763,6 +763,8 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE injuries ADD COLUMN training_impact TEXT`,
   `ALTER TABLE injuries ADD COLUMN doctor_seen INTEGER`,
   `ALTER TABLE injuries ADD COLUMN reported_by TEXT`,
+  // Note d'entretien du coach (texte mis en forme, HTML produit par l'éditeur).
+  `ALTER TABLE coach_athlete_notes ADD COLUMN interview_html TEXT`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

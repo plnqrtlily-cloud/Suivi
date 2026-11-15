@@ -957,6 +957,7 @@ export interface CoachNotes {
   context?: string | null;
   objectives?: string | null;
   constraints?: string | null;
+  interview_html?: string | null;
   updated_at: string;
 }
 
@@ -998,7 +999,7 @@ export async function getCoachReminders(coachId: string, limit = 200) {
 }
 
 export async function getCoachNotes(coachId: string, athleteId: string): Promise<CoachNotes | undefined> {
-  return dbGet(`SELECT strengths, weaknesses, context, objectives, constraints, updated_at FROM coach_athlete_notes WHERE coach_id = ? AND athlete_id = ?`, [
+  return dbGet(`SELECT strengths, weaknesses, context, objectives, constraints, interview_html, updated_at FROM coach_athlete_notes WHERE coach_id = ? AND athlete_id = ?`, [
     coachId,
     athleteId,
   ]);

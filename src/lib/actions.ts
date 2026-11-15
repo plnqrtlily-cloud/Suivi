@@ -2374,6 +2374,20 @@ export async function upsertCoachNotesAction(formData: FormData) {
   revalidatePath(`/coach/athletes/${athleteId}`);
 }
 
+// Note d'entretien : un document libre mis en forme (titres, listes, cases à
+// cocher, tableaux…), enregistré automatiquement pendant la saisie.
+export async function saveInterviewNoteAction(athleteId: string, html: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach" || !(await isCoachLinkedToAthlete(user.id, athleteId))) throw new Error("Non autorisé.");
+  if (html.length > 500_000) throw new Error("La note est trop longue.");
+  await dbRun(
+    `INSERT INTO coach_athlete_notes (coach_id, athlete_id, interview_html, updated_at) VALUES (?, ?, ?, datetime('now'))
+     ON CONFLICT(coach_id, athlete_id) DO UPDATE SET interview_html = excluded.interview_html, updated_at = excluded.updated_at`,
+    [user.id, athleteId, html]
+  );
+  return { savedAt: new Date().toISOString() };
+}
+
 // ---------- CHECK-IN QUOTIDIEN DE FORME (V2) ----------
 
 export async function upsertCheckinAction(formData: FormData) {

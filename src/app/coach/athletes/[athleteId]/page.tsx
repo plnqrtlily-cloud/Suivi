@@ -73,6 +73,7 @@ import { HealthTab, type InjuryView } from "./health-tab";
 import { NotesTab } from "./notes-tab";
 import { AthleteProfileEdit } from "./athlete-profile-edit";
 import { InterviewPanel } from "./interview-panel";
+import { legacyInterviewHtml } from "@/lib/interview-note";
 import { ExerciseMaxesPanel } from "./exercise-maxes-panel";
 import { MeasurementsHistory } from "./measurements-history";
 
@@ -406,6 +407,7 @@ export default async function AthleteDetailPage({
 
   const sportsLine = athleteSports.map((s: string) => sportLabel(s)).join(" · ");
   const interviewNotes = await getCoachNotes(user.id, athleteId);
+  const interviewHtml = interviewNotes?.interview_html ?? legacyInterviewHtml(interviewNotes);
 
   return (
     <div className="flex min-h-screen bg-paper">
@@ -436,7 +438,7 @@ export default async function AthleteDetailPage({
                 <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
                   <AthleteProfileEdit athleteId={athleteId} gender={athleteGender ?? null} sports={athleteSports} />
                   <Link href={`/coach/athletes/${athleteId}?tab=notes#entretien`} className="text-[13px] font-semibold text-moss-dark hover:underline">
-                    {interviewNotes && (interviewNotes.context || interviewNotes.objectives || interviewNotes.constraints || interviewNotes.strengths || interviewNotes.weaknesses) ? "Voir l'entretien" : "Renseigner l'entretien"}
+                    {interviewHtml ? "Voir l'entretien" : "Écrire l'entretien"}
                   </Link>
                 </span>
               </div>
@@ -532,7 +534,7 @@ export default async function AthleteDetailPage({
                 <NotesTab
                   interview={
                     <div id="entretien" className="scroll-mt-4">
-                      <InterviewPanel athleteId={athleteId} firstName={firstName} notes={interviewNotes ?? null} />
+                      <InterviewPanel athleteId={athleteId} firstName={firstName} initialHtml={interviewHtml} updatedAt={interviewNotes?.updated_at ?? null} />
                     </div>
                   }
                   athleteId={athleteId}
