@@ -1,5 +1,9 @@
 import { redirect } from "next/navigation";
-import { logoutAction } from "@/lib/actions";
+import { logoutAction, createCheckoutSessionAction, createBillingPortalSessionAction } from "@/lib/actions";
+import { getCoachPlanStatus } from "@/lib/queries";
+import { dbGet } from "@/lib/db";
+import { isStripeConfigured, isYearlyConfigured } from "@/lib/stripe";
+import { PRO_PLAN_PRICE_EUR, PRO_PLAN_PRICE_YEAR_EUR, ADMIN_EMAIL, formatTrialDate, upgradeMailtoHref } from "@/lib/billing";
 import { getCurrentUser } from "@/lib/auth";
 import { getPushPublicKey } from "@/lib/push";
 import { Nav } from "@/components/nav";
@@ -34,6 +38,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const [coaches, calendarToken] = isAthlete
     ? await Promise.all([getCoachesForAthlete(user.id), getCalendarToken(user.id)])
     : [[], null];
+  const [plan, billing] = isAthlete
+    ? [null, null]
+    : await Promise.all([
+        getCoachPlanStatus(user.id),
+        dbGet<{ stripe_customer_id: string | null }>(`SELECT stripe_customer_id FROM users WHERE id = ?`, [user.id]),
+      ]);
+  const stripeOn = isStripeConfigured();
 
   return (
     <div className="min-h-screen bg-paper">
@@ -48,6 +59,69 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           </Link>
         )}
         <h1 className="mb-6 text-[28px] font-bold tracking-tight text-ink">Paramètres</h1>
+
+        {plan && (
+          <Card className="mb-6 scroll-mt-4 rounded-3xl" id="abonnement">
+            <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate">Mon abonnement</h2>
+            {plan.isPro ? (
+              <div className="flex flex-col gap-3">
+                <p className="text-[15px] font-semibold text-ink">Plan Pro actif</p>
+                <p className="text-sm text-slate">Changer de formule (mois / année), mettre à jour ta carte, retrouver tes factures ou résilier.</p>
+                {stripeOn && billing?.stripe_customer_id ? (
+                  <form action={createBillingPortalSessionAction}>
+                    <button type="submit" className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-moss-dark">
+                      Gérer mon abonnement
+                    </button>
+                  </form>
+                ) : (
+                  <a href={upgradeMailtoHref("Je souhaite modifier mon abonnement.")} className="text-sm font-semibold text-moss-dark">
+                    Nous écrire
+                  </a>
+                )}
+              </div>
+            ) : user.email.toLowerCase() === ADMIN_EMAIL ? (
+              <p className="text-sm text-ink">Compte administrateur : accès complet, sans abonnement.</p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {plan.hasAccess && plan.trialEndsAt ? (
+                  <p className="text-[15px] text-ink">
+                    <b>Essai gratuit</b> · encore {plan.trialDaysLeft} jour{(plan.trialDaysLeft ?? 0) > 1 ? "s" : ""}, jusqu&apos;au {formatTrialDate(plan.trialEndsAt)}
+                  </p>
+                ) : (
+                  <p className="text-[15px] font-semibold text-[#a4492a]">
+                    Essai terminé{plan.trialEndsAt ? ` le ${formatTrialDate(plan.trialEndsAt)}` : ""} : ton espace et l&apos;app de tes athlètes sont suspendus.
+                  </p>
+                )}
+                <p className="text-sm text-slate">
+                  {PRO_PLAN_PRICE_EUR} € par mois, ou {PRO_PLAN_PRICE_YEAR_EUR} € par an (2 mois offerts). Sans engagement.
+                  {plan.hasAccess ? " Si tu t'abonnes maintenant, le premier paiement n'a lieu qu'à la fin de l'essai." : ""}
+                </p>
+                {stripeOn ? (
+                  <div className="flex flex-wrap gap-2">
+                    <form action={createCheckoutSessionAction}>
+                      <input type="hidden" name="interval" value="month" />
+                      <button type="submit" className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-moss-dark">
+                        {PRO_PLAN_PRICE_EUR} € par mois
+                      </button>
+                    </form>
+                    {isYearlyConfigured() && (
+                      <form action={createCheckoutSessionAction}>
+                        <input type="hidden" name="interval" value="year" />
+                        <button type="submit" className="rounded-full bg-moss px-4 py-2 text-sm font-semibold text-white">
+                          {PRO_PLAN_PRICE_YEAR_EUR} € par an
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                ) : (
+                  <Link href="/tarifs" className="self-start rounded-full bg-moss px-4 py-2 text-sm font-semibold text-white">
+                    S&apos;abonner
+                  </Link>
+                )}
+              </div>
+            )}
+          </Card>
+        )}
 
         <Card className="mb-6 rounded-3xl">
           <h2 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate">Notifications push</h2>

@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getCoachPlanStatus } from "@/lib/queries";
-import { isStripeConfigured } from "@/lib/stripe";
+import { isStripeConfigured, isYearlyConfigured } from "@/lib/stripe";
 import { createCheckoutSessionAction, createBillingPortalSessionAction } from "@/lib/actions";
 import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
 import { Card, LinkButton, Button } from "@/components/ui";
-import { PRO_PLAN_PRICE_EUR, TRIAL_DURATION_MONTHS, formatTrialDate, upgradeMailtoHref } from "@/lib/billing";
+import { PRO_PLAN_PRICE_EUR, PRO_PLAN_PRICE_YEAR_EUR, TRIAL_DURATION_MONTHS, formatTrialDate, upgradeMailtoHref } from "@/lib/billing";
 
 export default async function TarifsPage({ searchParams }: { searchParams: Promise<{ essai?: string }> }) {
   const user = await getCurrentUser();
@@ -63,8 +63,12 @@ export default async function TarifsPage({ searchParams }: { searchParams: Promi
 
         <Card className="rounded-3xl border-2 border-moss/40">
           <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-moss-dark">Pro</h2>
-          <p className="mb-4 font-display text-3xl text-ink">
+          <p className="font-display text-3xl text-ink">
             {PRO_PLAN_PRICE_EUR}€<span className="text-base font-normal text-slate">/mois</span>
+          </p>
+          <p className="mb-4 text-sm text-ink-soft">
+            ou <b className="text-ink">{PRO_PLAN_PRICE_YEAR_EUR}€/an</b>{" "}
+            <span className="rounded-full bg-moss/10 px-2 py-0.5 text-xs font-semibold text-moss-dark">2 mois offerts</span>
           </p>
           <ul className="mb-6 flex flex-col gap-2 text-sm text-ink-soft">
             <li>Après l&apos;essai : tout continue, sans limite</li>
@@ -84,11 +88,22 @@ export default async function TarifsPage({ searchParams }: { searchParams: Promi
               )}
             </>
           ) : canCheckout ? (
-            <form action={createCheckoutSessionAction}>
-              <Button type="submit" variant="primary">
-                Passer au plan Pro
-              </Button>
-            </form>
+            <div className="flex flex-wrap gap-2">
+              <form action={createCheckoutSessionAction}>
+                <input type="hidden" name="interval" value="month" />
+                <Button type="submit" variant={isYearlyConfigured() ? "secondary" : "primary"}>
+                  {PRO_PLAN_PRICE_EUR}€ par mois
+                </Button>
+              </form>
+              {isYearlyConfigured() && (
+                <form action={createCheckoutSessionAction}>
+                  <input type="hidden" name="interval" value="year" />
+                  <Button type="submit" variant="primary">
+                    {PRO_PLAN_PRICE_YEAR_EUR}€ par an
+                  </Button>
+                </form>
+              )}
+            </div>
           ) : (
             <LinkButton href={upgradeMailtoHref()} variant="primary">
               Passer au plan Pro
@@ -100,7 +115,8 @@ export default async function TarifsPage({ searchParams }: { searchParams: Promi
       <p className="mt-6 text-sm text-slate">
         L&apos;essai démarre à l&apos;inscription. Vous pouvez vous abonner avant la fin : le premier paiement n&apos;a
         lieu qu&apos;à la fin des {TRIAL_DURATION_MONTHS} mois. Sans abonnement à la fin de l&apos;essai, l&apos;espace coach est
-        suspendu jusqu&apos;au paiement, et vos données sont conservées.
+        suspendu jusqu&apos;au paiement, ainsi que l&apos;app de vos athlètes ; toutes les données sont conservées. Abonnement
+        sans engagement, résiliable à tout moment depuis vos Paramètres.
       </p>
 
       <p className="mt-8 text-sm text-slate">

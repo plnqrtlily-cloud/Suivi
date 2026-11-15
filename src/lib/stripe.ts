@@ -11,6 +11,10 @@ import { createHmac, timingSafeEqual } from "crypto";
 export function isStripeConfigured(): boolean {
   return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_ID_PRO);
 }
+// La formule annuelle n'est proposée que si son prix Stripe est configuré.
+export function isYearlyConfigured(): boolean {
+  return isStripeConfigured() && Boolean(process.env.STRIPE_PRICE_ID_PRO_YEARLY);
+}
 
 async function stripeRequest(path: string, params: Record<string, string>): Promise<any> {
   const response = await fetch(`https://api.stripe.com/v1/${path}`, {
@@ -39,12 +43,15 @@ export async function createCheckoutSession(params: {
   successUrl: string;
   cancelUrl: string;
   trialEndUnix?: number;
+  interval?: "month" | "year";
 }): Promise<{ url: string } | { error: string }> {
+  const price = params.interval === "year" && process.env.STRIPE_PRICE_ID_PRO_YEARLY ? process.env.STRIPE_PRICE_ID_PRO_YEARLY : process.env.STRIPE_PRICE_ID_PRO!;
   try {
     const session = await stripeRequest("checkout/sessions", {
       ...(params.trialEndUnix ? { "subscription_data[trial_end]": String(params.trialEndUnix) } : {}),
       mode: "subscription",
-      "line_items[0][price]": process.env.STRIPE_PRICE_ID_PRO!,
+      "line_items[0][price]": price,
+      locale: "fr",
       "line_items[0][quantity]": "1",
       success_url: params.successUrl,
       cancel_url: params.cancelUrl,

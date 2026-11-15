@@ -38,6 +38,7 @@ import { parseGpx, simplifyRoute } from "./gpx";
 import { getResourceById, getBlocksForWorkout, getCoachPlanStatus, getTeamWithMembers } from "./queries";
 import { ADMIN_EMAIL, trialEndDate } from "./billing";
 import { linkAthleteWithCode } from "./linking";
+import { homePathFor } from "./access";
 import { loadPlanningRange } from "./planning-data";
 import { getAthletesForCoach } from "./queries";
 import { createNotification, markNotificationRead, markAllNotificationsRead } from "./notifications";
@@ -68,9 +69,9 @@ export async function loginAction(formData: FormData) {
   // fait à la connexion, sans repasser par le formulaire d'inscription.
   if (inviteToken) {
     const res = await linkAthleteWithCode(user.id, inviteToken);
-    redirect("error" in res ? `/settings?lien=${encodeURIComponent(res.error)}#coachs` : "/athlete");
+    if ("error" in res) redirect(`/settings?lien=${encodeURIComponent(res.error)}#coachs`);
   }
-  redirect(user.role === "coach" ? "/coach/dashboard" : "/athlete");
+  redirect(await homePathFor(user));
 }
 
 export async function registerAction(formData: FormData) {
@@ -108,7 +109,7 @@ export async function registerAction(formData: FormData) {
   }
 
   await createSession(user.id);
-  redirect(role === "coach" ? "/coach/dashboard" : "/athlete");
+  redirect(await homePathFor({ id: user.id, role }));
 }
 
 export async function logoutAction() {
@@ -220,7 +221,8 @@ export async function deleteUserAsAdminAction(userId: string) {
 // hébergée par Stripe plutôt que d'attendre un email + une bascule manuelle
 // via setCoachPlanAction — c'est le webhook (src/app/api/stripe/webhook)
 // qui fait la bascule une fois le paiement confirmé, pas cette action.
-export async function createCheckoutSessionAction() {
+export async function createCheckoutSessionAction(formData?: FormData) {
+  const interval = formData?.get("interval") === "year" ? "year" : "month";
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
   if (!isStripeConfigured()) throw new Error("Le paiement en ligne n'est pas encore configuré.");
@@ -233,6 +235,7 @@ export async function createCheckoutSessionAction() {
     coachId: user.id,
     email: user.email,
     trialEndUnix: trialEnd - Date.now() > 48 * 3600 * 1000 ? Math.floor(trialEnd / 1000) : undefined,
+    interval,
     successUrl: `${appBaseUrl()}/coach/dashboard?upgraded=1`,
     cancelUrl: `${appBaseUrl()}/tarifs`,
   });
@@ -254,7 +257,7 @@ export async function createBillingPortalSessionAction() {
 
   const result = await createBillingPortalSession({
     customerId: row.stripe_customer_id,
-    returnUrl: `${appBaseUrl()}/coach/dashboard`,
+    returnUrl: `${appBaseUrl()}/settings#abonnement`,
   });
   if ("error" in result) throw new Error(result.error);
   redirect(result.url);

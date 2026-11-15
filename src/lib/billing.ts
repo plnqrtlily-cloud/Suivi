@@ -4,10 +4,13 @@
 // Centraliser ces constantes ici évite de disperser le prix et la durée
 // d'essai dans chaque écran qui les affiche.
 export const PRO_PLAN_PRICE_EUR = 19;
+// Formule annuelle : 10 mois payés pour 12 (« 2 mois offerts »).
+export const PRO_PLAN_PRICE_YEAR_EUR = 190;
+export type BillingInterval = "month" | "year";
 export const UPGRADE_CONTACT_EMAIL = "plnqrtlily@gmail.com";
-// Essai gratuit de 3 mois, sans limite (athlètes et équipes illimités, toutes
-// les fonctions) : il démarre à l'inscription. Au-delà, l'espace coach est
-// bloqué jusqu'au paiement — il n'y a plus d'offre gratuite permanente.
+// Essai gratuit de 3 mois, sans limite (athlètes illimités, toutes les
+// fonctions) : il démarre à l'inscription. Au-delà, l'espace coach — et l'app
+// de ses athlètes — est suspendu jusqu'au paiement (cf. src/proxy.ts).
 export const TRIAL_DURATION_MONTHS = 3;
 // Passage à ce modèle : les coachs inscrits avant cette date ont droit à
 // leurs 3 mois complets à partir d'elle, plutôt que depuis leur inscription
@@ -68,7 +71,7 @@ export function formatTrialDate(iso: string): string {
 export function upgradeMailtoHref(context?: string): string {
   const subject = encodeURIComponent("Passer au plan Pro — Rythme");
   const body = encodeURIComponent(
-    `Bonjour,\n\nJe souhaite passer au plan Pro (${PRO_PLAN_PRICE_EUR}€/mois).${
+    `Bonjour,\n\nJe souhaite passer au plan Pro (${PRO_PLAN_PRICE_EUR}€/mois ou ${PRO_PLAN_PRICE_YEAR_EUR}€/an).${
       context ? `\n\n${context}` : ""
     }\n\nMon adresse de connexion : \n\nMerci !`
   );
