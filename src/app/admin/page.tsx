@@ -9,6 +9,8 @@ import { SetPlanButton } from "./set-plan-button";
 import { athleteTrialExhausted } from "@/lib/access";
 import { ResetTrialButton } from "./reset-trial-button";
 import { DeleteUserButton } from "./delete-user-button";
+import { ensureStripeSetup, isStripeConfigured, type StripeSetup } from "@/lib/stripe";
+import { appBaseUrl } from "@/lib/email";
 
 // Réservée au propriétaire de l'app (comparaison d'email plutôt qu'un
 // nouveau rôle en base — cf. plan) : notFound() plutôt qu'une page d'erreur
@@ -21,6 +23,18 @@ export default async function AdminPage() {
 
   const [coaches, users] = await Promise.all([getAllCoaches(), getAllUsersForAdmin()]);
 
+  // Ouvrir /admin suffit à préparer Stripe (produit, prix, webhook, portail)
+  // dès que la clé secrète est en place — avant le premier paiement.
+  let stripe: StripeSetup | null = null;
+  let stripeError: string | null = null;
+  if (isStripeConfigured()) {
+    try {
+      stripe = await ensureStripeSetup(appBaseUrl());
+    } catch (err) {
+      stripeError = err instanceof Error ? err.message : "Erreur Stripe.";
+    }
+  }
+
   return (
     <div className="flex min-h-screen bg-paper">
       <CoachSidebar user={user} activeHref="/admin" />
@@ -29,6 +43,19 @@ export default async function AdminPage() {
           <Nav user={user} />
         </div>
         <main className="mx-auto max-w-3xl px-4 sm:px-6 py-8">
+          <div className="mb-8 rounded-2xl border border-line bg-white px-4 py-3 text-sm">
+            <p className="font-medium text-ink">Paiement en ligne (Stripe)</p>
+            {!isStripeConfigured() ? (
+              <p className="text-slate">Non branché : ajoute STRIPE_SECRET_KEY dans Vercel. En attendant, les coachs s&apos;abonnent par email.</p>
+            ) : stripeError ? (
+              <p className="text-[#a4492a]">Erreur : {stripeError}</p>
+            ) : (
+              <p className="text-slate">
+                Actif{stripe?.livemode ? "" : " (mode test)"} · produit, prix 19 €/mois et 190 €/an, webhook et portail client prêts.
+              </p>
+            )}
+          </div>
+
           <h1 className="mb-1 font-display text-3xl text-ink">Coachs</h1>
           <p className="mb-6 text-slate">
             Basculez un coach en Pro une fois son paiement reçu hors application.

@@ -2,35 +2,155 @@
 // — même choix que src/lib/email.ts (Resend) : un seul appel fetch, pas de
 // dépendance supplémentaire à installer pour deux endpoints.
 //
-// Tant que STRIPE_SECRET_KEY/STRIPE_PRICE_ID_PRO ne sont pas configurés,
-// isStripeConfigured() renvoie false et l'appelant doit se rabattre sur le
-// contact par email (cf. upgradeMailtoHref dans billing.ts) plutôt que
-// d'échouer silencieusement — même principe que isEmailConfigured().
+// Seule STRIPE_SECRET_KEY est nécessaire : le produit « Rythme Pro », ses deux
+// prix, le webhook et le portail client sont créés par l'application via
+// l'API au premier besoin (ensureStripeSetup), plutôt que configurés à la main
+// dans le Dashboard. Sans la clé, isStripeConfigured() renvoie false et
+// l'appelant se rabat sur le contact par email (cf. upgradeMailtoHref).
 import { createHmac, timingSafeEqual } from "crypto";
+import { PRO_PLAN_PRICE_EUR, PRO_PLAN_PRICE_YEAR_EUR } from "./billing";
 
 export function isStripeConfigured(): boolean {
-  return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_ID_PRO);
+  return Boolean(process.env.STRIPE_SECRET_KEY);
 }
-// La formule annuelle n'est proposée que si son prix Stripe est configuré.
 export function isYearlyConfigured(): boolean {
-  return isStripeConfigured() && Boolean(process.env.STRIPE_PRICE_ID_PRO_YEARLY);
+  return isStripeConfigured();
 }
 
-async function stripeRequest(path: string, params: Record<string, string>): Promise<any> {
-  const response = await fetch(`https://api.stripe.com/v1/${path}`, {
-    method: "POST",
+const PRODUCT_ID = "rythme_pro";
+const LOOKUP = { month: "rythme_pro_month", year: "rythme_pro_year" } as const;
+export const WEBHOOK_EVENTS = ["checkout.session.completed", "customer.subscription.updated", "customer.subscription.deleted"];
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Json = any;
+
+async function stripeCall(method: "GET" | "POST", path: string, params: Record<string, string> = {}): Promise<{ ok: boolean; status: number; json: Json }> {
+  const qs = new URLSearchParams(params).toString();
+  const response = await fetch(`https://api.stripe.com/v1/${path}${method === "GET" && qs ? `?${qs}` : ""}`, {
+    method,
     headers: {
       Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
       "Content-Type": "application/x-www-form-urlencoded",
     },
-    body: new URLSearchParams(params).toString(),
+    body: method === "POST" ? qs : undefined,
+    cache: "no-store",
   });
-  const json = await response.json();
-  if (!response.ok) {
-    console.error("Erreur Stripe :", response.status, json);
+  return { ok: response.ok, status: response.status, json: await response.json() };
+}
+
+async function stripeRequest(path: string, params: Record<string, string>, method: "GET" | "POST" = "POST"): Promise<Json> {
+  const { ok, status, json } = await stripeCall(method, path, params);
+  if (!ok) {
+    console.error("Erreur Stripe :", status, json?.error?.message);
     throw new Error(json?.error?.message || "Erreur Stripe.");
   }
   return json;
+}
+
+/** Produit « Rythme Pro » (identifiant fixe) et ses prix mensuel/annuel, créés s'ils manquent. */
+async function ensurePrices(): Promise<{ month: string; year: string }> {
+  const found = await stripeRequest("prices", { "lookup_keys[0]": LOOKUP.month, "lookup_keys[1]": LOOKUP.year, active: "true" }, "GET");
+  const byKey = new Map<string, string>((found.data as Json[]).map((p) => [p.lookup_key, p.id]));
+  if (byKey.size < 2) {
+    const product = await stripeCall("GET", `products/${PRODUCT_ID}`);
+    if (!product.ok) {
+      await stripeRequest("products", { id: PRODUCT_ID, name: "Rythme Pro", description: "Suivi coach-athlète, athlètes illimités." });
+    }
+    for (const interval of ["month", "year"] as const) {
+      if (byKey.has(LOOKUP[interval])) continue;
+      const price = await stripeRequest("prices", {
+        product: PRODUCT_ID,
+        currency: "eur",
+        unit_amount: String((interval === "month" ? PRO_PLAN_PRICE_EUR : PRO_PLAN_PRICE_YEAR_EUR) * 100),
+        "recurring[interval]": interval,
+        lookup_key: LOOKUP[interval],
+        nickname: interval === "month" ? "Mensuel" : "Annuel",
+      });
+      byKey.set(LOOKUP[interval], price.id);
+    }
+  }
+  return { month: byKey.get(LOOKUP.month)!, year: byKey.get(LOOKUP.year)! };
+}
+
+/** Webhook vers l'application, créé s'il n'existe pas déjà pour cette adresse. */
+async function ensureWebhook(baseUrl: string): Promise<string> {
+  const url = `${baseUrl}/api/stripe/webhook`;
+  const list = await stripeRequest("webhook_endpoints", { limit: "100" }, "GET");
+  const existing = (list.data as Json[]).find((w) => w.url === url);
+  if (existing) return existing.id;
+  const params: Record<string, string> = { url, description: "Rythme : activation et résiliation du plan Pro" };
+  WEBHOOK_EVENTS.forEach((e, i) => (params[`enabled_events[${i}]`] = e));
+  return (await stripeRequest("webhook_endpoints", params)).id;
+}
+
+/** Portail client (carte, factures, changement de formule, résiliation) par défaut. */
+async function ensurePortal(baseUrl: string, prices: { month: string; year: string }): Promise<string> {
+  const list = await stripeRequest("billing_portal/configurations", { is_default: "true", limit: "1" }, "GET");
+  if (list.data?.length) return list.data[0].id;
+  return (
+    await stripeRequest("billing_portal/configurations", {
+      "business_profile[headline]": "Rythme — gérer mon abonnement",
+      default_return_url: `${baseUrl}/settings#abonnement`,
+      "features[invoice_history][enabled]": "true",
+      "features[payment_method_update][enabled]": "true",
+      "features[customer_update][enabled]": "true",
+      "features[customer_update][allowed_updates][0]": "email",
+      "features[customer_update][allowed_updates][1]": "address",
+      "features[subscription_cancel][enabled]": "true",
+      "features[subscription_cancel][mode]": "at_period_end",
+      "features[subscription_update][enabled]": "true",
+      "features[subscription_update][default_allowed_updates][0]": "price",
+      "features[subscription_update][proration_behavior]": "create_prorations",
+      "features[subscription_update][products][0][product]": PRODUCT_ID,
+      "features[subscription_update][products][0][prices][0]": prices.month,
+      "features[subscription_update][products][0][prices][1]": prices.year,
+    })
+  ).id;
+}
+
+export interface StripeSetup {
+  prices: { month: string; year: string };
+  webhookId: string;
+  portalId: string;
+  livemode: boolean;
+}
+
+// Mémorisé par instance : les vérifications ne coûtent que quelques appels
+// au premier paiement après un démarrage à froid.
+let setupPromise: Promise<StripeSetup> | null = null;
+
+/** Crée (une seule fois) tout ce dont l'abonnement a besoin côté Stripe. */
+export function ensureStripeSetup(baseUrl: string): Promise<StripeSetup> {
+  if (!setupPromise) {
+    setupPromise = (async () => {
+      const prices = await ensurePrices();
+      const [webhookId, portalId] = await Promise.all([ensureWebhook(baseUrl), ensurePortal(baseUrl, prices)]);
+      return { prices, webhookId, portalId, livemode: !String(process.env.STRIPE_SECRET_KEY).includes("_test_") };
+    })().catch((err) => {
+      setupPromise = null;
+      throw err;
+    });
+  }
+  return setupPromise;
+}
+
+/**
+ * Événement webhook authentifié. Avec STRIPE_WEBHOOK_SECRET, on vérifie la
+ * signature ; sinon on relit l'événement auprès de l'API Stripe avec la clé
+ * secrète — un faux événement envoyé à l'URL n'y existe pas.
+ */
+export async function authenticStripeEvent(payload: string, signature: string | null): Promise<Json | null> {
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (secret) return signature && verifyStripeSignature(payload, signature, secret) ? JSON.parse(payload) : null;
+  let id: string | undefined;
+  try {
+    id = JSON.parse(payload)?.id;
+  } catch {
+    return null;
+  }
+  if (!id || !/^evt_[A-Za-z0-9]+$/.test(id)) return null;
+  const res = await stripeCall("GET", `events/${id}`);
+  return res.ok ? res.json : null;
 }
 
 // Abonnement mensuel unique (le plan Pro) : pas de sélection de quantité ou
@@ -44,9 +164,11 @@ export async function createCheckoutSession(params: {
   cancelUrl: string;
   trialEndUnix?: number;
   interval?: "month" | "year";
+  baseUrl: string;
 }): Promise<{ url: string } | { error: string }> {
-  const price = params.interval === "year" && process.env.STRIPE_PRICE_ID_PRO_YEARLY ? process.env.STRIPE_PRICE_ID_PRO_YEARLY : process.env.STRIPE_PRICE_ID_PRO!;
   try {
+    const { prices } = await ensureStripeSetup(params.baseUrl);
+    const price = params.interval === "year" ? prices.year : prices.month;
     const session = await stripeRequest("checkout/sessions", {
       ...(params.trialEndUnix ? { "subscription_data[trial_end]": String(params.trialEndUnix) } : {}),
       mode: "subscription",
@@ -75,8 +197,10 @@ export async function createCheckoutSession(params: {
 export async function createBillingPortalSession(params: {
   customerId: string;
   returnUrl: string;
+  baseUrl: string;
 }): Promise<{ url: string } | { error: string }> {
   try {
+    await ensureStripeSetup(params.baseUrl);
     const session = await stripeRequest("billing_portal/sessions", {
       customer: params.customerId,
       return_url: params.returnUrl,

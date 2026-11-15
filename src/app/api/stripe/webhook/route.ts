@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbRun } from "@/lib/db";
-import { verifyStripeSignature } from "@/lib/stripe";
+import { authenticStripeEvent } from "@/lib/stripe";
 
 // Point d'entrée Stripe : bascule le plan du coach à la confirmation du
 // paiement, et le repasse gratuit si l'abonnement est résilié ou impayé.
@@ -9,16 +9,11 @@ import { verifyStripeSignature } from "@/lib/stripe";
 // par Stripe — un JSON.stringify(JSON.parse(...)) ne redonnerait pas
 // forcément la même chaîne et invaliderait la signature.
 export async function POST(request: NextRequest) {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!secret) return NextResponse.json({ error: "Webhook Stripe non configuré." }, { status: 500 });
+  if (!process.env.STRIPE_SECRET_KEY) return NextResponse.json({ error: "Stripe non configuré." }, { status: 500 });
 
   const payload = await request.text();
-  const signature = request.headers.get("stripe-signature");
-  if (!signature || !verifyStripeSignature(payload, signature, secret)) {
-    return NextResponse.json({ error: "Signature invalide." }, { status: 400 });
-  }
-
-  const event = JSON.parse(payload);
+  const event = await authenticStripeEvent(payload, request.headers.get("stripe-signature"));
+  if (!event) return NextResponse.json({ error: "Événement non authentifié." }, { status: 400 });
 
   switch (event.type) {
     case "checkout.session.completed": {

@@ -251,6 +251,7 @@ export async function createCheckoutSessionAction(formData?: FormData) {
     email: user.email,
     trialEndUnix: trialEnd - Date.now() > 48 * 3600 * 1000 ? Math.floor(trialEnd / 1000) : undefined,
     interval,
+    baseUrl: appBaseUrl(),
     successUrl: `${appBaseUrl()}/coach/dashboard?upgraded=1`,
     cancelUrl: `${appBaseUrl()}/tarifs`,
   });
@@ -273,6 +274,7 @@ export async function createBillingPortalSessionAction() {
   const result = await createBillingPortalSession({
     customerId: row.stripe_customer_id,
     returnUrl: `${appBaseUrl()}/settings#abonnement`,
+    baseUrl: appBaseUrl(),
   });
   if ("error" in result) throw new Error(result.error);
   redirect(result.url);
