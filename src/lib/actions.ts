@@ -38,7 +38,7 @@ import { parseGpx, simplifyRoute } from "./gpx";
 import { getResourceById, getBlocksForWorkout, getCoachPlanStatus, getTeamWithMembers } from "./queries";
 import { ADMIN_EMAIL, trialEndDate } from "./billing";
 import { linkAthleteWithCode } from "./linking";
-import { homePathFor } from "./access";
+import { homePathFor, coachEmailTaken } from "./access";
 import { loadPlanningRange } from "./planning-data";
 import { getAthletesForCoach } from "./queries";
 import { createNotification, markNotificationRead, markAllNotificationsRead } from "./notifications";
@@ -98,6 +98,12 @@ export async function registerAction(formData: FormData) {
         ? "Un compte existe déjà avec cet email. Connecte-toi avec « Déjà un compte ? » : l'invitation sera acceptée à la connexion."
         : "Un compte existe déjà avec cet email.",
     };
+  }
+
+  // Un seul compte coach par adresse, variantes comprises (points Gmail,
+  // « +étiquette ») : sinon l'essai gratuit se recréerait à volonté.
+  if (role === "coach" && (await coachEmailTaken(email))) {
+    return { error: "Un compte coach existe déjà avec cette adresse. Connecte-toi plutôt avec ton compte existant." };
   }
 
   const user = await createUser({ email, password, role, firstName, lastName });
@@ -214,6 +220,15 @@ export async function deleteUserAsAdminAction(userId: string) {
   if (!user || user.email !== ADMIN_EMAIL) throw new Error("Non autorisé.");
   if (userId === user.id) throw new Error("Impossible de supprimer ton propre compte ici.");
   await dbRun(`DELETE FROM users WHERE id = ?`, [userId]);
+  revalidatePath("/admin");
+}
+
+// Remet à zéro le compteur d'essai d'un athlète (cf. src/lib/access.ts), pour
+// un vrai changement de coach que la règle anti-contournement bloquerait.
+export async function resetAthleteTrialAsAdminAction(userId: string) {
+  const user = await getCurrentUser();
+  if (!user || user.email !== ADMIN_EMAIL) throw new Error("Non autorisé.");
+  await dbRun(`UPDATE users SET athlete_trial_start = datetime('now') WHERE id = ? AND role = 'athlete'`, [userId]);
   revalidatePath("/admin");
 }
 

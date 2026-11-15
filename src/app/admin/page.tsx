@@ -6,6 +6,8 @@ import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
 import { Card } from "@/components/ui";
 import { SetPlanButton } from "./set-plan-button";
+import { athleteTrialExhausted } from "@/lib/access";
+import { ResetTrialButton } from "./reset-trial-button";
 import { DeleteUserButton } from "./delete-user-button";
 
 // Réservée au propriétaire de l'app (comparaison d'email plutôt qu'un
@@ -63,6 +65,7 @@ export default async function AdminPage() {
           <div className="flex flex-col divide-y divide-line overflow-hidden rounded-2xl border border-line bg-white">
             {users.map((u) => {
               const name = `${u.first_name} ${u.last_name}`.trim();
+              const exhausted = u.role === "athlete" && athleteTrialExhausted(u.athlete_trial_start);
               return (
                 <div key={u.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                   <div className="min-w-0">
@@ -72,9 +75,13 @@ export default async function AdminPage() {
                     <p className="text-sm text-slate">
                       {u.role === "coach" ? "Coach" : "Athlète"}
                       {u.coach_names ? ` · suivi par ${u.coach_names}` : ""} · inscrit le {u.created_at.slice(0, 10)}
+                      {exhausted && <span className="font-medium text-[#a4492a]"> · essai épuisé</span>}
                     </p>
                   </div>
-                  {u.id !== user.id && <DeleteUserButton userId={u.id} name={name} />}
+                  <div className="flex gap-1">
+                    {exhausted && <ResetTrialButton userId={u.id} name={name} />}
+                    {u.id !== user.id && <DeleteUserButton userId={u.id} name={name} />}
+                  </div>
                 </div>
               );
             })}

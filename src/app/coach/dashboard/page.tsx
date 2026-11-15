@@ -25,6 +25,7 @@ import { InviteForm, InviteButton, type PendingInvite } from "../invite-form";
 import { coachCodeFor } from "@/lib/linking";
 import { isEmailConfigured } from "@/lib/email";
 import { sportIconPath } from "@/lib/sport-icons";
+import { exhaustedAthletesForCoach } from "@/lib/access";
 
 
 // Une carte par athlète regroupant tout ce qui le concerne aujourd'hui —
@@ -156,13 +157,17 @@ export default async function CoachDashboardPage({
   const { upgraded } = await searchParams;
   const today = todayISO();
 
-  const [links, reminders, planStatus, deskNotes, teams] = await Promise.all([
+  const [links, reminders, planStatus, deskNotes, teams, exhaustedAll] = await Promise.all([
     getAthletesForCoach(user.id),
     getCoachReminders(user.id),
     getCoachPlanStatus(user.id),
     getCoachDeskNotes(user.id),
     getTeamsForCoach(user.id),
+    exhaustedAthletesForCoach(user.id),
   ]);
+  // Athlètes dont l'essai est déjà épuisé avec un autre compte coach (cf.
+  // src/lib/access.ts) : leur app reste suspendue tant que ce coach n'est pas abonné.
+  const exhausted = planStatus.isPro ? [] : exhaustedAll;
   const activeAthletes = links.filter((l) => l.status === "active" && l.athlete_id);
   // Invitations envoyées mais pas encore acceptées — sinon le coach n'a aucun
   // moyen de savoir qu'elles sont en attente, ni de les annuler.
@@ -278,6 +283,21 @@ export default async function CoachDashboardPage({
                     {formatTrialDate(planStatus.trialEndsAt)}.{" "}
                   </>
                 )}
+                <Link href="/tarifs" className="font-semibold text-moss-dark hover:underline">
+                  Passer au plan Pro
+                </Link>
+              </p>
+            </div>
+          )}
+
+          {exhausted.length > 0 && (
+            <div className="mb-6 rounded-2xl border border-[#e8896a]/40 bg-[#e8896a]/10 px-4 py-3 text-sm text-ink">
+              <p className="font-medium">
+                {exhausted.map((a) => `${a.first_name} ${a.last_name}`.trim()).join(", ")}{" "}
+                {exhausted.length > 1 ? "ont" : "a"} déjà profité de la période d&apos;essai avec un autre compte coach.
+              </p>
+              <p className="mt-1 text-slate">
+                {exhausted.length > 1 ? "Leur app reste suspendue" : "Son app reste suspendue"} jusqu&apos;à ton abonnement.{" "}
                 <Link href="/tarifs" className="font-semibold text-moss-dark hover:underline">
                   Passer au plan Pro
                 </Link>

@@ -7,6 +7,7 @@ import { randomUUID } from "crypto";
 import { dbGet, dbRun } from "./db";
 import { getCoachPlanStatus } from "./queries";
 import { createNotification } from "./notifications";
+import { isAthleteSuspended } from "./access";
 
 /** Code coach permanent, dérivé de son identifiant (8 caractères). */
 export function coachCodeFor(coachId: string) {
@@ -63,6 +64,7 @@ export async function linkAthleteWithCode(athleteId: string, rawCode: string): P
       invite.id,
     ]);
     await notifyCoach(invite.coach_id, athleteId);
+    await isAthleteSuspended(athleteId); // démarre ou remet à zéro le compteur d'essai de l'athlète
     return { ok: true, coachName };
   }
 
@@ -86,6 +88,7 @@ export async function linkAthleteWithCode(athleteId: string, rawCode: string): P
         [randomUUID(), coach.id, athleteId]
       );
       await notifyCoach(coach.id, athleteId);
+      await isAthleteSuspended(athleteId);
       return { ok: true, coachName };
     }
   }

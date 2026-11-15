@@ -765,6 +765,9 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE injuries ADD COLUMN reported_by TEXT`,
   // Note d'entretien du coach (texte mis en forme, HTML produit par l'éditeur).
   `ALTER TABLE coach_athlete_notes ADD COLUMN interview_html TEXT`,
+  // Essai côté athlète (cf. src/lib/access.ts) : début de la période passée
+  // avec des coachs non abonnés. Remis à zéro dès qu'un coach payant le suit.
+  `ALTER TABLE users ADD COLUMN athlete_trial_start TEXT`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER
