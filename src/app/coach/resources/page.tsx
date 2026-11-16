@@ -5,7 +5,7 @@ import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
 import { Card } from "@/components/ui";
 import { UploadResourceForm } from "./upload-form";
-import { ResourceCard } from "./resource-card";
+import { ResourceLibrary } from "./resource-library";
 import { ImportAnimationsCard } from "./import-animations";
 import { EXERCISE_ANIMATIONS, outdatedAnimations } from "@/lib/exercise-animations";
 
@@ -64,11 +64,7 @@ export default async function ResourcesPage({
         {resources.length === 0 ? (
           <p className="text-sm text-slate">Rien pour l&apos;instant — ajoutez votre première ressource ci-dessus.</p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-            {resources.map((r) => (
-              <ResourceCard key={r.id} resource={r} />
-            ))}
-          </div>
+          <ResourceLibrary resources={resources} />
         )}
       </main>
       </div>

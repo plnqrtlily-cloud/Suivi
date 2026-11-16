@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Button, SelectField } from "@/components/ui";
 import { COMMON_EXERCISES } from "@/lib/exercise-library";
+import { ExerciseSearchField, ResourceSearchField } from "./library-search";
+import { normalizeSearch } from "@/lib/search-text";
 import type { TrainingQuality } from "@/lib/actions";
 import { computeVolume, formatSeconds, resolveLoadKg } from "@/lib/strength-volume";
 
@@ -425,12 +427,16 @@ export function StrengthBuilder({
                                       Exercice
                                       {maxKg && <span className="ml-1.5 font-normal text-slate">— max {maxKg} kg</span>}
                                     </span>
-                                    <input
-                                      list="exercise-suggestions"
+                                    <ExerciseSearchField
                                       value={row.exercise_name}
-                                      onChange={(e) => updateRow(row.key, { exercise_name: e.target.value })}
-                                      placeholder="Rechercher ou saisir…"
-                                      className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-moss"
+                                      library={attachable}
+                                      suggestions={suggestions}
+                                      onChange={(name, picked) => {
+                                        // Exercice de la bibliothèque (choisi, ou nom identique saisi) :
+                                        // sa démonstration est jointe d'office si rien ne l'est encore.
+                                        const match = picked ?? attachable.find((r) => normalizeSearch(r.title) === normalizeSearch(name));
+                                        updateRow(row.key, { exercise_name: name, ...(match && (picked || !row.resource_id) ? { resource_id: match.id } : {}) });
+                                      }}
                                     />
                                   </label>
                                 </div>
@@ -586,18 +592,7 @@ export function StrengthBuilder({
                                   qui est attendu, plutôt qu'un nom d'exercice seul. */}
                               <div className="mt-2 flex flex-wrap items-end gap-3">
                                 <div className="min-w-[200px] flex-1">
-                                  <SelectField
-                                    label="Démonstration (bibliothèque)"
-                                    value={row.resource_id}
-                                    onChange={(e) => updateRow(row.key, { resource_id: e.target.value })}
-                                  >
-                                    <option value="">Aucune</option>
-                                    {attachable.map((r) => (
-                                      <option key={r.id} value={r.id}>
-                                        {r.type === "video" ? "🎬" : "🖼"} {r.title}
-                                      </option>
-                                    ))}
-                                  </SelectField>
+                                  <ResourceSearchField value={row.resource_id} library={attachable} onChange={(id) => updateRow(row.key, { resource_id: id })} />
                                 </div>
                                 {resource && (
                                   <div className="w-28 overflow-hidden rounded-lg border border-line">
