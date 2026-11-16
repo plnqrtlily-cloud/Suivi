@@ -5,6 +5,7 @@ import { readUploadedFile } from "@/lib/storage";
 import { bundledAnimationFile } from "@/lib/animation-upgrade";
 import { promises as fsp } from "fs";
 import nodePath from "path";
+import { createHash } from "crypto";
 
 // Sert le fichier déposé par le coach. Accessible au coach propriétaire, et à ses
 // athlètes activement liés (pour qu'ils puissent visionner une vidéo d'exercice
@@ -25,6 +26,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Non autorisé." }, { status: 403 });
   }
 
+  // Le fichier peut changer sous la même adresse (animation refaite, cf.
+  // src/lib/animation-upgrade.ts) : le navigateur revalide à chaque affichage
+  // et ne retélécharge que si le fichier a changé.
+  const etag = `"${createHash("sha1").update(resource.file_path).digest("hex").slice(0, 16)}"`;
+  if (request.headers.get("if-none-match") === etag) {
+    return new NextResponse(null, { status: 304, headers: { ETag: etag, "Cache-Control": "private, no-cache" } });
+  }
+
   // Animation livrée avec l'application (cf. src/lib/animation-upgrade.ts).
   const bundled = bundledAnimationFile(resource.file_path);
   const buffer = bundled
@@ -35,7 +44,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": resource.mime_type || "application/octet-stream",
-      "Cache-Control": "private, max-age=3600",
+      "Cache-Control": "private, no-cache",
+      ETag: etag,
     },
   });
 }

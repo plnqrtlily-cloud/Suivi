@@ -4,7 +4,7 @@
 // via outputFileTracingIncludes (next.config.ts).
 export const EXERCISE_ANIMATIONS_SPORT = "Préparation physique";
 
-export const EXERCISE_ANIMATIONS: { file: string; title: string; description: string; previousDescriptions?: string[] }[] = [
+export const EXERCISE_ANIMATIONS: { file: string; title: string; description: string; previousDescriptions?: string[]; previousFiles?: string[] }[] = [
   { file: "fente-genou-mur.gif", title: "Fente genou-mur", description: "Le genou avance vers le mur, talon collé au sol (Échauffement A · Mini-séance DH)" },
   { file: "worlds-greatest-stretch.gif", title: "World's greatest stretch", description: "Fente basse, une main au sol, l'autre bras monte vers le ciel (Échauffement A)" },
   { file: "squat-profond-rotation.gif", title: "Squat profond + rotation thoracique", description: "En bas du squat, un bras monte en ouvrant le buste (Échauffement A)" },
@@ -16,7 +16,10 @@ export const EXERCISE_ANIMATIONS: { file: string; title: string; description: st
   { file: "sauts-verticaux.gif", title: "Sauts verticaux enchaînés", description: "Petits sauts réactifs, réception sur l'avant du pied (Échauffement A (semaine 2))" },
   { file: "goblet-squat.gif", title: "Goblet squat", description: "Descente en 3 s, 1 s en bas, talons au sol (Séance A · exercice principal)" },
   {
-    file: "cou-isometrique.gif",
+    file: "cou-isometrique-allonge.gif",
+    // Fichiers des versions précédentes : nouveau nom à chaque refonte, pour que
+    // téléphones et navigateurs ne réaffichent pas l'ancienne image en cache.
+    previousFiles: ["cou-isometrique.gif"],
     title: "Cou en isométrie",
     description: "Allongé sur le dos, genoux fléchis : menton rentré, la tête se décolle et reste hors du sol (Séance A · Mini-séance DH)",
     // Ancienne version (debout, la main pousse sur la tête) : remplacée chez les
@@ -51,9 +54,22 @@ export const EXERCISE_ANIMATIONS: { file: string; title: string; description: st
   { file: "pince-de-disques.gif", title: "Pince de disques", description: "Disques serrés entre les doigts, bras le long du corps (Mini-séance DH)" },
 ];
 
+/**
+ * Ressource du coach importée depuis une version remplacée de cette animation :
+ * même titre, description d'origine (ancienne ou actuelle — sinon le coach l'a
+ * personnalisée et on n'y touche pas) et fichier différent de la version actuelle.
+ */
+export function isOutdatedAnimation(
+  a: (typeof EXERCISE_ANIMATIONS)[number],
+  r: { title: string; description: string | null; file_path?: string | null }
+) {
+  if (!a.previousDescriptions?.length && !a.previousFiles?.length) return false;
+  if (r.title !== a.title || !r.description) return false;
+  if (![a.description, ...(a.previousDescriptions ?? [])].includes(r.description)) return false;
+  return r.file_path !== `bundled:${a.file}`;
+}
+
 /** Animations déjà importées par le coach mais dans une version remplacée depuis. */
-export function outdatedAnimations(resources: { title: string; description: string | null }[]) {
-  return EXERCISE_ANIMATIONS.filter((a) =>
-    resources.some((r) => r.title === a.title && !!r.description && !!a.previousDescriptions?.includes(r.description))
-  );
+export function outdatedAnimations(resources: { title: string; description: string | null; file_path?: string | null }[]) {
+  return EXERCISE_ANIMATIONS.filter((a) => resources.some((r) => isOutdatedAnimation(a, r)));
 }
