@@ -23,6 +23,12 @@ const nextConfig: NextConfig = {
       allowedOrigins: ["*.trycloudflare.com"],
     },
   },
+  // Animations d'exercices importables dans la bibliothèque (cf.
+  // importExerciseAnimationsAction) : lues sur disque par la Server Action de la
+  // page Ressources, donc à inclure explicitement dans le déploiement.
+  outputFileTracingIncludes: {
+    "/coach/resources": ["./src/assets/exercise-animations/**/*"],
+  },
   // Équipes mises de côté : les adresses /coach/equipes renvoient au tableau de bord.
   async redirects() {
     return TEAMS_ENABLED

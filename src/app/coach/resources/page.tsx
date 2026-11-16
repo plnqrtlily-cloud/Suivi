@@ -6,6 +6,8 @@ import { CoachSidebar } from "@/components/coach-sidebar";
 import { Card } from "@/components/ui";
 import { UploadResourceForm } from "./upload-form";
 import { ResourceCard } from "./resource-card";
+import { ImportAnimationsCard } from "./import-animations";
+import { EXERCISE_ANIMATIONS } from "@/lib/exercise-animations";
 
 export default async function ResourcesPage({
   searchParams,
@@ -18,6 +20,9 @@ export default async function ResourcesPage({
 
   const { type } = await searchParams;
   const resources = await getResourcesForCoach(user.id, type);
+  const allResources = type ? await getResourcesForCoach(user.id) : resources;
+  const existingTitles = new Set(allResources.map((r) => r.title));
+  const missingAnimations = EXERCISE_ANIMATIONS.filter((a) => !existingTitles.has(a.title)).length;
 
   return (
     <div className="flex min-h-screen bg-paper">
@@ -29,6 +34,8 @@ export default async function ResourcesPage({
       <main className="mx-auto max-w-5xl px-4 sm:px-6 py-10">
         <h1 className="mb-1 font-display text-3xl text-ink">Ma bibliothèque</h1>
         <p className="mb-8 text-slate">Vidéos, photos et matériel que vous déposez vous-même — visibles par vos athlètes liés.</p>
+
+        {missingAnimations > 0 && <ImportAnimationsCard missing={missingAnimations} total={EXERCISE_ANIMATIONS.length} />}
 
         <Card className="mb-8 rounded-3xl">
           <UploadResourceForm />
