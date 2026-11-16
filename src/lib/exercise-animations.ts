@@ -4,6 +4,16 @@
 // via outputFileTracingIncludes (next.config.ts).
 export const EXERCISE_ANIMATIONS_SPORT = "Préparation physique";
 
+// Version des animations (scripts/animations/) : à augmenter à chaque refonte.
+// Change l'adresse des GIF (les téléphones ne réaffichent pas l'ancienne image
+// en cache) et fait remplacer les copies déjà importées par les coachs.
+export const ANIMATIONS_REVISION = 2;
+
+/** Chemin enregistré en base pour une animation livrée avec l'application. */
+export function bundledPath(a: { file: string }) {
+  return `bundled:${a.file}?v=${ANIMATIONS_REVISION}`;
+}
+
 export const EXERCISE_ANIMATIONS: { file: string; title: string; description: string; previousDescriptions?: string[]; previousFiles?: string[] }[] = [
   { file: "fente-genou-mur.gif", title: "Fente genou-mur", description: "Le genou avance vers le mur, talon collé au sol (Échauffement A · Mini-séance DH)" },
   { file: "worlds-greatest-stretch.gif", title: "World's greatest stretch", description: "Fente basse, une main au sol, l'autre bras monte vers le ciel (Échauffement A)" },
@@ -55,7 +65,7 @@ export const EXERCISE_ANIMATIONS: { file: string; title: string; description: st
 ];
 
 /**
- * Ressource du coach importée depuis une version remplacée de cette animation :
+ * Ressource du coach importée depuis une version précédente de cette animation :
  * même titre, description d'origine (ancienne ou actuelle — sinon le coach l'a
  * personnalisée et on n'y touche pas) et fichier différent de la version actuelle.
  */
@@ -63,10 +73,9 @@ export function isOutdatedAnimation(
   a: (typeof EXERCISE_ANIMATIONS)[number],
   r: { title: string; description: string | null; file_path?: string | null }
 ) {
-  if (!a.previousDescriptions?.length && !a.previousFiles?.length) return false;
   if (r.title !== a.title || !r.description) return false;
   if (![a.description, ...(a.previousDescriptions ?? [])].includes(r.description)) return false;
-  return r.file_path !== `bundled:${a.file}`;
+  return r.file_path !== bundledPath(a);
 }
 
 /** Animations déjà importées par le coach mais dans une version remplacée depuis. */

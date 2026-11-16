@@ -36,7 +36,7 @@ import {
   Role,
 } from "./auth";
 import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MESSAGE_DOC_TYPES } from "./storage";
-import { EXERCISE_ANIMATIONS, EXERCISE_ANIMATIONS_SPORT } from "./exercise-animations";
+import { EXERCISE_ANIMATIONS, EXERCISE_ANIMATIONS_SPORT, bundledPath } from "./exercise-animations";
 import { upgradeOutdatedAnimations } from "./animation-upgrade";
 import { parseGpx, simplifyRoute } from "./gpx";
 import { getResourceById, getBlocksForWorkout, getCoachPlanStatus, getTeamWithMembers } from "./queries";
@@ -2081,17 +2081,16 @@ export async function importExerciseAnimationsAction(): Promise<{ added?: number
 
   let added = 0;
   try {
-    // Par lots de 6 : assez rapide sur Vercel Blob sans saturer la base distante.
+    // Le fichier reste celui livré avec l'application (« bundled:… ») : rien à
+    // téléverser, et les refontes futures s'appliquent d'elles-mêmes.
     for (let i = 0; i < todo.length; i += 6) {
       await Promise.all(
         todo.slice(i, i + 6).map(async (a) => {
-          const buffer = await fsp.readFile(nodePath.join(dir, a.file));
-          const file = new File([new Uint8Array(buffer)], a.file, { type: "image/gif" });
-          const saved = await saveUploadedFile(file);
+          const { size } = await fsp.stat(nodePath.join(dir, a.file));
           await dbRun(
             `INSERT INTO resources (id, coach_id, type, title, description, sport, file_path, mime_type, file_size)
              VALUES (?, ?, 'photo', ?, ?, ?, ?, 'image/gif', ?)`,
-            [randomUUID(), user.id, a.title, a.description, EXERCISE_ANIMATIONS_SPORT, saved.storedName, saved.size]
+            [randomUUID(), user.id, a.title, a.description, EXERCISE_ANIMATIONS_SPORT, bundledPath(a), size]
           );
           added++;
         })
