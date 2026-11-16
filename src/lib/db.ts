@@ -795,6 +795,12 @@ const MIGRATIONS: string[] = [
   // Tempo d'exécution d'un exercice de musculation, ex. « 3-1-1-0 »
   // (excentrique-pause-concentrique-pause, en secondes).
   `ALTER TABLE workout_blocks ADD COLUMN tempo TEXT`,
+  // Séance « à placer » : proposée par le coach pour une semaine (flex_week =
+  // lundi), l'athlète choisit le jour. flex_placed = 0 tant qu'elle attend dans
+  // le bac (date = le lundi, sans valeur), 1 une fois placée ; NULL pour une
+  // séance ordinaire. Les vues par date filtrent COALESCE(flex_placed, 1) = 1.
+  `ALTER TABLE workouts ADD COLUMN flex_week TEXT`,
+  `ALTER TABLE workouts ADD COLUMN flex_placed INTEGER`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

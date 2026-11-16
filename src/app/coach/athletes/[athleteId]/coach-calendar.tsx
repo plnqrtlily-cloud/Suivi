@@ -23,6 +23,7 @@ import { CYCLE_DAY_STYLE } from "@/lib/cycle-types";
 import { WorkoutStructure } from "@/components/workout-structure";
 import { CalendarEventForm, EventDetail, EventFlag } from "@/components/calendar-events";
 import { DaysPicker } from "@/components/days-picker";
+import { PlaceTray } from "@/components/place-tray";
 import { eventKind, eventSubtitle, type CalendarEventView } from "@/lib/calendar-event-kinds";
 
 // Calendrier coach : défilement continu, jour après jour en vue semaine et
@@ -178,13 +179,14 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
     return null;
   };
 
-  function scrollToDate(date: string, smooth: boolean) {
+  /** Faux tant que la zone de défilement ou le jour visé ne sont pas encore rendus. */
+  function scrollToDate(date: string, smooth: boolean): boolean {
     const sc = scrollerRef.current;
-    if (!sc) return;
+    if (!sc) return false;
     const behavior: ScrollBehavior = smooth ? "smooth" : "auto";
     if (horizontal) {
       const el = sc.querySelector<HTMLElement>(`[data-date="${date}"]`);
-      if (!el) return;
+      if (!el || sc.scrollWidth <= sc.clientWidth) return false;
       // Sur téléphone (2 jours par écran), la semaine ne tient pas : si
       // aujourd'hui y est, on se cale dessus plutôt que sur le lundi.
       let left = el.offsetLeft;
@@ -192,11 +194,26 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
       if (t && mondayOf(date) === mondayOf(data.today) && t.offsetLeft + t.offsetWidth > left + sc.clientWidth) left = t.offsetLeft;
       progRef.current = Date.now() + (smooth ? 900 : 300);
       sc.scrollTo({ left, behavior });
+      // À l'ouverture, l'animation d'apparition peut encore bloquer le
+      // défilement : le saut est retenté quelques images de suite jusqu'à ce
+      // qu'il tienne (sinon le calendrier restait sur la première semaine chargée).
+      if (!smooth) {
+        let tries = 0;
+        const again = () => {
+          if (Math.abs(sc.scrollLeft - Math.min(left, sc.scrollWidth - sc.clientWidth)) <= 2 || ++tries > 40) return;
+          progRef.current = Date.now() + 300;
+          sc.scrollLeft = left;
+          requestAnimationFrame(again);
+        };
+        requestAnimationFrame(again);
+      }
     } else {
       const el = sc.querySelector<HTMLElement>(`[data-date="${mondayOf(date)}"]`);
+      if (!el) return false;
       progRef.current = Date.now() + (smooth ? 900 : 300);
-      if (el) sc.scrollTo({ top: el.offsetTop - (headRef.current?.offsetHeight ?? 0) - 6, behavior });
+      sc.scrollTo({ top: el.offsetTop - (headRef.current?.offsetHeight ?? 0) - 6, behavior });
     }
+    return true;
   }
 
   // Aller à une date : défilement doux si elle est déjà chargée, sinon on
@@ -256,10 +273,18 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
         }
       }
     }
+    // Le saut n'est consommé qu'une fois réussi : s'il arrive avant que la
+    // zone de défilement soit prête, il est retenté aux images suivantes.
     const jump = jumpRef.current;
     if (jump) {
-      jumpRef.current = null;
-      scrollToDate(jump.date, jump.smooth);
+      let tries = 0;
+      const attempt = () => {
+        if (jumpRef.current !== jump) return;
+        if (scrollToDate(jump.date, jump.smooth)) jumpRef.current = null;
+        else if (++tries < 60) requestAnimationFrame(attempt);
+        else jumpRef.current = null;
+      };
+      attempt();
     }
     if (sc) locateToday(sc);
     // scrollToDate ne dépend que de la vue et du DOM déjà rendu.
@@ -589,6 +614,31 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
           >
             {draftIds.length > 1 ? `Tout publier (${draftIds.length})` : "Publier"}
           </button>
+        </div>
+      )}
+
+      {/* Séances « à placer » de la semaine affichée : l'athlète choisit ses
+          jours ; le coach voit où il en est et peut aussi les placer. */}
+      {view === "week" && head.week && head.week.toPlace.length > 0 && (
+        <div>
+          <p className="mb-1.5 text-[13px] text-slate">
+            {head.week.toPlace.filter((x) => !x.date).length
+              ? `${data.athleteName} n'a pas encore placé ${head.week.toPlace.filter((x) => !x.date).length} séance${head.week.toPlace.filter((x) => !x.date).length > 1 ? "s" : ""} de cette semaine.`
+              : `${data.athleteName} a placé les séances proposées pour cette semaine.`}
+          </p>
+          <PlaceTray
+            key={head.week.weekStart}
+            dates={head.week.days.map((d) => d.date)}
+            today={data.today}
+            items={head.week.toPlace}
+            you="vous"
+            days={Object.fromEntries(
+              head.week.days.map((d) => [
+                d.date,
+                { busy: d.entries.filter((e) => !head.week!.toPlace.some((f) => f.id === e.id)).length, unavailable: d.blocks.length > 0 },
+              ])
+            )}
+          />
         </div>
       )}
 

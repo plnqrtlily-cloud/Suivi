@@ -29,7 +29,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   to.setMonth(to.getMonth() + 12);
 
   const workouts = await dbAll<Workout>(
-    `SELECT * FROM workouts WHERE athlete_id = ? AND date BETWEEN ? AND ? ORDER BY date ASC`,
+    `SELECT * FROM workouts WHERE athlete_id = ? AND date BETWEEN ? AND ? AND is_draft = 0 AND COALESCE(flex_placed, 1) = 1 ORDER BY date ASC`,
     [user.id, toISODate(from), toISODate(to)]
   );
 

@@ -194,6 +194,10 @@ export async function getCoachesForAthlete(athleteId: string): Promise<CoachLink
 
 export interface Workout {
   id: string;
+  /** Séance « à placer » : lundi de la semaine proposée (null sinon). */
+  flex_week?: string | null;
+  /** 0 = encore dans le bac, 1 = placée par l'athlète, null = séance ordinaire. */
+  flex_placed?: number | null;
   coach_id: string;
   athlete_id: string;
   sport: string;
@@ -236,7 +240,9 @@ export async function getWorkoutsForAthlete(
   toDate?: string,
   includeDrafts = false
 ): Promise<Workout[]> {
-  const draftClause = includeDrafts ? "" : " AND w.is_draft = 0";
+  // Les séances « à placer » encore dans le bac n'ont pas de vrai jour : elles
+  // sont lues à part (getWorkoutsToPlace).
+  const draftClause = (includeDrafts ? "" : " AND w.is_draft = 0") + " AND COALESCE(w.flex_placed, 1) = 1";
   if (fromDate && toDate) {
     return dbAll(
       `SELECT w.*, u.first_name as coach_first_name, u.last_name as coach_last_name
@@ -817,7 +823,7 @@ export async function getSetsForBlock(blockId: string) {
 export async function getUpcomingGoals(athleteId: string, limit = 5) {
   return dbAll(
     `SELECT * FROM workouts
-     WHERE athlete_id = ? AND category IN ('objectif','evenement') AND date >= date('now')
+     WHERE athlete_id = ? AND category IN ('objectif','evenement') AND date >= date('now') AND COALESCE(flex_placed, 1) = 1
      ORDER BY date ASC LIMIT ?`,
     [athleteId, limit]
   );
@@ -897,7 +903,7 @@ export async function getUnvalidatedWorkouts(coachId: string, sinceDate: string,
      FROM workouts w JOIN users u ON u.id = w.athlete_id
      WHERE w.coach_id = ?
        AND w.date < date('now') AND w.date >= ?
-       AND w.category NOT IN ('objectif','evenement')
+       AND w.category NOT IN ('objectif','evenement') AND COALESCE(w.flex_placed, 1) = 1
        AND w.status IN ('planned','not_done')
      ORDER BY w.date DESC LIMIT ?`,
     [coachId, sinceDate, limit]
@@ -926,7 +932,7 @@ export async function getRecentAthleteComments(coachId: string, limit = 5) {
 export async function getNextPlannedWorkoutDate(athleteId: string): Promise<string | null> {
   const row = await dbGet<any>(
     `SELECT date FROM workouts
-     WHERE athlete_id = ? AND date >= date('now') AND category NOT IN ('objectif','evenement')
+     WHERE athlete_id = ? AND date >= date('now') AND category NOT IN ('objectif','evenement') AND COALESCE(flex_placed, 1) = 1
      ORDER BY date ASC LIMIT 1`,
     [athleteId]
   );
@@ -1127,4 +1133,20 @@ export interface ZoneOverrides {
 
 export async function getZoneOverrides(athleteId: string): Promise<ZoneOverrides | null> {
   return (await dbGet<ZoneOverrides>(`SELECT hr_json, pw_json, pace_json, updated_at FROM athlete_zone_overrides WHERE athlete_id = ?`, [athleteId])) ?? null;
+}
+
+
+/**
+ * Séances « à placer » des semaines [fromWeek, toWeek] (lundis), placées ou
+ * non : le bac de chaque semaine montre celles qui attendent, et les cases
+ * des jours celles déjà placées (déplaçables tant qu'elles sont à faire).
+ */
+export async function getFlexWorkouts(athleteId: string, fromWeek: string, toWeek: string, includeDrafts = false) {
+  return dbAll<Workout>(
+    `SELECT w.*, u.first_name as coach_first_name, u.last_name as coach_last_name
+     FROM workouts w JOIN users u ON u.id = w.coach_id
+     WHERE w.athlete_id = ? AND w.flex_week IS NOT NULL AND w.flex_week BETWEEN ? AND ?${includeDrafts ? "" : " AND w.is_draft = 0"}
+     ORDER BY w.flex_week ASC, w.created_at ASC`,
+    [athleteId, fromWeek, toWeek]
+  );
 }

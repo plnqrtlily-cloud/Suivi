@@ -1,8 +1,11 @@
+import { PlaceTray, type DayInfo, type FlexItem } from "@/components/place-tray";
+import { sportLabelPlain } from "@/lib/sport-labels";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import {
   getWorkoutsForAthlete,
+  getFlexWorkouts,
   getTrainingPeriods,
   getCheckinForDate,
   getImportedActivitiesForRange,
@@ -223,6 +226,30 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
     getAvailabilityBlocksForRange(user.id, selectedDate, selectedDate),
     getOngoingHealthReports(user.id, today),
   ]);
+  // Séances « à placer » de la semaine affichée : rangées ici même, comme
+  // dans le calendrier.
+  const [flex, weekBlocks] = await Promise.all([
+    getFlexWorkouts(user.id, weekDates[0], weekDates[0]),
+    getAvailabilityBlocksForRange(user.id, weekDates[0], weekDates[6]),
+  ]);
+  const flexItems: FlexItem[] = flex.map((w) => ({
+    id: w.id,
+    title: w.title,
+    sportLabel: sportLabelPlain(w.sport),
+    durationMinutes: w.duration_minutes ?? null,
+    color: w.color || "#1b4b4f",
+    date: w.flex_placed ? w.date : null,
+    movable: w.status === "planned",
+  }));
+  const flexDays: Record<string, DayInfo> = Object.fromEntries(
+    weekDates.map((d) => [
+      d,
+      {
+        busy: rangeWorkouts.filter((w) => w.date === d && !w.flex_week).length + rangeImports.filter((a) => a.activity_date === d).length,
+        unavailable: weekBlocks.some((b) => b.date === d),
+      },
+    ])
+  );
   const [unreadHealth, pains] = await Promise.all([
     getUnreadHealthCounts(
       ongoing.map((r) => r.id),
@@ -291,6 +318,7 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
         </div>
 
         <div className="flex flex-col gap-3 px-4 pt-3">
+          {flexItems.some((i) => !i.date) && <PlaceTray dates={weekDates} today={today} items={flexItems} days={flexDays} />}
           {ongoing.map((r, i) => {
             const p = pains[i];
             const painLine =

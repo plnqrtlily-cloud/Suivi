@@ -124,6 +124,10 @@ export function WorkoutForm({
   // Filtre facultatif sur une période : ex. cocher Lun/Mer/Ven sur 4 semaines
   // pour ne créer la séance que ces jours-là.
   const [weekdayFilter, setWeekdayFilter] = useState<number[]>([]);
+  // « À placer » : la séance est proposée pour une ou plusieurs semaines et
+  // l'athlète choisit lui-même le jour (cf. placeFlexWorkoutAction).
+  const [placeMode, setPlaceMode] = useState(false);
+  const [weeks, setWeeks] = useState<string[]>(() => [mondayISO(defaultDate ?? todayISO())]);
   const [alsoSendTo, setAlsoSendTo] = useState<string[]>([]);
   const [error, setError] = useState<string | undefined>();
   const [pending, setPending] = useState(false);
@@ -240,15 +244,15 @@ export function WorkoutForm({
       return;
     }
 
-    if (!dates.length) {
-      setError("Choisissez au moins un jour dans le calendrier.");
+    if (placeMode ? !weeks.length : !dates.length) {
+      setError(placeMode ? "Choisissez au moins une semaine." : "Choisissez au moins un jour dans le calendrier.");
       return;
     }
     setPending(true);
     setError(undefined);
-    let chosen = dates;
+    let chosen = placeMode ? [...weeks].sort() : dates;
     // Filtre de jours de semaine, seulement s'il est affiché (plus d'une semaine choisie).
-    if (weekdayFilter.length > 0 && dates.length > 7) {
+    if (!placeMode && weekdayFilter.length > 0 && dates.length > 7) {
       chosen = dates.filter((d) => weekdayFilter.includes(new Date(`${d}T00:00:00`).getDay()));
       if (chosen.length === 0) {
         setError("Aucun jour de la plage sélectionnée ne correspond aux jours de semaine cochés.");
@@ -274,6 +278,7 @@ export function WorkoutForm({
           planJson: planJson(),
         linksJson: JSON.stringify(links.filter((l) => l.label && l.url)),
         isDraft: draftRef.current,
+        toPlace: placeMode,
       });
       if (alsoSendTo.length > 0) {
         await createWorkoutBulkAction({
@@ -292,6 +297,7 @@ export function WorkoutForm({
           plannedRpe: rpeNumber,
           planJson: planJson(),
           linksJson: JSON.stringify(links.filter((l) => l.label && l.url)),
+          toPlace: placeMode,
         });
       }
       void result;
@@ -403,7 +409,43 @@ export function WorkoutForm({
 
         {!knownDate && (
           <div>
-            <span className="mb-1.5 block text-sm font-bold text-ink">Jour(s)</span>
+            <span className="mb-1.5 block text-sm font-bold text-ink">Quand ?</span>
+            <div className="mb-3 flex rounded-full bg-paper-dim p-[3px] text-[13px] font-semibold">
+              {(
+                [
+                  [false, "Jours fixés par vous"],
+                  [true, "À placer par l'athlète"],
+                ] as const
+              ).map(([m, l]) => (
+                <button key={l} type="button" onClick={() => setPlaceMode(m)} className={`flex-1 rounded-full px-3 py-1.5 ${placeMode === m ? "bg-white text-ink shadow-sm" : "text-slate"}`}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            {placeMode ? (
+              <div>
+                <p className="mb-2 text-xs text-slate">
+                  La séance arrive dans le bac « À placer » de la semaine choisie ; l&apos;athlète la glisse sur le jour qui lui convient. Plusieurs semaines = une séance par semaine.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {upcomingWeeks(defaultDate ?? todayISO()).map((w) => {
+                    const on = weeks.includes(w);
+                    return (
+                      <button
+                        key={w}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => setWeeks((prev) => (on ? prev.filter((x) => x !== w) : [...prev, w]))}
+                        className={`rounded-full border px-3 py-1.5 text-[13px] font-semibold ${on ? "border-moss-dark bg-moss-dark text-white" : "border-line bg-white text-ink-soft hover:border-moss"}`}
+                      >
+                        {weekLabel(w)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+            <>
             <p className="mb-2 text-xs text-slate">Une séance identique est créée pour chaque jour choisi.</p>
             <DaysPicker value={dates} onChange={setDates} />
             {dates.length > 7 && (
@@ -428,6 +470,8 @@ export function WorkoutForm({
                   </button>
                 ))}
               </div>
+            )}
+            </>
             )}
           </div>
         )}
@@ -519,4 +563,38 @@ export function WorkoutForm({
       </div>
     </form>
   );
+}
+
+
+// --- Semaines proposées pour une séance « à placer » ---
+
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function mondayISO(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** La semaine du jour de départ et les 7 suivantes (lundis). */
+function upcomingWeeks(from: string): string[] {
+  const start = new Date(`${mondayISO(from)}T00:00:00`);
+  return Array.from({ length: 8 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i * 7);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+}
+
+function weekLabel(monday: string): string {
+  const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+  const a = new Date(`${monday}T00:00:00`);
+  const b = new Date(a);
+  b.setDate(b.getDate() + 6);
+  return a.getMonth() === b.getMonth()
+    ? `${a.getDate()} – ${b.getDate()} ${MONTHS[b.getMonth()]}`
+    : `${a.getDate()} ${MONTHS[a.getMonth()]} – ${b.getDate()} ${MONTHS[b.getMonth()]}`;
 }

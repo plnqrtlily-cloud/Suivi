@@ -46,7 +46,7 @@ export async function loadDashboardBatch(
   const [todayWorkouts, checkins, unread, journal, acwrWorkouts, imports, recentWorkouts] = await Promise.all([
     // Séances du jour
     dbAll<any>(
-      `SELECT * FROM workouts WHERE athlete_id IN (${ph}) AND date = ? AND is_draft = 0 ORDER BY time ASC`,
+      `SELECT * FROM workouts WHERE athlete_id IN (${ph}) AND date = ? AND is_draft = 0 AND COALESCE(flex_placed, 1) = 1 ORDER BY time ASC`,
       [...athleteIds, today]
     ),
     // Dernier check-in de chaque athlète
@@ -70,7 +70,7 @@ export async function loadDashboardBatch(
     ]),
     // Séances de la fenêtre ACWR (28 jours)
     dbAll<any>(
-      `SELECT * FROM workouts WHERE athlete_id IN (${ph}) AND date BETWEEN ? AND ? AND is_draft = 0`,
+      `SELECT * FROM workouts WHERE athlete_id IN (${ph}) AND date BETWEEN ? AND ? AND is_draft = 0 AND COALESCE(flex_placed, 1) = 1`,
       [...athleteIds, acwrFrom, today]
     ),
     // Activités importées de la même fenêtre
@@ -82,7 +82,7 @@ export async function loadDashboardBatch(
     // Séances récentes et à venir, pour les signaux (séances ratées, sans
     // retour, prochaine séance prévue)
     dbAll<any>(
-      `SELECT * FROM workouts WHERE athlete_id IN (${ph}) AND date >= ? AND is_draft = 0 ORDER BY date ASC`,
+      `SELECT * FROM workouts WHERE athlete_id IN (${ph}) AND date >= ? AND is_draft = 0 AND COALESCE(flex_placed, 1) = 1 ORDER BY date ASC`,
       [...athleteIds, recentFrom]
     ),
   ]);
@@ -157,7 +157,7 @@ export async function loadWorkoutsForAthletes(
   if (athleteIds.length === 0) return new Map();
   const rows = await dbAll<Workout>(
     `SELECT w.* FROM workouts w
-     WHERE w.athlete_id IN (${placeholders(athleteIds.length)}) AND w.date BETWEEN ? AND ?
+     WHERE w.athlete_id IN (${placeholders(athleteIds.length)}) AND w.date BETWEEN ? AND ? AND COALESCE(w.flex_placed, 1) = 1
      ORDER BY w.date ASC, ${TIME_SORT_SQL} ASC`,
     [...athleteIds, fromDate, toDate]
   );

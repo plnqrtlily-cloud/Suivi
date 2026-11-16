@@ -93,7 +93,9 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
           <div>
             <p className="text-sm text-slate">
               {sportLabel(workout.sport)} ·{" "}
-              {new Date(`${workout.date}T00:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
+              {workout.flex_week && !workout.flex_placed
+                ? `à placer dans la semaine du ${new Date(`${workout.flex_week}T00:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`
+                : new Date(`${workout.date}T00:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
               {workout.time && isTimeOfDaySlug(workout.time)
                 ? ` · ${formatWorkoutTime(workout.time)}`
                 : workout.time

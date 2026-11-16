@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import {
   getWorkoutsForAthlete,
+  getFlexWorkouts,
   getImportedActivitiesForRange,
   getAvailabilityBlocksForRange,
   getTrainingPeriodsForRange,
@@ -21,6 +22,8 @@ import { CalendarAddButton } from "./calendar-add-button";
 import { ContinuousScroll } from "@/components/continuous-scroll";
 import { EventRow } from "@/components/calendar-events";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { PlaceTray, type DayInfo, type FlexItem } from "@/components/place-tray";
+import { sportLabelPlain } from "@/lib/sport-labels";
 import { getCalendarEvents } from "@/lib/calendar-events";
 import { eventKind, eventsOn, type CalendarEventView } from "@/lib/calendar-event-kinds";
 import { Chip, SportIcon, durationLabel, isGoal, statusKey } from "../athlete-ui";
@@ -254,13 +257,38 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
   const weeks = Array.from({ length: hi - lo + 1 }, (_, i) => getWeekDates(lo + i));
   const from = weeks[0][0];
   const to = weeks[weeks.length - 1][6];
-  const [workouts, imports, blocks, periods, events] = await Promise.all([
+  const [workouts, imports, blocks, periods, events, flex] = await Promise.all([
     getWorkoutsForAthlete(athleteId, from, to),
     getImportedActivitiesForRange(athleteId, from, to),
     getAvailabilityBlocksForRange(athleteId, from, to),
     getTrainingPeriodsForRange(athleteId, from, to),
     getCalendarEvents([athleteId], from, to, athleteId),
+    getFlexWorkouts(athleteId, weeks[0][0], weeks[weeks.length - 1][0]),
   ]);
+  // Séances « à placer » de chaque semaine, et l'occupation de chaque jour
+  // pour aider à choisir (autres séances, indisponibilités).
+  const flexByWeek = (monday: string): FlexItem[] =>
+    flex
+      .filter((w) => w.flex_week === monday)
+      .map((w) => ({
+        id: w.id,
+        title: w.title,
+        sportLabel: sportLabelPlain(w.sport),
+        durationMinutes: w.duration_minutes ?? null,
+        color: w.color || PET,
+        date: w.flex_placed ? w.date : null,
+        movable: w.status === "planned",
+      }));
+  const dayInfo = (dates: string[]): Record<string, DayInfo> =>
+    Object.fromEntries(
+      dates.map((d) => [
+        d,
+        {
+          busy: workouts.filter((w) => w.date === d && !w.flex_week).length + imports.filter((a) => a.activity_date === d).length,
+          unavailable: blocks.some((b) => b.date === d),
+        },
+      ])
+    );
 
   const range = (a: number, b: number) => `/athlete/programmation?view=week&week=${offset}&from=${a}&to=${b}`;
   return (
@@ -286,6 +314,7 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
               <b className="text-[15px] text-ink">{frRange(dates[0], dates[6])}</b>
               {summary && <span className="text-[12.5px] text-slate">{summary}</span>}
             </div>
+            {flexByWeek(dates[0]).length > 0 && <PlaceTray dates={dates} today={today} items={flexByWeek(dates[0])} days={dayInfo(dates)} />}
             {dates.map((date, idx) => {
               const isToday = date === today;
               const total = dayMinutes(date, workouts, imports);

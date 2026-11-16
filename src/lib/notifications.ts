@@ -46,7 +46,7 @@ async function generateEventReminders(athleteId: string): Promise<void> {
   const upcoming = await dbAll<any>(
     `SELECT id, title, date FROM workouts
      WHERE athlete_id = ? AND category = 'evenement'
-       AND date BETWEEN date('now') AND date('now', '+3 days')`,
+       AND date BETWEEN date('now') AND date('now', '+3 days') AND COALESCE(flex_placed, 1) = 1`,
     [athleteId]
   );
 

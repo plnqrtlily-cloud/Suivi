@@ -3,6 +3,7 @@
 
 import type { CycleDay } from "./cycle-types";
 import type { CalendarEventView } from "./calendar-event-kinds";
+import type { FlexItem } from "@/components/place-tray";
 
 /**
  * todo : à faire · noreport : date passée sans retour de l'athlète ·
@@ -107,6 +108,8 @@ export interface CalWeek {
   total: number;
   disciplines: CalDiscipline[];
   days: CalDay[];
+  /** Séances « à placer » proposées pour cette semaine (placées ou non). */
+  toPlace: FlexItem[];
 }
 
 export interface CoachCalendarData {

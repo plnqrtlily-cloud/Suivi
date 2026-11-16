@@ -361,13 +361,20 @@ export async function createWorkoutAction(params: {
   isDraft?: boolean;
   plannedRpe?: number;
   planJson?: string;
+  /**
+   * Séance « à placer » : `dates` contient alors les lundis des semaines
+   * choisies ; l'athlète placera chaque séance sur le jour de son choix.
+   */
+  toPlace?: boolean;
 }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
   if (!(await isCoachLinkedToAthlete(user.id, params.athleteId))) {
     throw new Error("Ce coach n'est pas lié à cet athlète.");
   }
-  if (!params.dates.length) throw new Error("Choisissez au moins un jour.");
+  if (!params.dates.length) throw new Error(params.toPlace ? "Choisissez au moins une semaine." : "Choisissez au moins un jour.");
+  const toPlace = !!params.toPlace;
+  if (toPlace) params = { ...params, dates: [...new Set(params.dates.map(mondayOf))] };
 
   // Essai automatique terminé (cf. src/lib/billing.ts) : le reste de l'app
   // reste utilisable, seule la création de nouvelles séances est bloquée
@@ -410,8 +417,8 @@ export async function createWorkoutAction(params: {
       // le clic perceptiblement lent. Cf. dbBatch dans src/lib/db.ts.
       const statements: { sql: string; args: any[] }[] = [
         {
-          sql: `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, priority, title, date, time, duration_minutes, description, color, intervals_json, links_json, is_draft, planned_rpe, plan_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          sql: `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, priority, title, date, time, duration_minutes, description, color, intervals_json, links_json, is_draft, planned_rpe, plan_json, flex_week, flex_placed)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             workoutId,
             user.id,
@@ -430,6 +437,8 @@ export async function createWorkoutAction(params: {
             params.isDraft ? 1 : 0,
             clampRpe(params.plannedRpe),
             params.planJson || null,
+            toPlace ? date : null,
+            toPlace ? 0 : null,
           ],
         },
       ];
@@ -475,8 +484,9 @@ export async function createWorkoutAction(params: {
   revalidatePath(`/coach/athletes/${params.athleteId}`);
   revalidatePath("/athlete");
 
-  const body =
-    params.dates.length === 1
+  const body = toPlace
+    ? `« ${params.title} » à placer ${params.dates.length === 1 ? `dans la semaine du ${frDay(params.dates[0])}` : `sur ${params.dates.length} semaines`} : choisis ton jour.`
+    : params.dates.length === 1
       ? `« ${params.title} » prévue le ${params.dates[0]}.`
       : `« ${params.title} » prévue ${params.dates.length} jours, du ${params.dates[0]} au ${params.dates[params.dates.length - 1]}.`;
   // Un brouillon ne notifie pas l'athlète : il ne le voit pas encore.
@@ -484,9 +494,9 @@ export async function createWorkoutAction(params: {
     await createNotification({
       userId: params.athleteId,
       type: "new_workout",
-      title: "Nouvelle séance",
+      title: toPlace ? "Séance à placer" : "Nouvelle séance",
       body,
-      link: `/workouts/${workoutIds[0]}`,
+      link: toPlace ? `/athlete/programmation?view=week&week=${weekOffsetFromToday(params.dates[0])}` : `/workouts/${workoutIds[0]}`,
     });
   }
 
@@ -843,6 +853,7 @@ export async function createWorkoutBulkAction(params: {
   linksJson?: string;
   plannedRpe?: number;
   planJson?: string;
+  toPlace?: boolean;
 }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
@@ -885,7 +896,7 @@ export async function copyWeekAction(params: {
   );
 
   const sourceWorkouts = await dbAll<any>(
-    `SELECT * FROM workouts WHERE athlete_id = ? AND coach_id = ? AND date BETWEEN ? AND ?`,
+    `SELECT * FROM workouts WHERE athlete_id = ? AND coach_id = ? AND date BETWEEN ? AND ? AND COALESCE(flex_placed, 1) = 1`,
     [params.athleteId, user.id, params.sourceWeekStart, toISODate(sourceEnd)]
   );
 
@@ -3513,4 +3524,66 @@ export async function publishWorkoutsAction(workoutIds: string[]) {
     revalidateAthleteDays(athleteId, list.map((w) => w.date));
   }
   return { count: rows.length };
+}
+
+
+// --- Séances « à placer » (proposées pour une semaine, jour choisi par l'athlète) ---
+
+function mondayOf(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  const dow = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - dow);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Écart en semaines entre la semaine courante et celle de ce lundi (paramètre `week` du calendrier athlète). */
+function weekOffsetFromToday(monday: string): number {
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return Math.round((Date.parse(`${monday}T00:00:00Z`) - Date.parse(`${mondayOf(today)}T00:00:00Z`)) / (7 * 86400000));
+}
+
+function frDay(iso: string): string {
+  const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+  const DOW = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+  const d = new Date(`${iso}T00:00:00Z`);
+  return `${DOW[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+}
+
+/**
+ * Place une séance « à placer » sur un jour de sa semaine (ou la remet dans
+ * le bac avec date = null). Par l'athlète concerné, ou par son coach. Le coach
+ * est prévenu quand c'est l'athlète qui place ou déplace.
+ */
+export async function placeFlexWorkoutAction(workoutId: string, date: string | null) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Non autorisé.");
+  const w = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [workoutId]);
+  if (!w || !w.flex_week) throw new Error("Cette séance n'est pas à placer.");
+  const allowed = user.id === w.athlete_id || (user.role === "coach" && user.id === w.coach_id);
+  if (!allowed) throw new Error("Non autorisé.");
+  if (w.status !== "planned") throw new Error("Une séance déjà renseignée ne se déplace plus.");
+  const weekEnd = new Date(`${w.flex_week}T00:00:00Z`);
+  weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
+  if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < w.flex_week || date > weekEnd.toISOString().slice(0, 10))) {
+    throw new Error("Choisissez un jour de la semaine proposée.");
+  }
+  if (date) await dbRun(`UPDATE workouts SET date = ?, flex_placed = 1 WHERE id = ?`, [date, workoutId]);
+  else await dbRun(`UPDATE workouts SET date = ?, flex_placed = 0 WHERE id = ?`, [w.flex_week, workoutId]);
+
+  if (user.id === w.athlete_id) {
+    await createNotification({
+      userId: w.coach_id,
+      type: "workout_updated",
+      title: date ? `${user.first_name} a placé une séance` : `${user.first_name} a retiré une séance de son planning`,
+      body: date ? `« ${w.title} » : ${frDay(date)}` : `« ${w.title} » est de nouveau à placer (semaine du ${frDay(w.flex_week)}).`,
+      link: `/coach/athletes/${w.athlete_id}?view=week&week=${weekOffsetFromToday(w.flex_week)}`,
+    });
+  }
+  revalidatePath("/athlete/programmation");
+  revalidatePath("/athlete");
+  revalidatePath(`/coach/athletes/${w.athlete_id}`);
+  revalidatePath("/coach/planification");
+  if (w.flex_placed) revalidatePath(`/athlete/day/${w.date}`);
+  if (date) revalidatePath(`/athlete/day/${date}`);
 }

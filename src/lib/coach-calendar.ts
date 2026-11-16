@@ -5,6 +5,7 @@ import { getCalendarEvents } from "./calendar-events";
 import { eventsOn } from "./calendar-event-kinds";
 import {
   getWorkoutsForAthlete,
+  getFlexWorkouts,
   getImportedActivitiesForRange,
   getAvailabilityBlocksForRange,
   getCheckinsForRange,
@@ -170,13 +171,14 @@ export async function loadCalendarWeeks(params: {
   );
   const to = weeksDates[weeksDates.length - 1][6].date;
 
-  const [workouts, imports, blocks, checkins, periods, events] = await Promise.all([
+  const [workouts, imports, blocks, checkins, periods, events, flex] = await Promise.all([
     getWorkoutsForAthlete(athleteId, from, to, true),
     getImportedActivitiesForRange(athleteId, from, to),
     getAvailabilityBlocksForRange(athleteId, from, to),
     getCheckinsForRange(athleteId, from, to),
     getTrainingPeriods(athleteId),
     getCalendarEvents([athleteId], from, to, coachId),
+    getFlexWorkouts(athleteId, from, weeksDates[weeksDates.length - 1][0].date, true),
   ]);
   const ids = workouts.map((w) => w.id);
   const strengthIds = workouts.filter((w) => w.sport === "strength").map((w) => w.id);
@@ -345,6 +347,17 @@ export async function loadCalendarWeeks(params: {
       km: Math.round(km * 10) / 10,
       done,
       total,
+      toPlace: flex
+        .filter((w) => w.flex_week === wk[0].date)
+        .map((w) => ({
+          id: w.id,
+          title: w.title,
+          sportLabel: SPORT_LABELS[w.sport] || w.sport,
+          durationMinutes: w.duration_minutes ?? null,
+          color: w.color || "#1b4b4f",
+          date: w.flex_placed ? w.date : null,
+          movable: w.status === "planned",
+        })),
       disciplines: Object.keys(disc)
         .sort((a, b) => disc[b] - disc[a])
         .map((k) => ({ label: SPORT_LABELS[k] || k, minutes: disc[k], color: SPORT_COLORS[k] || "#9aa39c" })),
