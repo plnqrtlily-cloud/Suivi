@@ -27,6 +27,26 @@ const BLOCK_TITLES: Record<string, string> = {
   cooldown: "Retour au calme",
 };
 
+// Partie de la séance, suivie du type d'exercice saisi par le coach (ou, pour
+// les séances d'avant la saisie libre, du libellé de l'ancienne liste).
+const GROUP_OF: Record<string, string> = {
+  warmup_mobility: "Échauffement",
+  warmup_plyo: "Échauffement",
+  warmup_proprio: "Échauffement",
+  main: "Corps de séance",
+  secondary: "Corps de séance",
+  complementary: "Corps de séance",
+  specific: "Corps de séance",
+  core: "Gainage",
+  cooldown: "Retour au calme",
+};
+function blockTitle(b: { block_type: string; exercise_type?: string | null }): string {
+  if (b.exercise_type == null) return BLOCK_TITLES[b.block_type] ?? "";
+  const g = GROUP_OF[b.block_type] ?? "";
+  const t = b.exercise_type.trim();
+  return t && t.toLowerCase() !== g.toLowerCase() ? `${g} — ${t}` : g;
+}
+
 const QUALITY_LABELS: Record<string, string> = {
   force_max: "Force maximale",
   explosivite: "Explosivité / puissance",
@@ -278,7 +298,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                   const anim = b.resource_id ? null : animationFor(b.exercise_name);
                   return {
                     name: b.exercise_name,
-                    blockTitle: BLOCK_TITLES[b.block_type] ?? "",
+                    blockTitle: blockTitle(b),
                     qualityLabel: b.training_quality ? QUALITY_LABELS[b.training_quality] : null,
                     qualityTip: b.training_quality ? QUALITY_TIPS[b.training_quality] ?? null : null,
                     repType: b.rep_type === "time" ? "time" : "reps",
@@ -313,7 +333,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                 const renderBlock = (b: any) => (
                   <div key={b.id} className="border-l-2 border-moss/40 pl-3">
                   <ExerciseDetailButton data={detailOf(b)}>
-                    <p className="text-xs uppercase tracking-wide text-slate">{BLOCK_TITLES[b.block_type]}</p>
+                    <p className="text-xs uppercase tracking-wide text-slate">{blockTitle(b)}</p>
                     <div className="flex items-center gap-2">
                       <p className="font-medium text-ink">{b.exercise_name}</p>
                       {b.training_quality && (

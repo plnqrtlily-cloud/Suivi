@@ -175,6 +175,9 @@ export function WorkoutForm({
           training_quality: b.training_quality || undefined,
           rep_type: b.rep_type,
           tempo: b.tempo || undefined,
+          // Toujours envoyé ("" si vide) : distingue une saisie libre vide d'une
+          // séance d'avant la saisie libre (null).
+          exercise_type: b.exercise_type?.trim() ?? "",
           circuit_id: b.circuit_id,
           circuit_rounds: b.circuit_rounds,
           circuit_rest_seconds: b.circuit_rest_seconds,

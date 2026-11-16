@@ -335,6 +335,8 @@ export interface BlockInput {
   rep_type?: "reps" | "time";
   /** Tempo d'exécution, ex. « 3-1-1-0 ». */
   tempo?: string;
+  /** Type d'exercice en texte libre. */
+  exercise_type?: string;
   circuit_id?: string;
   circuit_rounds?: number;
   /** Récupération entre deux passages de la série, en secondes. */
@@ -449,8 +451,8 @@ export async function createWorkoutAction(params: {
       resolvedBlocks.forEach((b, idx) => {
         const blockId = randomUUID();
         statements.push({
-          sql: `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, notes, resource_id, order_index, training_quality, rep_type, circuit_id, circuit_rounds, circuit_rest_seconds, tempo)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          sql: `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, notes, resource_id, order_index, training_quality, rep_type, circuit_id, circuit_rounds, circuit_rest_seconds, tempo, exercise_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             blockId,
             workoutId,
@@ -465,6 +467,7 @@ export async function createWorkoutAction(params: {
             b.circuit_rounds || null,
             b.circuit_rest_seconds || null,
             b.tempo?.trim().slice(0, 20) || null,
+            b.exercise_type != null ? b.exercise_type.trim().slice(0, 60) : null,
           ],
         });
 
@@ -589,8 +592,8 @@ export async function updateWorkoutAction(params: {
   resolvedBlocks.forEach((b, idx) => {
     const blockId = randomUUID();
     statements.push({
-      sql: `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, notes, resource_id, order_index, training_quality, rep_type, circuit_id, circuit_rounds, circuit_rest_seconds, tempo)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO workout_blocks (id, workout_id, block_type, exercise_name, notes, resource_id, order_index, training_quality, rep_type, circuit_id, circuit_rounds, circuit_rest_seconds, tempo, exercise_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         blockId,
         params.workoutId,
@@ -605,6 +608,7 @@ export async function updateWorkoutAction(params: {
         b.circuit_rounds || null,
         b.circuit_rest_seconds || null,
         b.tempo?.trim().slice(0, 20) || null,
+        b.exercise_type != null ? b.exercise_type.trim().slice(0, 60) : null,
       ],
     });
 
@@ -808,6 +812,7 @@ export async function duplicateWorkoutAction(params: { workoutId: string; target
     circuit_rounds: b.circuit_rounds || undefined,
     circuit_rest_seconds: b.circuit_rest_seconds || undefined,
     tempo: b.tempo || undefined,
+    exercise_type: b.exercise_type ?? undefined,
     sets: (b.exerciseSets || []).map((s: any) => ({
       reps: s.reps || undefined,
       load: s.load || undefined,
@@ -919,6 +924,7 @@ export async function copyWeekAction(params: {
         circuit_rounds: b.circuit_rounds || undefined,
         circuit_rest_seconds: b.circuit_rest_seconds || undefined,
     tempo: b.tempo || undefined,
+    exercise_type: b.exercise_type ?? undefined,
         sets: (b.exerciseSets || []).map((s: any) => ({
           reps: s.reps || undefined,
           load: s.load || undefined,

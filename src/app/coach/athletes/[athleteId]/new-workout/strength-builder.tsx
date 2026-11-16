@@ -31,6 +31,23 @@ export const BLOCK_GROUPS: { title: string; types: { value: string; label: strin
   { title: "Retour au calme", types: [{ value: "cooldown", label: "Retour au calme" }] },
 ];
 
+// Exemples proposés pour le type d'exercice (saisie libre).
+const EXERCISE_TYPE_SUGGESTIONS = [
+  "Exercice principal",
+  "Exercice secondaire",
+  "Exercice complémentaire",
+  "Exercice spécifique",
+  "Mobilité",
+  "Pliométrie",
+  "Proprioception",
+  "Unilatéral",
+  "Excentrique",
+  "Isométrie",
+  "Prévention",
+  "Gainage",
+  "Retour au calme",
+];
+
 // La qualité travaillée ne concerne que le corps de séance : c'est là qu'on
 // pilote force max, explosivité ou force-endurance. L'échauffement et le
 // retour au calme n'ont pas à porter cette intention.
@@ -71,6 +88,8 @@ export interface BlockRow {
   rep_type: "reps" | "time";
   /** Tempo d'exécution, ex. « 3-1-1-0 » (excentrique-pause-concentrique-pause). */
   tempo?: string;
+  /** Type d'exercice en texte libre (« Exercice principal », « Unilatéral »…). */
+  exercise_type?: string;
   /** Exercices partageant cet identifiant = une même série. */
   circuit_id?: string;
   /** Nombre de fois que la série est répétée. */
@@ -220,6 +239,11 @@ export function StrengthBuilder({
       <datalist id="exercise-suggestions">
         {suggestions.map((name) => (
           <option key={name} value={name} />
+        ))}
+      </datalist>
+      <datalist id="exercise-type-suggestions">
+        {EXERCISE_TYPE_SUGGESTIONS.map((t) => (
+          <option key={t} value={t} />
         ))}
       </datalist>
 
@@ -381,17 +405,19 @@ export function StrengthBuilder({
                               <p className="mb-2 text-[13px] font-bold text-[#5b8a8c]">{letterOf(s.id)}{rowIdx + 1}</p>
                               <div className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-12">
                                 <div className="sm:col-span-4">
-                                  <SelectField
-                                    label="Type d'exercice"
-                                    value={row.block_type}
-                                    onChange={(e) => updateRow(row.key, { block_type: e.target.value })}
-                                  >
-                                    {group.types.map((t) => (
-                                      <option key={t.value} value={t.value}>
-                                        {t.label}
-                                      </option>
-                                    ))}
-                                  </SelectField>
+                                  {/* Texte libre : le coach nomme le type comme il l'entend
+                                      (suggestions en exemple, rien n'est imposé). */}
+                                  <label className="flex flex-col gap-1.5 text-sm">
+                                    <span className="font-medium text-ink-soft">Type d&apos;exercice</span>
+                                    <input
+                                      list="exercise-type-suggestions"
+                                      value={row.exercise_type ?? ""}
+                                      onChange={(e) => updateRow(row.key, { exercise_type: e.target.value })}
+                                      placeholder={group.types[0]?.label ?? "ex. Exercice principal"}
+                                      maxLength={60}
+                                      className="rounded-md border border-line bg-white px-3 py-2.5 text-[15px] text-ink outline-none focus:border-moss"
+                                    />
+                                  </label>
                                 </div>
                                 <div className="sm:col-span-6">
                                   <label className="flex flex-col gap-1.5 text-sm">

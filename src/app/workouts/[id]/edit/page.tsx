@@ -7,6 +7,17 @@ import { WorkoutForm } from "@/app/coach/athletes/[athleteId]/new-workout/workou
 import type { BlockRow } from "@/app/coach/athletes/[athleteId]/new-workout/strength-builder";
 import type { IntervalItem } from "@/app/coach/athletes/[athleteId]/new-workout/interval-builder";
 
+// Libellés de l'ancienne liste « Type d'exercice », pour préremplir la saisie libre.
+const LEGACY_TYPE_LABELS: Record<string, string> = {
+  warmup_mobility: "Mobilité",
+  warmup_plyo: "Pliométrie",
+  warmup_proprio: "Proprioception",
+  main: "Exercice principal",
+  secondary: "Exercice secondaire",
+  complementary: "Exercice complémentaire",
+  specific: "Exercice spécifique",
+};
+
 export default async function EditWorkoutPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -36,6 +47,8 @@ export default async function EditWorkoutPage({ params }: { params: Promise<{ id
     training_quality: b.training_quality || "",
     rep_type: b.rep_type === "time" ? "time" : "reps",
     tempo: b.tempo || "",
+    // Séances d'avant la saisie libre : le type choisi dans l'ancienne liste.
+    exercise_type: b.exercise_type ?? LEGACY_TYPE_LABELS[b.block_type] ?? "",
     circuit_id: b.circuit_id || undefined,
     circuit_rounds: b.circuit_rounds || undefined,
     circuit_rest_seconds: b.circuit_rest_seconds || undefined,

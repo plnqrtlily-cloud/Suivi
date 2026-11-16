@@ -801,6 +801,10 @@ const MIGRATIONS: string[] = [
   // séance ordinaire. Les vues par date filtrent COALESCE(flex_placed, 1) = 1.
   `ALTER TABLE workouts ADD COLUMN flex_week TEXT`,
   `ALTER TABLE workouts ADD COLUMN flex_placed INTEGER`,
+  // Type d'exercice saisi librement par le coach (« Exercice principal »,
+  // « Unilatéral », « Excentrique »…). block_type ne sert plus qu'au rangement
+  // par partie de séance (échauffement, corps, gainage, retour au calme).
+  `ALTER TABLE workout_blocks ADD COLUMN exercise_type TEXT`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER
