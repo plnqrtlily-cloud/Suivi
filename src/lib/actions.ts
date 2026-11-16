@@ -36,7 +36,7 @@ import {
   Role,
 } from "./auth";
 import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MESSAGE_DOC_TYPES } from "./storage";
-import { EXERCISE_ANIMATIONS, EXERCISE_ANIMATIONS_SPORT } from "./exercise-animations";
+import { EXERCISE_ANIMATIONS, EXERCISE_ANIMATIONS_SPORT, outdatedAnimations } from "./exercise-animations";
 import { parseGpx, simplifyRoute } from "./gpx";
 import { getResourceById, getBlocksForWorkout, getCoachPlanStatus, getTeamWithMembers } from "./queries";
 import { ADMIN_EMAIL, trialEndDate } from "./billing";
@@ -2048,10 +2048,26 @@ export async function importExerciseAnimationsAction(): Promise<{ added?: number
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
 
-  const existing = await dbAll<{ title: string }>(`SELECT title FROM resources WHERE coach_id = ?`, [user.id]);
+  const existing = await dbAll<{ id: string; title: string; description: string | null }>(`SELECT id, title, description FROM resources WHERE coach_id = ?`, [user.id]);
   const titles = new Set(existing.map((r) => r.title));
   const todo = EXERCISE_ANIMATIONS.filter((a) => !titles.has(a.title));
   const dir = nodePath.join(process.cwd(), "src", "assets", "exercise-animations");
+
+  // Animations déjà importées dans une ancienne version : fichier et consigne
+  // remplacés sur place (les séances qui y renvoient affichent la nouvelle).
+  for (const a of outdatedAnimations(existing)) {
+    const buffer = await fsp.readFile(nodePath.join(dir, a.file));
+    const saved = await saveUploadedFile(new File([new Uint8Array(buffer)], a.file, { type: "image/gif" }));
+    for (const r of existing.filter((r) => r.title === a.title && r.description && a.previousDescriptions?.includes(r.description))) {
+      await dbRun(`UPDATE resources SET file_path = ?, file_size = ?, mime_type = 'image/gif', description = ? WHERE id = ? AND coach_id = ?`, [
+        saved.storedName,
+        saved.size,
+        a.description,
+        r.id,
+        user.id,
+      ]);
+    }
+  }
 
   let added = 0;
   try {

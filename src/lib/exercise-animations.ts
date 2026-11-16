@@ -4,7 +4,7 @@
 // via outputFileTracingIncludes (next.config.ts).
 export const EXERCISE_ANIMATIONS_SPORT = "Préparation physique";
 
-export const EXERCISE_ANIMATIONS: { file: string; title: string; description: string }[] = [
+export const EXERCISE_ANIMATIONS: { file: string; title: string; description: string; previousDescriptions?: string[] }[] = [
   { file: "fente-genou-mur.gif", title: "Fente genou-mur", description: "Le genou avance vers le mur, talon collé au sol (Échauffement A · Mini-séance DH)" },
   { file: "worlds-greatest-stretch.gif", title: "World's greatest stretch", description: "Fente basse, une main au sol, l'autre bras monte vers le ciel (Échauffement A)" },
   { file: "squat-profond-rotation.gif", title: "Squat profond + rotation thoracique", description: "En bas du squat, un bras monte en ouvrant le buste (Échauffement A)" },
@@ -15,7 +15,14 @@ export const EXERCISE_ANIMATIONS: { file: string; title: string; description: st
   { file: "saut-sur-box.gif", title: "Saut sur box", description: "Élan des bras, réception douce et tenue 2 s sur la box (Échauffement A)" },
   { file: "sauts-verticaux.gif", title: "Sauts verticaux enchaînés", description: "Petits sauts réactifs, réception sur l'avant du pied (Échauffement A (semaine 2))" },
   { file: "goblet-squat.gif", title: "Goblet squat", description: "Descente en 3 s, 1 s en bas, talons au sol (Séance A · exercice principal)" },
-  { file: "cou-isometrique.gif", title: "Cou en isométrie", description: "La main pousse, la tête ne bouge pas (avant, arrière, côtés) (Séance A · Mini-séance DH)" },
+  {
+    file: "cou-isometrique.gif",
+    title: "Cou en isométrie",
+    description: "Allongé sur le dos, genoux fléchis : menton rentré, la tête se décolle et reste hors du sol (Séance A · Mini-séance DH)",
+    // Ancienne version (debout, la main pousse sur la tête) : remplacée chez les
+    // coachs qui l'avaient importée (cf. importExerciseAnimationsAction).
+    previousDescriptions: ["La main pousse, la tête ne bouge pas (avant, arrière, côtés) (Séance A · Mini-séance DH)"],
+  },
   { file: "rowing-haltere.gif", title: "Rowing haltère un bras", description: "Dos plat, le coude monte vers la hanche (Séance A)" },
   { file: "developpe-halteres.gif", title: "Développé haltères", description: "Allongée sur le banc, on pousse vers le plafond (Séance A)" },
   { file: "split-squat-genou-en-avant.gif", title: "Split squat genou en avant", description: "Pied avant sur cale, genou loin devant, talon avant collé (Séance A)" },
@@ -43,3 +50,10 @@ export const EXERCISE_ANIMATIONS: { file: string; title: string; description: st
   { file: "planche-laterale.gif", title: "Planche latérale", description: "Corps aligné de la tête aux pieds, bassin haut (Séance B)" },
   { file: "pince-de-disques.gif", title: "Pince de disques", description: "Disques serrés entre les doigts, bras le long du corps (Mini-séance DH)" },
 ];
+
+/** Animations déjà importées par le coach mais dans une version remplacée depuis. */
+export function outdatedAnimations(resources: { title: string; description: string | null }[]) {
+  return EXERCISE_ANIMATIONS.filter((a) =>
+    resources.some((r) => r.title === a.title && !!r.description && !!a.previousDescriptions?.includes(r.description))
+  );
+}
