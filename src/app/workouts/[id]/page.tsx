@@ -266,6 +266,12 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                         </span>
                       )}
                     </div>
+                    {b.tempo && (
+                      <p className="mt-0.5 text-[13px] text-ink-soft">
+                        <b className="font-semibold text-ink">Tempo {b.tempo}</b>
+                        <span className="text-slate"> · descente – pause – montée – pause (s)</span>
+                      </p>
+                    )}
                     {b.exerciseSets?.length > 0 && (
                       /* En-têtes explicites : sans eux, « 10 » et « 60 » se
                          ressemblent et rien ne dit lequel est la charge. */

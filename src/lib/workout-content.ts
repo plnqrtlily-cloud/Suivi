@@ -52,6 +52,7 @@ export interface BlockLike {
   circuit_id?: string | null;
   circuit_rounds?: number | null;
   circuit_rest_seconds?: number | null;
+  tempo?: string | null;
   exerciseSets?: { reps?: string | null; load?: string | null; rir?: number | string | null }[];
 }
 
@@ -135,6 +136,7 @@ export function strengthBlocksToLines(blocks: BlockLike[]): string[] {
         if (s0.reps) t += ` × ${s0.reps}`;
         if (s0.load) t += ` @ ${s0.load}`;
         if (s0.rir != null && s0.rir !== "") t += ` RIR ${s0.rir}`;
+        if (m.tempo) t += ` tempo ${m.tempo}`;
         return t;
       })
       .join(" + ");

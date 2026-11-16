@@ -792,6 +792,9 @@ const MIGRATIONS: string[] = [
   // sport et durée prévue (cf. src/lib/calendar-events.ts).
   `ALTER TABLE calendar_events ADD COLUMN sport TEXT`,
   `ALTER TABLE calendar_events ADD COLUMN duration_minutes INTEGER`,
+  // Tempo d'exécution d'un exercice de musculation, ex. « 3-1-1-0 »
+  // (excentrique-pause-concentrique-pause, en secondes).
+  `ALTER TABLE workout_blocks ADD COLUMN tempo TEXT`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

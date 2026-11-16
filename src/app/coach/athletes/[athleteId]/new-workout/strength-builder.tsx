@@ -69,6 +69,8 @@ export interface BlockRow {
   resource_id: string;
   training_quality: TrainingQuality | "";
   rep_type: "reps" | "time";
+  /** Tempo d'exécution, ex. « 3-1-1-0 » (excentrique-pause-concentrique-pause). */
+  tempo?: string;
   /** Exercices partageant cet identifiant = une même série. */
   circuit_id?: string;
   /** Nombre de fois que la série est répétée. */
@@ -97,6 +99,7 @@ function newExercise(blockType: string, seriesId: string, rounds: number, rest: 
     resource_id: "",
     training_quality: "",
     rep_type: "reps",
+    tempo: "",
     circuit_id: seriesId,
     circuit_rounds: rounds,
     circuit_rest_seconds: rest,
@@ -454,7 +457,7 @@ export function StrengthBuilder({
                               )}
 
                               {/* Prescription : répétitions ou durée, charge, récup, RPE, RIR */}
-                              <div className="mb-2 flex items-center gap-2">
+                              <div className="mb-2 flex flex-wrap items-center gap-2">
                                 <span className="text-xs font-medium text-ink-soft">Prescrit en :</span>
                                 <div className="flex overflow-hidden rounded-full border border-line text-xs">
                                   <button
@@ -472,6 +475,17 @@ export function StrengthBuilder({
                                     Durée
                                   </button>
                                 </div>
+                                {/* Tempo d'exécution, propre à l'exercice (identique pour toutes ses séries). */}
+                                <label className="ml-auto flex items-center gap-1.5 text-xs" title="Durée en secondes de chaque phase : descente (excentrique) – pause en bas – montée (concentrique) – pause en haut. X = explosif.">
+                                  <span className="font-medium text-ink-soft">Tempo</span>
+                                  <input
+                                    value={row.tempo ?? ""}
+                                    onChange={(e) => updateRow(row.key, { tempo: e.target.value })}
+                                    placeholder="3-1-1-0"
+                                    maxLength={20}
+                                    className="w-[86px] rounded border border-line px-2 py-1 text-sm"
+                                  />
+                                </label>
                               </div>
 
                               <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">

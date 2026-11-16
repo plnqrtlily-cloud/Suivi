@@ -35,6 +35,7 @@ export default async function EditWorkoutPage({ params }: { params: Promise<{ id
     resource_id: b.resource_id || "",
     training_quality: b.training_quality || "",
     rep_type: b.rep_type === "time" ? "time" : "reps",
+    tempo: b.tempo || "",
     circuit_id: b.circuit_id || undefined,
     circuit_rounds: b.circuit_rounds || undefined,
     circuit_rest_seconds: b.circuit_rest_seconds || undefined,

@@ -170,6 +170,7 @@ export function WorkoutForm({
           resource_id: b.resource_id || undefined,
           training_quality: b.training_quality || undefined,
           rep_type: b.rep_type,
+          tempo: b.tempo || undefined,
           circuit_id: b.circuit_id,
           circuit_rounds: b.circuit_rounds,
           circuit_rest_seconds: b.circuit_rest_seconds,
