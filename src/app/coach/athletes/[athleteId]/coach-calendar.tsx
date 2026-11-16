@@ -24,6 +24,7 @@ import { WorkoutStructure } from "@/components/workout-structure";
 import { CalendarEventForm, EventDetail, EventFlag } from "@/components/calendar-events";
 import { DaysPicker } from "@/components/days-picker";
 import { PlaceTray } from "@/components/place-tray";
+import { ClipboardBar, CopyWorkoutButton, pasteWorkout, useCopiedWorkout, type CopiedWorkout } from "@/components/workout-clipboard";
 import { eventKind, eventSubtitle, type CalendarEventView } from "@/lib/calendar-event-kinds";
 
 // Calendrier coach : défilement continu, jour après jour en vue semaine et
@@ -448,6 +449,13 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
     });
   }
 
+  // Copier-coller de séances (cf. workout-clipboard) : « Coller » sur un jour.
+  const copied = useCopiedWorkout();
+  const paste = (date: string) => {
+    if (!copied) return;
+    run(() => pasteWorkout(copied, data.athleteId, date), `« ${copied.title} » collée`);
+  };
+
   function open(p: Panel) {
     setPicker(null);
     setMenu(false);
@@ -617,6 +625,8 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
         </div>
       )}
 
+      <ClipboardBar hint={`touchez « Coller » sur un jour pour la donner à ${data.athleteName}`} />
+
       {/* Séances « à placer » de la semaine affichée : l'athlète choisit ses
           jours ; le coach voit où il en est et peut aussi les placer. */}
       {view === "week" && head.week && head.week.toPlace.length > 0 && (
@@ -666,6 +676,8 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
                 onOpenEntry={(id) => open({ type: "entry", id })}
                 onOpenEvent={(id) => open({ type: "event", id })}
                 onAdd={() => open({ type: "add", date: d.date, mode: d.date <= data.today ? "done" : "todo" })}
+                copied={copied}
+                onPaste={() => paste(d.date)}
               />
             ))}
           </div>
@@ -755,6 +767,8 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
                   onOpenEntry={(id) => open({ type: "entry", id })}
                   onOpenEvent={(id) => open({ type: "event", id })}
                   onAddEvent={() => open({ type: "add", date: panel.date, mode: "event" })}
+                  copied={copied}
+                  onPaste={() => paste(panel.date)}
                   onDelete={(kind, id) => run(() => coachDeleteEntryAction(kind, id), "Supprimé")}
                 />
               )}
@@ -948,6 +962,8 @@ function DayCard({
   onOpenEntry,
   onOpenEvent,
   onAdd,
+  copied,
+  onPaste,
 }: {
   day: CalDay;
   selected: Panel;
@@ -957,6 +973,8 @@ function DayCard({
   onOpenEntry: (id: string) => void;
   onOpenEvent: (id: string) => void;
   onAdd: () => void;
+  copied: CopiedWorkout | null;
+  onPaste: () => void;
 }) {
   const isSel = (selected?.type === "day" && selected.date === day.date) || (selected?.type === "add" && selected.date === day.date);
   const empty = day.entries.length + day.blocks.length + day.events.length === 0;
@@ -999,6 +1017,16 @@ function DayCard({
         <span key={b.id} className="px-1.5 text-xs text-ink-soft">{b.label}{b.reason ? ` · ${b.reason}` : ""}</span>
       ))}
       <span className="flex-1" />
+      {copied && (
+        <button
+          type="button"
+          onClick={onPaste}
+          title={`Coller « ${copied.title} » ce jour-là`}
+          className="truncate rounded-lg border border-dashed border-[#1b4b4f]/50 bg-[#f4f8f7] px-1.5 py-1.5 text-[12.5px] font-semibold text-moss-dark hover:bg-[#e3eeed]"
+        >
+          Coller
+        </button>
+      )}
       <button
         type="button"
         onClick={onAdd}
@@ -1212,7 +1240,11 @@ function DayPanel({
   onOpenEvent,
   onAddEvent,
   onDelete,
+  copied,
+  onPaste,
 }: {
+  copied: CopiedWorkout | null;
+  onPaste: () => void;
   day?: CalDay;
   weeks: CalWeek[];
   data: CoachCalendarData;
@@ -1242,7 +1274,14 @@ function DayPanel({
               </span>
             </button>
           ))}
-          <b className="mt-2 text-sm text-ink">Séances et activités</b>
+          <div className="mt-2 flex items-center gap-3">
+            <b className="text-sm text-ink">Séances et activités</b>
+            {copied && (
+              <button type="button" onClick={onPaste} className="text-[13px] font-semibold text-moss hover:underline">
+                Coller « {copied.title} »
+              </button>
+            )}
+          </div>
           {day.entries.length === 0 && day.blocks.length === 0 && <p className="text-[13.5px] text-slate">Rien de prévu ce jour-là.</p>}
           {day.entries.map((e) => (
             <button key={e.id} type="button" onClick={() => onOpenEntry(e.id)} className="py-1 pl-3 text-left" style={{ borderLeft: e.isGoal ? "3px solid #a4492a" : BAR[e.status] }}>
@@ -1345,6 +1384,7 @@ function EntryPanel({
             </button>
           )}
           {isWorkout && <Link href={`/workouts/${e.id}/edit`} className={pill}>Modifier</Link>}
+          {isWorkout && <CopyWorkoutButton workout={{ id: e.id, title: e.title, athleteName: data.athleteName }} className={pill} />}
           {isWorkout && <button type="button" disabled={pending} onClick={() => togglePicker("dup")} className={pill} style={picker?.mode === "dup" ? { background: "#e3eeed" } : undefined}>{e.status === "miss" ? "Reprogrammer" : "Dupliquer"}</button>}
           {isWorkout && (e.status === "todo" || e.status === "noreport") && <button type="button" disabled={pending} onClick={() => togglePicker("move")} className={pill} style={picker?.mode === "move" ? { background: "#e3eeed" } : undefined}>Déplacer</button>}
           {!isWorkout && e.createdByMe && <button type="button" disabled={pending} onClick={onDeleteImport} className={pill}>Supprimer</button>}

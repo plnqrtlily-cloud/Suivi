@@ -789,13 +789,13 @@ export async function deleteWorkoutTemplateAction(id: string) {
 // Duplique une séance déjà créée (avec sa structure de blocs le cas échéant)
 // vers un autre jour et/ou un autre athlète du même coach — s'appuie sur
 // createWorkoutAction plutôt que de dupliquer sa logique d'insertion.
-export async function duplicateWorkoutAction(params: { workoutId: string; targetDate: string; targetAthleteId?: string }) {
+export async function duplicateWorkoutAction(params: { workoutId: string; targetDate: string; targetDates?: string[]; targetAthleteId?: string }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
 
   const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [params.workoutId]);
-  if (!workout) throw new Error("Séance introuvable.");
-  if (workout.coach_id !== user.id) throw new Error("Non autorisé.");
+  if (!workout) throw new Error("Cette séance n'existe plus : copiez-en une autre.");
+  if (workout.coach_id !== user.id) throw new Error("Seules les séances que vous avez programmées peuvent être copiées.");
 
   const targetAthleteId = params.targetAthleteId || workout.athlete_id;
   if (!(await isCoachLinkedToAthlete(user.id, targetAthleteId))) throw new Error("Non autorisé.");
@@ -828,7 +828,7 @@ export async function duplicateWorkoutAction(params: { workoutId: string; target
     category: workout.category,
     priority: workout.priority || undefined,
     title: workout.title,
-    dates: [params.targetDate],
+    dates: params.targetDates?.length ? params.targetDates : [params.targetDate],
     time: workout.time || undefined,
     durationMinutes: workout.duration_minutes || undefined,
     description: workout.description || undefined,
@@ -839,6 +839,22 @@ export async function duplicateWorkoutAction(params: { workoutId: string; target
     plannedRpe: workout.planned_rpe || undefined,
     planJson: workout.plan_json || undefined,
   });
+}
+
+/**
+ * Copier-coller d'une séance vers un ou plusieurs athlètes, sur un ou
+ * plusieurs jours (structure, consignes et blocs compris). Chaque athlète
+ * reçoit sa notification habituelle « Nouvelle séance ».
+ */
+export async function copyWorkoutToAthletesAction(params: { workoutId: string; athleteIds: string[]; dates: string[] }) {
+  if (!params.athleteIds.length) throw new Error("Choisissez au moins un athlète.");
+  if (!params.dates.length) throw new Error("Choisissez au moins un jour.");
+  let count = 0;
+  for (const athleteId of [...new Set(params.athleteIds)]) {
+    const r = await duplicateWorkoutAction({ workoutId: params.workoutId, targetDate: params.dates[0], targetDates: params.dates, targetAthleteId: athleteId });
+    count += r.workoutIds.length;
+  }
+  return { count };
 }
 
 // Envoi de la même séance à plusieurs athlètes d'un coup (cf. besoin coach : une

@@ -16,6 +16,7 @@ import {
 } from "@/lib/actions";
 import { Avatar } from "@/components/avatar";
 import { DaysPicker } from "@/components/days-picker";
+import { CopyWorkoutButton, pasteWorkout, useCopiedWorkout } from "@/components/workout-clipboard";
 import { guessSportFromTitle } from "@/lib/calendar-event-kinds";
 
 // Planification : tous les athlètes sur une frise horaire. Vue semaine : la
@@ -175,6 +176,7 @@ export function PlanningBoard({
   const [over, setOver] = useState<string | null>(null);
   const [toast, setToast] = useState("");
   const [edit, setEdit] = useState(false);
+  const copied = useCopiedWorkout();
   // Jours de la séance rapide : le jour de la case cliquée, et d'autres au besoin.
   const [newDays, setNewDays] = useState<string[]>([]);
   const [pickDays, setPickDays] = useState(false);
@@ -852,6 +854,15 @@ export function PlanningBoard({
             <button type="button" onClick={() => setPickDays((v) => !v)} className="font-semibold text-moss hover:underline">
               {pickDays ? "Masquer les jours" : newDays.length > 1 ? `${newDays.length} jours choisis · modifier` : "Ajouter d'autres jours"}
             </button>
+            {copied && (
+              <button
+                type="button"
+                onClick={() => run(() => pasteWorkout(copied, newCell.athleteId, newCell.date), `« ${copied.title} » collée pour ${athleteById(newCell.athleteId)?.name ?? ""}`, () => setPanel(null))}
+                className="font-semibold text-moss-dark hover:underline"
+              >
+                Coller « {copied.title} »
+              </button>
+            )}
             <span className="flex-1" />
             <Link href={`/coach/athletes/${newCell.athleteId}/new-workout?date=${newCell.date}`} className="font-semibold text-slate hover:text-moss">
               Éditeur complet →
@@ -946,6 +957,7 @@ export function PlanningBoard({
                     >
                       Copier la semaine suivante
                     </button>
+                    <CopyWorkoutButton workout={{ id: cur.id, title: cur.title, athleteName: athleteById(cur.athleteId)?.name ?? "" }} className={btnSmall} />
                   </>
                 )}
                 <Link href={`/workouts/${cur.id}`} className={btnSmall}>

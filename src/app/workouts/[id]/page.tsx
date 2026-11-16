@@ -9,7 +9,7 @@ import { Card, StatusBadge, sportLabel } from "@/components/ui";
 import { StatusForm } from "./status-form";
 import { CommentForm } from "./comment-form";
 import { CancelWorkoutButton } from "./cancel-button";
-import { DuplicateWorkoutButton } from "./duplicate-workout-modal";
+import { CopyWorkoutButton, SendToAthletesButton } from "@/components/workout-clipboard";
 import { PublishWorkoutButton } from "./publish-button";
 import { WorkoutStructure } from "@/components/workout-structure";
 import { ExerciseDetailButton, type ExerciseDetailData } from "./exercise-detail";
@@ -87,6 +87,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
       !!a.athlete_id && a.athlete_id !== workout.athlete_id && a.status === "active"
     )
     .map((a) => ({ athlete_id: a.athlete_id, first_name: a.first_name, last_name: a.last_name }));
+  const athleteFirstName = coachAthletes.find((a) => a.athlete_id === workout.athlete_id)?.first_name ?? "l'athlète";
 
   // Volume de musculation, calculé depuis les blocs enregistrés. Les charges en
   // pourcentage sont converties via les maxima de l'athlète quand ils existent.
@@ -147,7 +148,15 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                 <Link href={`/workouts/${workout.id}/edit`} className="text-sm font-semibold text-moss-dark hover:underline">
                   Modifier
                 </Link>
-                <DuplicateWorkoutButton workoutId={workout.id} athleteId={workout.athlete_id} otherAthletes={otherAthletes} />
+                <CopyWorkoutButton workout={{ id: workout.id, title: workout.title, athleteName: athleteFirstName }} />
+                <SendToAthletesButton
+                  workoutId={workout.id}
+                  workoutTitle={workout.title}
+                  athleteId={workout.athlete_id}
+                  athleteName={athleteFirstName}
+                  date={workout.flex_week && !workout.flex_placed ? workout.flex_week : workout.date}
+                  athletes={otherAthletes}
+                />
                 <CancelWorkoutButton workoutId={workout.id} />
               </div>
             )}
