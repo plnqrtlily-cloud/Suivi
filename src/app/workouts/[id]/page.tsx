@@ -12,6 +12,8 @@ import { CancelWorkoutButton } from "./cancel-button";
 import { DuplicateWorkoutButton } from "./duplicate-workout-modal";
 import { PublishWorkoutButton } from "./publish-button";
 import { WorkoutStructure } from "@/components/workout-structure";
+import { ExerciseDetailButton, type ExerciseDetailData } from "./exercise-detail";
+import { QUALITY_TIPS, animationFor, loadInKg, tempoPhases } from "@/lib/exercise-detail";
 
 const BLOCK_TITLES: Record<string, string> = {
   warmup_mobility: "Échauffement — Mobilité",
@@ -257,8 +259,60 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                   }
                 }
 
+                // Contexte de série de chaque exercice (lettre, tours, récup, exercices enchaînés).
+                const seriesOf = new Map<string, ExerciseDetailData["series"]>();
+                let letter = 0;
+                for (const seg of segments) {
+                  if (!seg.circuitId) continue;
+                  const L = String.fromCharCode(65 + letter++);
+                  for (const b of seg.blocks)
+                    seriesOf.set(b.id, {
+                      label: `Série ${L}`,
+                      rounds: seg.rounds || 1,
+                      restSeconds: seg.blocks[0]?.circuit_rest_seconds || null,
+                      others: seg.blocks.filter((o: any) => o.id !== b.id).map((o: any) => o.exercise_name),
+                    });
+                }
+                const detailOf = (b: any): ExerciseDetailData => {
+                  const maxKg = strengthMaxes[b.exercise_name] ? Math.round(strengthMaxes[b.exercise_name] * 10) / 10 : null;
+                  const anim = b.resource_id ? null : animationFor(b.exercise_name);
+                  return {
+                    name: b.exercise_name,
+                    blockTitle: BLOCK_TITLES[b.block_type] ?? "",
+                    qualityLabel: b.training_quality ? QUALITY_LABELS[b.training_quality] : null,
+                    qualityTip: b.training_quality ? QUALITY_TIPS[b.training_quality] ?? null : null,
+                    repType: b.rep_type === "time" ? "time" : "reps",
+                    tempo: b.tempo ? { raw: b.tempo, phases: tempoPhases(b.tempo) } : null,
+                    coachNotes: b.notes || null,
+                    series: seriesOf.get(b.id) ?? null,
+                    maxKg: (b.exerciseSets || []).some((st: any) => st.load && loadInKg(st.load, maxKg)) ? maxKg : null,
+                    sets: (b.exerciseSets || []).map((st: any) => ({
+                      n: st.set_number,
+                      reps: st.reps || null,
+                      load: st.load || null,
+                      loadKg: st.load ? loadInKg(st.load, maxKg) : null,
+                      rest: st.rest_seconds || null,
+                      rpe: st.rpe || null,
+                      rir: st.rir ?? null,
+                    })),
+                    demo: b.resource_id
+                      ? {
+                          kind: b.resource_type === "video" ? "video" : "image",
+                          url: `/api/resources/file/${b.resource_id}`,
+                          mime: b.resource_mime_type || undefined,
+                          title: b.resource_title || b.exercise_name,
+                          caption: b.resource_description || null,
+                          builtIn: false,
+                        }
+                      : anim
+                        ? { kind: "image", url: anim.url, title: anim.title, caption: anim.description, builtIn: true }
+                        : null,
+                  };
+                };
+
                 const renderBlock = (b: any) => (
                   <div key={b.id} className="border-l-2 border-moss/40 pl-3">
+                  <ExerciseDetailButton data={detailOf(b)}>
                     <p className="text-xs uppercase tracking-wide text-slate">{BLOCK_TITLES[b.block_type]}</p>
                     <div className="flex items-center gap-2">
                       <p className="font-medium text-ink">{b.exercise_name}</p>
@@ -327,6 +381,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                         <p className="bg-paper-dim px-2 py-1 text-xs text-slate">{b.resource_title}</p>
                       </div>
                     )}
+                  </ExerciseDetailButton>
                   </div>
                 );
 

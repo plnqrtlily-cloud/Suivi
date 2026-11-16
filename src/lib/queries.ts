@@ -285,7 +285,7 @@ export async function getWorkoutById(id: string): Promise<Workout | undefined> {
 
 export async function getBlocksForWorkout(workoutId: string) {
   const blocks = await dbAll<any>(
-    `SELECT b.*, r.title as resource_title, r.type as resource_type, r.mime_type as resource_mime_type
+    `SELECT b.*, r.title as resource_title, r.type as resource_type, r.mime_type as resource_mime_type, r.description as resource_description
      FROM workout_blocks b
      LEFT JOIN resources r ON r.id = b.resource_id
      WHERE b.workout_id = ? ORDER BY b.order_index ASC`,
