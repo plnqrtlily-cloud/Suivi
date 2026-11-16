@@ -36,7 +36,8 @@ import {
   Role,
 } from "./auth";
 import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MESSAGE_DOC_TYPES } from "./storage";
-import { EXERCISE_ANIMATIONS, EXERCISE_ANIMATIONS_SPORT, outdatedAnimations } from "./exercise-animations";
+import { EXERCISE_ANIMATIONS, EXERCISE_ANIMATIONS_SPORT } from "./exercise-animations";
+import { upgradeOutdatedAnimations } from "./animation-upgrade";
 import { parseGpx, simplifyRoute } from "./gpx";
 import { getResourceById, getBlocksForWorkout, getCoachPlanStatus, getTeamWithMembers } from "./queries";
 import { ADMIN_EMAIL, trialEndDate } from "./billing";
@@ -2075,21 +2076,8 @@ export async function importExerciseAnimationsAction(): Promise<{ added?: number
   const todo = EXERCISE_ANIMATIONS.filter((a) => !titles.has(a.title));
   const dir = nodePath.join(process.cwd(), "src", "assets", "exercise-animations");
 
-  // Animations déjà importées dans une ancienne version : fichier et consigne
-  // remplacés sur place (les séances qui y renvoient affichent la nouvelle).
-  for (const a of outdatedAnimations(existing)) {
-    const buffer = await fsp.readFile(nodePath.join(dir, a.file));
-    const saved = await saveUploadedFile(new File([new Uint8Array(buffer)], a.file, { type: "image/gif" }));
-    for (const r of existing.filter((r) => r.title === a.title && r.description && a.previousDescriptions?.includes(r.description))) {
-      await dbRun(`UPDATE resources SET file_path = ?, file_size = ?, mime_type = 'image/gif', description = ? WHERE id = ? AND coach_id = ?`, [
-        saved.storedName,
-        saved.size,
-        a.description,
-        r.id,
-        user.id,
-      ]);
-    }
-  }
+  // Animations déjà importées dans une ancienne version : remplacées sur place.
+  await upgradeOutdatedAnimations(user.id);
 
   let added = 0;
   try {
@@ -2127,7 +2115,7 @@ export async function deleteResourceAction(resourceId: string) {
   if (!resource) return;
   if (resource.coach_id !== user.id) throw new Error("Non autorisé."); // règle de permission critique, cf. suite du projet
 
-  if (resource.file_path) await deleteUploadedFile(resource.file_path);
+  if (resource.file_path && !resource.file_path.startsWith("bundled:")) await deleteUploadedFile(resource.file_path);
   await dbRun(`DELETE FROM resources WHERE id = ?`, [resourceId]);
 
   revalidatePath("/coach/resources");

@@ -6,6 +6,7 @@ import { CoachSidebar } from "@/components/coach-sidebar";
 import { Card } from "@/components/ui";
 import { UploadResourceForm } from "./upload-form";
 import { ResourceLibrary } from "./resource-library";
+import { upgradeOutdatedAnimations } from "@/lib/animation-upgrade";
 import { ImportAnimationsCard } from "./import-animations";
 import { EXERCISE_ANIMATIONS, outdatedAnimations } from "@/lib/exercise-animations";
 
@@ -19,6 +20,7 @@ export default async function ResourcesPage({
   if (user.role !== "coach") redirect("/athlete");
 
   const { type } = await searchParams;
+  await upgradeOutdatedAnimations(user.id);
   const resources = await getResourcesForCoach(user.id, type);
   const allResources = type ? await getResourcesForCoach(user.id) : resources;
   const existingTitles = new Set(allResources.map((r) => r.title));

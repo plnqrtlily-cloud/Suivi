@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
+import { upgradeOutdatedAnimations } from "@/lib/animation-upgrade";
 import { getWorkoutById, getBlocksForWorkout, getCommentsForWorkout, getAthletesForCoach, getLatestExerciseMaxes } from "@/lib/queries";
 import { computeVolume, formatSeconds } from "@/lib/strength-volume";
 import { formatWorkoutTime, isTimeOfDaySlug } from "@/lib/time-of-day";
@@ -60,11 +61,18 @@ const QUALITY_STYLES: Record<string, string> = {
   cardio: "bg-clay/15 text-clay",
 };
 
-export default async function WorkoutDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function WorkoutDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ apercu?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const { id } = await params;
+  const { apercu } = await searchParams;
   const workout = await getWorkoutById(id);
   if (!workout) notFound();
 
@@ -76,6 +84,14 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
   if (workout.is_draft && workout.coach_id !== user.id) {
     notFound();
   }
+
+  // « Voir comme l'athlète » : le coach parcourt la séance exactement comme
+  // l'athlète la recevra (consignes, détail des exercices), sans ses outils.
+  const preview = user.role === "coach" && apercu === "athlete";
+  const role = preview ? "athlete" : user.role;
+
+  // Animations refaites depuis leur import : remplacées avant l'affichage.
+  await upgradeOutdatedAnimations(workout.coach_id);
 
   const [blocks, comments, coachAthletes] = await Promise.all([
     getBlocksForWorkout(id),
@@ -112,6 +128,16 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
     <div className="min-h-screen bg-paper">
       <Nav user={user} />
       <main className="mx-auto max-w-3xl px-4 sm:px-6 py-10">
+        {preview && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-ink px-4 py-3 text-sm text-white shadow-lg">
+            <span>
+              <b>Aperçu</b> · la séance telle que {athleteFirstName} la voit. Touchez un exercice pour son détail.
+            </span>
+            <Link href={`/workouts/${workout.id}`} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink">
+              Revenir à la vue coach
+            </Link>
+          </div>
+        )}
         <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-sm text-slate">
@@ -142,8 +168,11 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                 <span className="rounded-full bg-paper-dim px-2.5 py-0.5 text-xs font-semibold text-slate">Brouillon</span>
               ) : null}
             </div>
-            {user.role === "coach" && (
+            {role === "coach" && (
               <div className="flex flex-wrap items-center gap-3">
+                <Link href={`/workouts/${workout.id}?apercu=athlete`} className="text-sm font-semibold text-moss-dark hover:underline">
+                  Voir comme l&apos;athlète
+                </Link>
                 {workout.is_draft ? <PublishWorkoutButton workoutId={workout.id} /> : null}
                 <Link href={`/workouts/${workout.id}/edit`} className="text-sm font-semibold text-moss-dark hover:underline">
                   Modifier
@@ -160,7 +189,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
                 <CancelWorkoutButton workoutId={workout.id} />
               </div>
             )}
-            {user.role === "athlete" && (
+            {role === "athlete" && (
               <a
                 href={`/api/workouts/${workout.id}/fit`}
                 className="flex items-center gap-1.5 text-xs font-semibold text-slate hover:text-ink"
@@ -196,7 +225,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
           </div>
         )}
 
-        {!!workout.is_draft && user.role === "coach" && (
+        {!!workout.is_draft && role === "coach" && (
           <Card className="mb-6 border-dashed bg-paper-dim">
             <p className="text-sm text-ink-soft">
               Cette séance est un <b>brouillon</b> : votre athlète ne la voit pas et n&apos;a reçu aucune
@@ -253,7 +282,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
             {/* Récapitulatif réservé au coach : c'est un outil de dosage de la
                 charge, pas une information dont l'athlète a besoin pour
                 exécuter sa séance. */}
-            {user.role === "coach" && strengthVolume.exerciseCount > 0 && (
+            {role === "coach" && strengthVolume.exerciseCount > 0 && (
               <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl bg-paper-dim p-3 sm:grid-cols-4">
                 <div>
                   <p className="text-base font-semibold text-ink">{strengthVolume.totalSets}</p>
@@ -462,11 +491,20 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
           </Card>
         )}
 
-        {user.role === "athlete" && (
+        {role === "athlete" && (
           <div id="renseigner" className="scroll-mt-4">
             <Card className="mb-6">
               <h2 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate"><span className="h-3 w-0.5 rounded-full bg-moss" />Où en êtes-vous ?</h2>
-              <StatusForm workoutId={workout.id} currentStatus={workout.status} sport={workout.sport} />
+              {preview ? (
+                <>
+                  <p className="mb-3 text-xs text-slate">Aperçu : {athleteFirstName} renseigne ici sa séance. Désactivé dans l&apos;aperçu.</p>
+                  <div inert className="pointer-events-none select-none opacity-60">
+                    <StatusForm workoutId={workout.id} currentStatus={workout.status} sport={workout.sport} />
+                  </div>
+                </>
+              ) : (
+                <StatusForm workoutId={workout.id} currentStatus={workout.status} sport={workout.sport} />
+              )}
             </Card>
           </div>
         )}
@@ -475,7 +513,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
             application — par message, par téléphone, ou de vive voix à
             l'entraînement. Replié par défaut : c'est le cas particulier, pas
             la marche normale, et la saisie de l'athlète reste la référence. */}
-        {user.role === "coach" && (
+        {role === "coach" && (
           <Card className="mb-6">
             <details>
               <summary className="cursor-pointer text-[11px] font-bold uppercase tracking-wider text-slate">
@@ -507,7 +545,7 @@ export default async function WorkoutDetailPage({ params }: { params: Promise<{ 
             ))}
             {comments.length === 0 && <p className="text-sm text-slate">Aucun commentaire pour l&apos;instant.</p>}
           </div>
-          <CommentForm workoutId={workout.id} />
+          {!preview && <CommentForm workoutId={workout.id} />}
         </Card>
       </main>
     </div>

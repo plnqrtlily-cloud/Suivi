@@ -1383,6 +1383,7 @@ function EntryPanel({
               {e.status === "todo" || e.status === "noreport" ? "Renseigner" : "Modifier le retour"}
             </button>
           )}
+          {isWorkout && <Link href={`/workouts/${e.id}?apercu=athlete`} className={pill}>Vue athlète</Link>}
           {isWorkout && <Link href={`/workouts/${e.id}/edit`} className={pill}>Modifier</Link>}
           {isWorkout && <CopyWorkoutButton workout={{ id: e.id, title: e.title, athleteName: data.athleteName }} className={pill} />}
           {isWorkout && <button type="button" disabled={pending} onClick={() => togglePicker("dup")} className={pill} style={picker?.mode === "dup" ? { background: "#e3eeed" } : undefined}>{e.status === "miss" ? "Reprogrammer" : "Dupliquer"}</button>}
