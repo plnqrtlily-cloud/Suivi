@@ -1,6 +1,8 @@
 "use server";
 
 import { randomUUID } from "crypto";
+import { promises as fsp } from "fs";
+import nodePath from "path";
 import { redirect } from "next/navigation";
 import { revalidatePath as nextRevalidatePath, refresh } from "next/cache";
 
@@ -34,6 +36,7 @@ import {
   Role,
 } from "./auth";
 import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MESSAGE_DOC_TYPES } from "./storage";
+import { EXERCISE_ANIMATIONS, EXERCISE_ANIMATIONS_SPORT } from "./exercise-animations";
 import { parseGpx, simplifyRoute } from "./gpx";
 import { getResourceById, getBlocksForWorkout, getCoachPlanStatus, getTeamWithMembers } from "./queries";
 import { ADMIN_EMAIL, trialEndDate } from "./billing";
@@ -2034,6 +2037,48 @@ export async function uploadResourceAction(formData: FormData) {
 
   revalidatePath("/coach/resources");
   return { success: true };
+}
+
+// Importe en un clic les animations d'exercices livrées avec l'application
+// (src/lib/exercise-animations.ts) dans la bibliothèque du coach connecté, comme
+// s'il les avait déposées lui-même (type "photo" : un GIF s'anime dans la carte et
+// dans le détail de séance). Ne réimporte jamais une animation dont le titre existe
+// déjà chez ce coach : on peut recliquer sans créer de doublons.
+export async function importExerciseAnimationsAction(): Promise<{ added?: number; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+
+  const existing = await dbAll<{ title: string }>(`SELECT title FROM resources WHERE coach_id = ?`, [user.id]);
+  const titles = new Set(existing.map((r) => r.title));
+  const todo = EXERCISE_ANIMATIONS.filter((a) => !titles.has(a.title));
+  const dir = nodePath.join(process.cwd(), "src", "assets", "exercise-animations");
+
+  let added = 0;
+  try {
+    // Par lots de 6 : assez rapide sur Vercel Blob sans saturer la base distante.
+    for (let i = 0; i < todo.length; i += 6) {
+      await Promise.all(
+        todo.slice(i, i + 6).map(async (a) => {
+          const buffer = await fsp.readFile(nodePath.join(dir, a.file));
+          const file = new File([new Uint8Array(buffer)], a.file, { type: "image/gif" });
+          const saved = await saveUploadedFile(file);
+          await dbRun(
+            `INSERT INTO resources (id, coach_id, type, title, description, sport, file_path, mime_type, file_size)
+             VALUES (?, ?, 'photo', ?, ?, ?, ?, 'image/gif', ?)`,
+            [randomUUID(), user.id, a.title, a.description, EXERCISE_ANIMATIONS_SPORT, saved.storedName, saved.size]
+          );
+          added++;
+        })
+      );
+    }
+  } catch (e) {
+    console.error("Import des animations d'exercices :", e);
+    revalidatePath("/coach/resources");
+    return { added, error: `Import interrompu après ${added} animation(s). Recliquez pour ajouter les suivantes.` };
+  }
+
+  revalidatePath("/coach/resources");
+  return { added };
 }
 
 export async function deleteResourceAction(resourceId: string) {
