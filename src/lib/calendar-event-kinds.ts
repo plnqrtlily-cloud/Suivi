@@ -47,14 +47,10 @@ export function eventDateLabel(start: string, end: string) {
   return `${dm(start)} → ${dm(end)}`;
 }
 
-/**
- * Sous-titre d'un événement : type · date(s) ou heure · lieu · auteur.
- * `you` : « toi » côté athlète, « vous » côté coach (registre de chaque espace).
- */
 export const TRAINING_SPORTS = [
   { value: "cycling", label: "Vélo" },
   { value: "running", label: "Course à pied" },
-  { value: "strength", label: "Renforcement" },
+  { value: "strength", label: "Musculation" },
   { value: "hiking", label: "Randonnée" },
   { value: "swimming", label: "Natation" },
   { value: "climbing", label: "Escalade" },
@@ -67,6 +63,25 @@ function minutesLabel(m: number) {
   return h ? `${h} h${r ? ` ${String(r).padStart(2, "0")}` : ""}` : `${r} min`;
 }
 
+// Sport déduit du titre saisi (« Muscu haut du corps » → Musculation), pour
+// ne pas avoir à le rechercher dans la liste. Null si rien ne correspond.
+const SPORT_WORDS: [RegExp, string][] = [
+  [/muscu|renfo|gainage|force|squat|souleve|developpe|halt|fonte|crossfit|circuit|pliom|plyo|gym|core/, "strength"],
+  [/course|footing|trail|fractionne|vma|jogging|\brun/, "running"],
+  [/velo|vtt|enduro|descente|\bdh\b|route|home ?trainer|bike|gravel|pump ?track|sortie/, "cycling"],
+  [/nata|piscine|nage|swim/, "swimming"],
+  [/rando|marche|hike/, "hiking"],
+  [/escalade|grimpe|bloc|climb/, "climbing"],
+];
+export function guessSportFromTitle(title: string): string | null {
+  const t = title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return SPORT_WORDS.find(([re]) => re.test(t))?.[1] ?? null;
+}
+
+/**
+ * Sous-titre d'un événement : type · date(s) ou heure · lieu · auteur.
+ * `you` : « toi » côté athlète, « vous » côté coach (registre de chaque espace).
+ */
 export function eventSubtitle(e: CalendarEventView, you: "toi" | "vous" = "toi") {
   const multi = e.startDate !== e.endDate;
   const training = e.kind === "entrainement" ? [TRAINING_SPORTS.find((s) => s.value === e.sport)?.label, e.durationMinutes ? minutesLabel(e.durationMinutes) : null] : [];

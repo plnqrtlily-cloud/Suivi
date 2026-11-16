@@ -7,7 +7,7 @@ import { Button, Field, TextAreaField, ErrorText } from "@/components/ui";
 import { DaysPicker } from "@/components/days-picker";
 import { dateRangeToList } from "@/components/date-range-picker";
 import { createCalendarEventAction, deleteCalendarEventAction, updateCalendarEventAction } from "@/lib/calendar-event-actions";
-import { EVENT_KINDS, TRAINING_SPORTS, eventKind, eventSubtitle, type CalendarEventView } from "@/lib/calendar-event-kinds";
+import { EVENT_KINDS, TRAINING_SPORTS, guessSportFromTitle, eventKind, eventSubtitle, type CalendarEventView } from "@/lib/calendar-event-kinds";
 
 // Événements du calendrier partagé athlète ↔ coach : formulaire (ajout et
 // modification), ligne d'affichage et fenêtre de détail. Utilisés des deux
@@ -46,6 +46,10 @@ export function CalendarEventForm({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const singleDay = dates.length === 1;
+  // Entraînement : le sport suit le titre (« Muscu… » → Musculation) tant
+  // qu'il n'a pas été choisi à la main.
+  const [sport, setSport] = useState<string>(event?.sport ?? "cycling");
+  const [sportTouched, setSportTouched] = useState(!!event?.sport);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -99,12 +103,28 @@ export function CalendarEventForm({
         </div>
       </div>
       )}
-      <Field label="Titre" name="title" required maxLength={120} defaultValue={event?.title} placeholder={kind === "entrainement" ? "Sortie club, séance piste…" : kind === "competition" ? "Coupe de France, manche 2" : kind === "rdv" ? "Kiné" : "Titre de l'événement"} />
+      <Field
+        label="Titre"
+        name="title"
+        required
+        maxLength={120}
+        defaultValue={event?.title}
+        onChange={(e) => {
+          const g = guessSportFromTitle(e.target.value);
+          if (!sportTouched && g) setSport(g);
+        }} placeholder={kind === "entrainement" ? "Sortie club, séance piste…" : kind === "competition" ? "Coupe de France, manche 2" : kind === "rdv" ? "Kiné" : "Titre de l'événement"} />
       {kind === "entrainement" && (
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1.5 text-sm font-medium text-ink-soft">
             Sport
-            <select name="sport" defaultValue={event?.sport ?? "cycling"} className="rounded-md border border-line bg-white px-3 py-2.5 text-[15px] text-ink outline-none focus:border-moss">
+            <select
+              name="sport"
+              value={sport}
+              onChange={(e) => {
+                setSport(e.target.value);
+                setSportTouched(true);
+              }}
+              className="rounded-md border border-line bg-white px-3 py-2.5 text-[15px] text-ink outline-none focus:border-moss">
               {TRAINING_SPORTS.map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}

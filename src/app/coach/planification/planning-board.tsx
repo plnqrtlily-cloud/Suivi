@@ -16,6 +16,7 @@ import {
 } from "@/lib/actions";
 import { Avatar } from "@/components/avatar";
 import { DaysPicker } from "@/components/days-picker";
+import { guessSportFromTitle } from "@/lib/calendar-event-kinds";
 
 // Planification : tous les athlètes sur une frise horaire. Vue semaine : la
 // frise défile jour par jour (7 jours visibles), vue mois : semaine par semaine
@@ -65,7 +66,7 @@ const SPORTS = [
   { value: "hiking", label: "Randonnée" },
   { value: "climbing", label: "Escalade" },
   { value: "strength", label: "Musculation" },
-  { value: "other", label: "Divers" },
+  { value: "other", label: "Autre" },
 ];
 const SPORT_LABEL: Record<string, string> = Object.fromEntries(SPORTS.map((s) => [s.value, s.label]));
 const PRESETS: [string, number][] = [
@@ -799,7 +800,16 @@ export function PlanningBoard({
           <div className="grid grid-cols-1 items-end gap-2.5 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
             <label className={label}>
               Titre
-              <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="ex. Seuil 3 × 10 min" className={input} />
+              <input
+                value={form.title}
+                onChange={(e) => {
+                  // Le sport suit le titre (« Muscu… » → Musculation) quand un mot le désigne.
+                  const g = guessSportFromTitle(e.target.value);
+                  setForm({ ...form, title: e.target.value, sport: g ?? form.sport });
+                }}
+                placeholder="ex. Seuil 3 × 10 min"
+                className={input}
+              />
             </label>
             <SportSelect value={form.sport} onChange={(v) => setForm({ ...form, sport: v })} label={label} input={input} />
             <DurationSelect value={form.minutes} onChange={(v) => setForm({ ...form, minutes: v })} label={label} input={input} />
