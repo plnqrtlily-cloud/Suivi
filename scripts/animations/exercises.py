@@ -8,7 +8,12 @@ A = GY - 6  # hauteur des chevilles, pied à plat au sol
 ALL = []
 
 
-def add(ex):
+def add(ex, glue=None):
+    """glue : articulation qui reste fixée au sol pendant tout le mouvement
+    (le pied d'appui) — le corps s'articule autour au lieu de glisser."""
+    if glue:
+        j = fk(ex.start, ex.start["root"], ex.view)
+        ex.anchor = (glue, j[glue])
     ALL.append(ex)
     return ex
 
@@ -32,7 +37,7 @@ add(Exercise(
               [("line", "hip", "shoulder", "dos droit", 16, (-46, 0)), ("ring", "heelR", "talon collé", (-22, 20))], hold=True),
         Phase(g_up, 1.5, "Remonter", "Pousser le sol avec tout le pied",
               [("arrow", ("off", "hip", -34, 10), 0, -44, "pousser", (-6, 0))]),
-    ], anchor=None, props=[kettlebell("handR", 9)]))
+    ], anchor=None, props=[kettlebell("handR", 9)]), glue="ankleR")
 
 gp_down = solve(up(t=72, h=84, **GOB), hip=(292, 246), ankleR=(322, A), ankleL=(318, A))
 add(Exercise(
@@ -43,7 +48,7 @@ add(Exercise(
               [("vline", "toeR", "orteils", 150), ("ring", "heelR", "talon au sol", (-22, 20))], hold=True),
         Phase(g_up, 1.5, "Remonter", "Pousser le sol, sans décoller les talons",
               [("arrow", ("off", "hip", -34, 10), 0, -44, "pousser", (-6, 0))]),
-    ], anchor=None, props=[kettlebell("handR", 9)]))
+    ], anchor=None, props=[kettlebell("handR", 9)]), glue="ankleR")
 
 
 # ------------------------------------------------- Split squat genou en avant
@@ -62,14 +67,14 @@ add(Exercise(
               [("ring", "kneeR", "genou loin devant", (18, -22)), ("vline", "toeR", "", 150), ("ring", "heelR", "talon collé", (-20, 22))]),
         Phase(ss_up, 1.5, "Remonter", "Pousser dans le pied avant",
               [("arrow", ("off", "hip", -30, 0), 0, -44, "pousser", (-6, 0))]),
-    ], anchor=None, props=[wedge, dumbbell_side("handR")]))
+    ], anchor=None, props=[wedge, dumbbell_side("handR")]), glue="ankleR")
 
 
 # ------------------------------------------------------------ Fente genou-mur
 fm_base = up(t=90, uaR=-20, faR=5, uaL=-25, faL=5)
 fm_a = solve(fm_base, hip=(332, 244), ankleR=(400, A), ankleL=(258, GY - 10), kneeR=1, kneeL=1)
 fm_a["ftL"] = 180
-fm_b = solve(dict(fm_base, t=84), hip=(354, 250), ankleR=(400, A), ankleL=(258, GY - 10), kneeR=1, kneeL=1)
+fm_b = solve(dict(fm_base, t=84), hip=(376, 254), ankleR=(400, A), ankleL=(258, GY - 10), kneeR=1, kneeL=1)
 fm_b["ftL"] = 180
 # Mains contre le mur.
 fm_a = solve(fm_a, wristR=(478, 168), wristL=(476, 172), elbowR=-1, elbowL=-1)
@@ -81,7 +86,7 @@ add(Exercise(
         Phase(fm_b, 1, "Tenir", "Talon au sol, genou dans l'axe du pied",
               [("ring", "heelR", "talon collé", (-22, 22))], hold=True),
         Phase(fm_a, 1, "Revenir", "Talon au sol, genou dans l'axe du pied"),
-    ], anchor=None, props=[wall(484)], ghost=True))
+    ], anchor=None, props=[wall(484)], ghost=True), glue="ankleR")
 
 
 # ------------------------------------------------------------ Step-down lent
@@ -101,7 +106,7 @@ add(Exercise(
               [("ring", "kneeR", "genou dans l'axe du pied", (20, -22)), ("ring", "heelL", "effleure", (16, 22))]),
         Phase(sd_up, 1.5, "Remonter", "Pousser dans le talon sur la box",
               [("arrow", ("off", "hip", -30, 0), 0, -40, "pousser", (-6, 0))]),
-    ], anchor=None, props=[step_box]))
+    ], anchor=None, props=[step_box]), glue="ankleR")
 
 
 # ----------------------------------------------- Squat profond + rotation
@@ -117,19 +122,21 @@ add(Exercise(
         Phase(sp_rot, 1, "Tenir", "Le regard suit la main", hold=True),
         Phase(sp_down, 1, "Ramener", "Puis l'autre côté"),
         Phase(g_up, 1.2, "", ""),
-    ], anchor=None))
+    ], anchor=None), glue="ankleR")
 
 
 # ------------------------------------------ Soulevé de terre jambes tendues
 rdl_up = solve(up(uaR=-84, faR=-88, uaL=-84, faL=-88), hip=(320, HIP_UP), ankleR=(320, A), ankleL=(318, A))
-rdl_down = solve(up(t=20, h=8, uaR=-92, faR=-92, uaL=-92, faL=-92, face=-70), hip=(250, 192), ankleR=(320, A), ankleL=(318, A))
+# Jambes quasi tendues : les tibias restent presque verticaux, ce sont les
+# hanches qui reculent et le buste qui bascule, dos plat.
+rdl_down = dict(rdl_up, t=20, h=8, face=-70, thR=-114, shR=-86, thL=-114, shL=-86, uaR=-104, faR=-100, uaL=-104, faL=-100)
 add(Exercise(
     "souleve-de-terre-jambes-tendues.gif", rdl_up, [
         Phase(rdl_down, 3, "Hanches en arrière", "Dos plat, les haltères glissent le long des jambes",
               [("line", "hip", "neck", "dos plat", 18, (0, -26)), ("arrow", ("off", "hip", -16, 0), -40, 0, "hanches en arrière", (-6, -16))]),
         Phase(rdl_up, 1.5, "Remonter", "Pousser les hanches vers l'avant",
               [("arrow", ("off", "hip", -20, 0), 34, 0, "", (0, 0))]),
-    ], anchor=None, props=[dumbbell_side("handR")], trail="handR"))
+    ], anchor=None, props=[dumbbell_side("handR")], trail="handR"), glue="ankleR")
 
 
 # --------------------------------------------- Soulevé de terre une jambe
@@ -141,7 +148,7 @@ add(Exercise(
               [("line", "ankleL", "head", "tête → talon alignés", 10, (0, -24)), ("ring", "kneeR", "genou souple", (16, 22))]),
         Phase(sl_up, 1.5, "Remonter", "Serrer la fesse de la jambe d'appui",
               [("arrow", ("off", "hip", -20, -6), 30, 0, "", (0, 0))]),
-    ], anchor=None, props=[dumbbell_side("handR")]))
+    ], anchor=None, props=[dumbbell_side("handR")]), glue="ankleR")
 
 
 # ================================================================ Au sol
@@ -174,7 +181,7 @@ add(Exercise(
 # ------------------------------------------------------- Pont sur une jambe
 pu_down = dict(pb_down)
 pu_leg = solve(dict(p0), hip=hip0, ankleL=(338, A), kneeL=1)
-pu_leg.update(thR=34, shR=34, ftR=60)
+pu_leg.update(thR=18, shR=18, ftR=60)
 pu_up = solve(dict(p1), hip=hip1, ankleL=(338, A), kneeL=1)
 pu_up.update(thR=26, shR=26, ftR=60)
 add(Exercise(
@@ -390,7 +397,7 @@ add(Exercise(
               [("arrow", ("off", "handR", 22, 20), 0, -44, "", (0, 0)), ("vline", "hip", "buste vertical", 60)]),
         Phase(dm_low, 2, "Descendre", "Gainage serré, sans se pencher",
               [("vline", "hip", "buste vertical", 60)]),
-    ], anchor=None, props=[dumbbell_side("handR")], trail="handR"))
+    ], anchor=None, props=[dumbbell_side("handR")], trail="handR"), glue="ankleR")
 
 
 # ----------------------------------------------------- Tractions assistées
@@ -527,7 +534,7 @@ add(Exercise(
         Phase(ml_top, 1, "Tenir", "1 s en haut", hold=True),
         Phase(ml_low, 3, "Descendre lentement", "3 s, le talon passe sous la marche",
               [("hline", ("off", "toeR", 0, 4), 410, 490, ""), ("tag", ("off", "heelR", -24, 18), "talon sous la marche", "rm")]),
-    ], anchor=None, props=[calf_step]))
+    ], anchor=None, props=[calf_step]), glue="toeR")
 
 
 # ---------------------------------------------------- Équilibre sur une jambe
@@ -539,7 +546,7 @@ add(Exercise(
               [("hline", "hip", 260, 420, "")]),
         Phase(eq1, 20, "Tenir", "Bassin stable, sans pencher", [("vline", "ankleR", "bassin au-dessus du pied", 120), ("hline", "hip", 260, 420, "")], hold=True, frames=40),
         Phase(eq0, 0.8, "Reposer", "Puis l'autre jambe"),
-    ], anchor=None, view_note="Semaine 2 : les yeux fermés"))
+    ], anchor=None, view_note="Semaine 2 : les yeux fermés"), glue="ankleR")
 
 
 # ------------------------------------------------ Charnière de hanche au bâton
@@ -571,7 +578,7 @@ add(Exercise(
                ("tag", ("off", "hip", -30, -12), "bassin", "rm")]),
         Phase(ch1, 0.8, "Tenir", "3 points de contact : tête, haut du dos, bassin", hold=True),
         Phase(ch0, 1.5, "Remonter", "Pousser les hanches vers l'avant"),
-    ], anchor=None, props=[hinge_stick]))
+    ], anchor=None, props=[hinge_stick]), glue="ankleR")
 
 
 # ------------------------------------------------------- Passage de bâton
@@ -620,7 +627,7 @@ add(Exercise(
         Phase(mb_out, 0.5, "Pousser fort", "Depuis la poitrine, bras qui se tendent", [("arrow", ("off", "handR", 30, -22), 46, 0, "", (0, 0))], kind="out"),
         Phase(mb_out, 0.9, "Le ballon rebondit", "Le ballon part au mur et revient"),
         Phase(mb_chest, 0.5, "Rattraper", "Amortir en ramenant à la poitrine, et recommencer"),
-    ], anchor=None, props=[med_ball]))
+    ], anchor=None, props=[med_ball]), glue="ankleR")
 
 
 # ================================================================ Sauts
@@ -633,7 +640,7 @@ def stance(hip, ax, ay=A, gap=4, arms=(-90, -90), **kw):
 BOX_TOP = GY - 52
 sb0 = stance((250, HU), 250)
 sb1 = stance((232, HU + 34), 252, arms=(-140, -130), t=62, h=70)
-sb_air = stance((340, HU - 18), 350, ay=HU - 18 + 80, arms=(40, 50), t=80)
+sb_air = stance((340, HU - 18), 350, ay=HU - 18 + 80, arms=(20, 30), t=80)
 sb_air["ftR"] = sb_air["ftL"] = -30
 sb2 = stance((404, BOX_TOP - 6 - 96), 424, ay=BOX_TOP - 6, arms=(-20, 10), t=66, h=74)
 sb3 = stance((424, BOX_TOP - 6 - 112 + 2), 424, ay=BOX_TOP - 6, arms=(-90, -90))
@@ -641,7 +648,7 @@ add(Exercise(
     "saut-sur-box.gif", sb0, [
         Phase(sb1, 0.6, "Élan des bras", "Bras en arrière, hanches en arrière",
               [("arrow", ("off", "handR", -10, 0), -30, -10, "", (0, 0))]),
-        Phase(sb_air, 0.35, "Sauter", "Les bras lancent le saut", kind="out"),
+        Phase(sb_air, 0.5, "Sauter", "Les bras lancent le saut", kind="out"),
         Phase(sb2, 0.35, "Réception douce", "Atterrir genoux fléchis, sans bruit",
               [("ring", "kneeR", "genoux souples", (18, -20))], kind="in"),
         Phase(sb2, 2, "Tenir 2 s", "Stable sur la box, genoux dans l'axe", [("ring", "kneeR", "genoux souples", (18, -20))], hold=True),
@@ -668,14 +675,14 @@ add(Exercise(
 # ------------------------------------------------------ Saut en longueur
 sl0 = stance((170, HU), 170)
 sl1 = stance((152, HU + 34), 172, arms=(-140, -130), t=58, h=66)
-sl_air = stance((300, HU - 18), 304, ay=HU - 18 + 80, arms=(40, 50), t=70)
+sl_air = stance((300, HU - 18), 304, ay=HU - 18 + 80, arms=(20, 30), t=70)
 sl_air["ftR"] = sl_air["ftL"] = -20
 sl2 = stance((424, HU + 40), 446, arms=(-10, 10), t=58, h=68)
 sl3 = stance((446, HU), 446)
 add(Exercise(
     "saut-en-longueur.gif", sl0, [
         Phase(sl1, 0.6, "Élan des bras", "Bras en arrière, hanches en arrière", [("arrow", ("off", "handR", -10, 0), -30, -10, "", (0, 0))]),
-        Phase(sl_air, 0.4, "Sauter", "Les bras lancent vers l'avant", kind="out"),
+        Phase(sl_air, 0.5, "Sauter", "Les bras lancent vers l'avant", kind="out"),
         Phase(sl2, 0.4, "Réception", "Les deux pieds ensemble, genoux fléchis", [("ring", "kneeR", "amortir", (18, -20))], kind="in"),
         Phase(sl2, 1.5, "Tenir", "Réception tenue, sans faire de pas", [("ring", "heelR", "pieds fixes", (14, -26))], hold=True),
         Phase(sl3, 0.6, "Se redresser", ""),
@@ -697,7 +704,7 @@ add(Exercise(
               [("arrow", ("off", "handR", 16, 40), 0, -46, "ouvrir", (8, 10)), ("tag", ("off", "kneeL", -10, -26), "genou arrière décollé", "rm")]),
         Phase(wg2, 1.5, "Tenir", "Le regard suit la main", hold=True),
         Phase(wg0, 1.2, "Revenir", "Puis l'autre côté"),
-    ], anchor=None))
+    ], anchor=None), glue="ankleR")
 
 
 # ================================================================ Vues de dessus

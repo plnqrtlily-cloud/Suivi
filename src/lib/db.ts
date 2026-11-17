@@ -805,6 +805,10 @@ const MIGRATIONS: string[] = [
   // « Unilatéral », « Excentrique »…). block_type ne sert plus qu'au rangement
   // par partie de séance (échauffement, corps, gainage, retour au calme).
   `ALTER TABLE workout_blocks ADD COLUMN exercise_type TEXT`,
+  // Type de VTT d'une sortie vélo (enduro, vttae, dh, dirt, ou « mtb » pour un
+  // VTT sans type précisé ; cf. src/lib/mtb.ts). NULL : vélo de route / autre.
+  `ALTER TABLE imported_activities ADD COLUMN discipline TEXT`,
+  `ALTER TABLE calendar_events ADD COLUMN discipline TEXT`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

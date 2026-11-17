@@ -807,7 +807,7 @@ export function PlanningBoard({
                 onChange={(e) => {
                   // Le sport suit le titre (« Muscu… » → Musculation) quand un mot le désigne.
                   const g = guessSportFromTitle(e.target.value);
-                  setForm({ ...form, title: e.target.value, sport: g ?? form.sport });
+                  setForm({ ...form, title: e.target.value, sport: g === "mtb" ? "cycling" : (g ?? form.sport) });
                 }}
                 placeholder="ex. Seuil 3 × 10 min"
                 className={input}

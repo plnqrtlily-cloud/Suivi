@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateImportedActivityAction, deleteImportedActivityAction } from "@/lib/actions";
 import { Button, Field, SelectField, ErrorText } from "@/components/ui";
+import { MtbPicker } from "@/components/mtb-picker";
 
 export interface EditableActivity {
   id: string;
@@ -18,6 +19,7 @@ export interface EditableActivity {
   rpe: number | null;
   notes: string | null;
   route_points?: string | null;
+  discipline?: string | null;
 }
 
 function Modal({ title, subtitle, onClose, children }: { title: string; subtitle: string; onClose: () => void; children: React.ReactNode }) {
@@ -41,7 +43,10 @@ export function EditImportedActivityModal({ activity, className }: { activity: E
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
-  const [sport, setSport] = useState(activity.sport);
+  // Un VTT s'édite comme « VTT » + son type (enregistré en vélo, cf. mtb.ts).
+  const [sport, setSport] = useState(activity.discipline ? "mtb" : activity.sport);
+  const [discipline, setDiscipline] = useState<string | null>(activity.discipline && activity.discipline !== "mtb" ? activity.discipline : null);
+  const bike = sport === "cycling" || sport === "mtb";
   const [error, setError] = useState<string | undefined>();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -83,22 +88,28 @@ export function EditImportedActivityModal({ activity, className }: { activity: E
             <Field label="Heure (facultatif)" type="time" name="activityTime" defaultValue={activity.activity_time || ""} />
             <SelectField label="Sport" name="sport" value={sport} onChange={(e) => setSport(e.target.value)}>
               <option value="running">Course à pied</option>
-              <option value="cycling">Vélo</option>
+              <option value="cycling">Vélo route</option>
+              <option value="mtb">VTT</option>
               <option value="hiking">Randonnée</option>
               <option value="swimming">Natation</option>
               <option value="climbing">Escalade</option>
               <option value="strength">Musculation</option>
               <option value="other">Autre</option>
             </SelectField>
+            {sport === "mtb" && (
+              <div className="sm:col-span-2">
+                <MtbPicker value={discipline} onChange={setDiscipline} name="discipline" />
+              </div>
+            )}
             <Field label="Durée (minutes)" type="number" name="durationMinutes" min={0} defaultValue={activity.duration_minutes ?? ""} />
             {sport !== "strength" && (
               <Field label="Distance (km)" type="number" step="0.1" name="distanceKm" min={0} defaultValue={activity.distance_km ?? ""} />
             )}
             <Field label="FC moyenne (bpm)" type="number" name="avgHr" min={0} defaultValue={activity.avg_hr ?? ""} />
-            {(sport === "hiking" || sport === "cycling" || sport === "running") && (
+            {(sport === "hiking" || bike || sport === "running") && (
               <Field label="Dénivelé positif (m)" type="number" name="elevationGainM" min={0} defaultValue={activity.elevation_gain_m ?? ""} />
             )}
-            {sport === "cycling" && (
+            {bike && (
               <Field label="Puissance moyenne (W)" type="number" name="avgPowerW" min={0} defaultValue={activity.avg_power_w ?? ""} />
             )}
             <Field label="RPE ressenti (facultatif)" type="number" name="rpe" min={1} max={10} placeholder="1 à 10" defaultValue={activity.rpe ?? ""} />

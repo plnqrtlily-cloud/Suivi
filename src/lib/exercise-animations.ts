@@ -7,7 +7,7 @@ export const EXERCISE_ANIMATIONS_SPORT = "Préparation physique";
 // Version des animations (scripts/animations/) : à augmenter à chaque refonte.
 // Change l'adresse des GIF (les téléphones ne réaffichent pas l'ancienne image
 // en cache) et fait remplacer les copies déjà importées par les coachs.
-export const ANIMATIONS_REVISION = 2;
+export const ANIMATIONS_REVISION = 3;
 
 /** Chemin enregistré en base pour une animation livrée avec l'application. */
 export function bundledPath(a: { file: string }) {

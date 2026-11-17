@@ -9,6 +9,7 @@ import { AVAILABILITY_SLOT_LABELS } from "@/lib/time-of-day";
 import { DaysPicker } from "@/components/days-picker";
 import { toISODate } from "@/lib/dates";
 import { PainScale } from "@/components/pain-scale";
+import { MtbPicker } from "@/components/mtb-picker";
 import type { HealthCategory, TrainingImpact } from "@/lib/health";
 
 // Formulaires des ajouts de l'athlète (onglet + et bouton Ajouter du
@@ -16,7 +17,8 @@ import type { HealthCategory, TrainingImpact } from "@/lib/health";
 
 export const DONE_SPORTS = [
   { value: "running", label: "Course à pied" },
-  { value: "cycling", label: "Vélo" },
+  { value: "cycling", label: "Vélo route" },
+  { value: "mtb", label: "VTT" },
   { value: "hiking", label: "Randonnée" },
   { value: "swimming", label: "Natation" },
   { value: "climbing", label: "Escalade" },
@@ -60,6 +62,8 @@ function DaysField({ dates, onChange, max }: { dates: string[]; onChange: (d: st
 
 export function DoneActivityForm({ defaultDate, onDone, onCancel }: { defaultDate?: string; onDone: () => void; onCancel?: () => void }) {
   const [sport, setSport] = useState("running");
+  const [discipline, setDiscipline] = useState<string | null>(null);
+  const bike = sport === "cycling" || sport === "mtb";
   const today = toISODate(new Date());
   const [dates, setDates] = useState<string[]>(defaultDate && defaultDate <= today ? [defaultDate] : []);
   const { pending, error, setError, run } = useSubmit(onDone);
@@ -72,6 +76,7 @@ export function DoneActivityForm({ defaultDate, onDone, onCancel }: { defaultDat
         if (!dates.length) return setError("Choisissez au moins un jour.");
         const formData = new FormData(e.currentTarget);
         formData.set("sport", sport);
+        if (sport === "mtb") formData.set("discipline", discipline ?? "mtb");
         // Une activité par jour choisi : chacune reste modifiable seule.
         run(() =>
           Promise.all(
@@ -95,11 +100,16 @@ export function DoneActivityForm({ defaultDate, onDone, onCancel }: { defaultDat
             </option>
           ))}
         </SelectField>
+        {sport === "mtb" && (
+          <div className="col-span-2">
+            <MtbPicker value={discipline} onChange={setDiscipline} />
+          </div>
+        )}
         <Field label="Durée (min)" type="number" name="durationMinutes" min={0} />
         {sport !== "strength" && <Field label="Distance (km)" type="number" step="0.1" name="distanceKm" min={0} />}
         <Field label="FC moyenne (bpm)" type="number" name="avgHr" min={0} />
-        {(sport === "running" || sport === "cycling" || sport === "hiking") && <Field label="Dénivelé + (m)" type="number" name="elevationGainM" min={0} />}
-        {sport === "cycling" && <Field label="Puissance moy. (W)" type="number" name="avgPowerW" min={0} />}
+        {(sport === "running" || bike || sport === "hiking") && <Field label="Dénivelé + (m)" type="number" name="elevationGainM" min={0} />}
+        {bike && <Field label="Puissance moy. (W)" type="number" name="avgPowerW" min={0} />}
         <Field label="RPE ressenti (1-10)" type="number" name="rpe" min={1} max={10} />
       </div>
       <TextAreaField label="Notes (facultatif)" name="notes" rows={2} placeholder="Sensations, contexte…" />

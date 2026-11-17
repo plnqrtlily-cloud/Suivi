@@ -1,3 +1,4 @@
+import { mtbLabel } from "./mtb";
 // Types d'événements du calendrier partagé — fichier sans import serveur,
 // utilisable par les composants client.
 
@@ -29,6 +30,8 @@ export interface CalendarEventView {
   notes: string | null;
   /** Entraînement : sport et durée prévue. */
   sport: string | null;
+  /** Type de VTT (cf. src/lib/mtb.ts), pour un entraînement vélo. */
+  discipline?: string | null;
   durationMinutes: number | null;
   authorName: string;
   mine: boolean;
@@ -48,7 +51,8 @@ export function eventDateLabel(start: string, end: string) {
 }
 
 export const TRAINING_SPORTS = [
-  { value: "cycling", label: "Vélo" },
+  { value: "mtb", label: "VTT" },
+  { value: "cycling", label: "Vélo route" },
   { value: "running", label: "Course à pied" },
   { value: "strength", label: "Musculation" },
   { value: "hiking", label: "Randonnée" },
@@ -68,11 +72,22 @@ function minutesLabel(m: number) {
 const SPORT_WORDS: [RegExp, string][] = [
   [/muscu|renfo|gainage|force|squat|souleve|developpe|halt|fonte|crossfit|circuit|pliom|plyo|gym|core/, "strength"],
   [/course|footing|trail|fractionne|vma|jogging|\brun/, "running"],
-  [/velo|vtt|enduro|descente|\bdh\b|route|home ?trainer|bike|gravel|pump ?track|sortie/, "cycling"],
+  [/vtt|enduro|descente|\bdh\b|dirt|vttae|e-?bike|pump ?track|bike ?park/, "mtb"],
+  [/velo|route|home ?trainer|bike|gravel|sortie/, "cycling"],
   [/nata|piscine|nage|swim/, "swimming"],
   [/rando|marche|hike/, "hiking"],
   [/escalade|grimpe|bloc|climb/, "climbing"],
 ];
+/** Type de VTT déduit du titre (« Enduro Finale » → enduro). */
+export function guessMtbFromTitle(title: string): string | null {
+  const t = title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (/enduro/.test(t)) return "enduro";
+  if (/vttae|electrique|e-?bike|\bvae\b/.test(t)) return "vttae";
+  if (/descente|\bdh\b|bike ?park/.test(t)) return "dh";
+  if (/dirt|pump ?track/.test(t)) return "dirt";
+  return null;
+}
+
 export function guessSportFromTitle(title: string): string | null {
   const t = title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   return SPORT_WORDS.find(([re]) => re.test(t))?.[1] ?? null;
@@ -84,7 +99,7 @@ export function guessSportFromTitle(title: string): string | null {
  */
 export function eventSubtitle(e: CalendarEventView, you: "toi" | "vous" = "toi") {
   const multi = e.startDate !== e.endDate;
-  const training = e.kind === "entrainement" ? [TRAINING_SPORTS.find((s) => s.value === e.sport)?.label, e.durationMinutes ? minutesLabel(e.durationMinutes) : null] : [];
+  const training = e.kind === "entrainement" ? [mtbLabel(e.discipline) ?? TRAINING_SPORTS.find((s) => s.value === e.sport)?.label, e.durationMinutes ? minutesLabel(e.durationMinutes) : null] : [];
   return [e.kind === "entrainement" && e.sport ? null : eventKind(e.kind).label, ...training, multi ? eventDateLabel(e.startDate, e.endDate) : e.time, e.location, e.mine ? `par ${you}` : `par ${e.authorName}`]
     .filter(Boolean)
     .join(" · ");

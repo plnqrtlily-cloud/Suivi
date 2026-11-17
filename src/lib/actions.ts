@@ -38,6 +38,7 @@ import {
 import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MESSAGE_DOC_TYPES } from "./storage";
 import { EXERCISE_ANIMATIONS, EXERCISE_ANIMATIONS_SPORT, bundledPath } from "./exercise-animations";
 import { upgradeOutdatedAnimations } from "./animation-upgrade";
+import { parseDiscipline } from "./mtb";
 import { parseGpx, simplifyRoute } from "./gpx";
 import { getResourceById, getBlocksForWorkout, getCoachPlanStatus, getTeamWithMembers } from "./queries";
 import { ADMIN_EMAIL, trialEndDate } from "./billing";
@@ -1742,13 +1743,21 @@ async function extractRoutePoints(formData: FormData): Promise<string | null> {
 
 // Import manuel — filet de sécurité indépendant de toute API tierce (cf. prompt).
 // Sert aussi de secours si Garmin ou Strava change ses conditions d'accès.
+// « VTT » dans un formulaire d'activité : enregistré comme vélo (charge, stats)
+// avec son type à côté (enduro, électrique, DH, dirt ; cf. src/lib/mtb.ts).
+function sportAndDiscipline(formData: FormData): { sport: string; discipline: string | null } {
+  const raw = String(formData.get("sport") || "");
+  if (raw === "mtb") return { sport: "cycling", discipline: parseDiscipline(formData.get("discipline")) ?? "mtb" };
+  return { sport: raw, discipline: null };
+}
+
 export async function addImportedActivityAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
 
   const activityDate = String(formData.get("activityDate") || "");
   const activityTime = String(formData.get("activityTime") || "").trim();
-  const sport = String(formData.get("sport") || "");
+  const { sport, discipline } = sportAndDiscipline(formData);
   const durationMinutes = formData.get("durationMinutes") ? Number(formData.get("durationMinutes")) : null;
   const distanceKm = formData.get("distanceKm") ? Number(formData.get("distanceKm")) : null;
   const avgHr = formData.get("avgHr") ? Number(formData.get("avgHr")) : null;
@@ -1760,8 +1769,8 @@ export async function addImportedActivityAction(formData: FormData) {
   const routePoints = await extractRoutePoints(formData);
 
   await dbRun(
-    `INSERT INTO imported_activities (id, athlete_id, source, activity_date, activity_time, sport, duration_minutes, distance_km, avg_hr, elevation_gain_m, avg_power_w, rpe, notes, route_points)
-     VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO imported_activities (id, athlete_id, source, activity_date, activity_time, sport, duration_minutes, distance_km, avg_hr, elevation_gain_m, avg_power_w, rpe, notes, route_points, discipline)
+     VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       randomUUID(),
       user.id,
@@ -1776,6 +1785,7 @@ export async function addImportedActivityAction(formData: FormData) {
       rpe,
       notes || null,
       routePoints,
+      discipline,
     ]
   );
 
@@ -1793,7 +1803,7 @@ export async function updateImportedActivityAction(id: string, formData: FormDat
 
   const activityDate = String(formData.get("activityDate") || "");
   const activityTime = String(formData.get("activityTime") || "").trim();
-  const sport = String(formData.get("sport") || "");
+  const { sport, discipline } = sportAndDiscipline(formData);
   const durationMinutes = formData.get("durationMinutes") ? Number(formData.get("durationMinutes")) : null;
   const distanceKm = formData.get("distanceKm") ? Number(formData.get("distanceKm")) : null;
   const avgHr = formData.get("avgHr") ? Number(formData.get("avgHr")) : null;
@@ -1807,9 +1817,9 @@ export async function updateImportedActivityAction(id: string, formData: FormDat
   const routePoints = (await extractRoutePoints(formData)) ?? existing.route_points ?? null;
 
   await dbRun(
-    `UPDATE imported_activities SET activity_date = ?, activity_time = ?, sport = ?, duration_minutes = ?, distance_km = ?, avg_hr = ?, elevation_gain_m = ?, avg_power_w = ?, rpe = ?, notes = ?, route_points = ?
+    `UPDATE imported_activities SET activity_date = ?, activity_time = ?, sport = ?, discipline = ?, duration_minutes = ?, distance_km = ?, avg_hr = ?, elevation_gain_m = ?, avg_power_w = ?, rpe = ?, notes = ?, route_points = ?
      WHERE id = ?`,
-    [activityDate, activityTime || null, sport, durationMinutes, distanceKm, avgHr, elevationGainM, avgPowerW, rpe, notes || null, routePoints, id]
+    [activityDate, activityTime || null, sport, discipline, durationMinutes, distanceKm, avgHr, elevationGainM, avgPowerW, rpe, notes || null, routePoints, id]
   );
 
   revalidatePath("/athlete/profile");
@@ -1944,15 +1954,15 @@ export async function coachAddActivityAction(athleteId: string, formData: FormDa
 
   const activityDate = String(formData.get("activityDate") || "");
   const activityTime = String(formData.get("activityTime") || "").trim();
-  const sport = String(formData.get("sport") || "");
+  const { sport, discipline } = sportAndDiscipline(formData);
   if (!DATE_ONLY_RE.test(activityDate) || !sport) throw new Error("Date et sport requis.");
   const rpe = numOrNull(formData.get("rpe"));
   if (rpe !== null && (rpe < 1 || rpe > 10)) throw new Error("Le RPE doit être compris entre 1 et 10.");
   const notes = String(formData.get("notes") || "").trim();
 
   await dbRun(
-    `INSERT INTO imported_activities (id, athlete_id, source, activity_date, activity_time, sport, duration_minutes, distance_km, avg_hr, elevation_gain_m, avg_power_w, rpe, notes, created_by)
-     VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO imported_activities (id, athlete_id, source, activity_date, activity_time, sport, duration_minutes, distance_km, avg_hr, elevation_gain_m, avg_power_w, rpe, notes, created_by, discipline)
+     VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       randomUUID(),
       athleteId,
@@ -1967,6 +1977,7 @@ export async function coachAddActivityAction(athleteId: string, formData: FormDa
       rpe,
       notes || null,
       user.id,
+      discipline,
     ]
   );
 

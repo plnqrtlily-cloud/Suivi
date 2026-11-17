@@ -143,11 +143,23 @@ def ease(t, kind="io"):
     return 0.5 - 0.5 * math.cos(math.pi * t)
 
 
+ANGLE_KEYS = {"t", "h", "face"} | {p + s for p in ("th", "sh", "ft", "ua", "fa") for s in ("R", "L")}
+
+
+def lerp_angle(a, b, t):
+    """Interpolation d'angle par le chemin le plus court : de 180° à -150°, le
+    membre tourne de 30°, pas d'un tour complet."""
+    d = (b - a + 180) % 360 - 180
+    return a + d * t
+
+
 def lerp_pose(a, b, t):
     out = {}
     for k in set(a) | set(b):
         va, vb = a.get(k, b.get(k)), b.get(k, a.get(k))
-        if isinstance(va, (int, float)) and isinstance(vb, (int, float)):
+        if k in ANGLE_KEYS and isinstance(va, (int, float)) and isinstance(vb, (int, float)):
+            out[k] = lerp_angle(va, vb, t)
+        elif isinstance(va, (int, float)) and isinstance(vb, (int, float)):
             out[k] = lerp(va, vb, t)
         elif isinstance(va, tuple) and isinstance(vb, tuple):
             out[k] = tuple(lerp(x, y, t) for x, y in zip(va, vb))

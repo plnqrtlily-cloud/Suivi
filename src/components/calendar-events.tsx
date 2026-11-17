@@ -7,7 +7,8 @@ import { Button, Field, TextAreaField, ErrorText } from "@/components/ui";
 import { DaysPicker } from "@/components/days-picker";
 import { dateRangeToList } from "@/components/date-range-picker";
 import { createCalendarEventAction, deleteCalendarEventAction, updateCalendarEventAction } from "@/lib/calendar-event-actions";
-import { EVENT_KINDS, TRAINING_SPORTS, guessSportFromTitle, eventKind, eventSubtitle, type CalendarEventView } from "@/lib/calendar-event-kinds";
+import { MtbPicker } from "@/components/mtb-picker";
+import { EVENT_KINDS, TRAINING_SPORTS, guessMtbFromTitle, guessSportFromTitle, eventKind, eventSubtitle, type CalendarEventView } from "@/lib/calendar-event-kinds";
 
 // Événements du calendrier partagé athlète ↔ coach : formulaire (ajout et
 // modification), ligne d'affichage et fenêtre de détail. Utilisés des deux
@@ -48,8 +49,10 @@ export function CalendarEventForm({
   const singleDay = dates.length === 1;
   // Entraînement : le sport suit le titre (« Muscu… » → Musculation) tant
   // qu'il n'a pas été choisi à la main.
-  const [sport, setSport] = useState<string>(event?.sport ?? "cycling");
+  const [sport, setSport] = useState<string>(event?.discipline ? "mtb" : (event?.sport ?? "mtb"));
   const [sportTouched, setSportTouched] = useState(!!event?.sport);
+  const [mtb, setMtb] = useState<string | null>(event?.discipline && event.discipline !== "mtb" ? event.discipline : null);
+  const [mtbTouched, setMtbTouched] = useState(!!event?.discipline);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -66,6 +69,7 @@ export function CalendarEventForm({
       location: String(fd.get("location") || ""),
       notes: String(fd.get("notes") || ""),
       sport: String(fd.get("sport") || ""),
+      discipline: sport === "mtb" ? mtb : null,
       durationMinutes: Number(fd.get("durationMinutes") || 0) || undefined,
     };
     setPending(true);
@@ -112,6 +116,8 @@ export function CalendarEventForm({
         onChange={(e) => {
           const g = guessSportFromTitle(e.target.value);
           if (!sportTouched && g) setSport(g);
+          const m = guessMtbFromTitle(e.target.value);
+          if (!mtbTouched && m) setMtb(m);
         }} placeholder={kind === "entrainement" ? "Sortie club, séance piste…" : kind === "competition" ? "Coupe de France, manche 2" : kind === "rdv" ? "Kiné" : "Titre de l'événement"} />
       {kind === "entrainement" && (
         <div className="grid grid-cols-2 gap-3">
@@ -133,6 +139,11 @@ export function CalendarEventForm({
             </select>
           </label>
           <Field label="Durée prévue (min)" type="number" name="durationMinutes" min={0} max={1440} defaultValue={event?.durationMinutes ?? ""} />
+          {sport === "mtb" && (
+            <div className="col-span-2">
+              <MtbPicker value={mtb} onChange={(v) => { setMtb(v); setMtbTouched(true); }} />
+            </div>
+          )}
         </div>
       )}
       <div>

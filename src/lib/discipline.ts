@@ -53,6 +53,8 @@ export const PLAN_FIELDS: Record<PlanKey, { label: string; unit: string; ph: str
 
 export interface PlanData {
   activity?: string;
+  /** Type de VTT (enduro, vttae, dh, dirt), cf. src/lib/mtb.ts. */
+  discipline?: string;
   values?: Partial<Record<PlanKey, string>>;
 }
 

@@ -1,5 +1,6 @@
 "use server";
 
+import { parseDiscipline } from "./mtb";
 import { randomUUID } from "crypto";
 import { revalidatePath as nextRevalidatePath, refresh } from "next/cache";
 import { getCurrentUser } from "./auth";
@@ -37,6 +38,8 @@ export interface CalendarEventInput {
   location?: string;
   notes?: string;
   sport?: string;
+  /** Type de VTT quand sport = « mtb » (cf. src/lib/mtb.ts). */
+  discipline?: string | null;
   durationMinutes?: number;
 }
 
@@ -56,7 +59,9 @@ function clean(input: CalendarEventInput) {
     time,
     location: input.location?.trim().slice(0, 120) || null,
     notes: input.notes?.trim().slice(0, 2000) || null,
-    sport: kind === "entrainement" && input.sport ? input.sport.slice(0, 30) : null,
+    // « VTT » : enregistré en vélo, avec son type à côté.
+    sport: kind === "entrainement" && input.sport ? (input.sport === "mtb" ? "cycling" : input.sport.slice(0, 30)) : null,
+    discipline: kind === "entrainement" && input.sport === "mtb" ? (parseDiscipline(input.discipline) ?? "mtb") : null,
     duration_minutes: kind === "entrainement" && input.durationMinutes && input.durationMinutes > 0 ? Math.min(Math.round(input.durationMinutes), 1440) : null,
   };
 }
@@ -94,9 +99,9 @@ export async function createCalendarEventAction(input: CalendarEventInput) {
     const e = clean({ ...input, startDate: start, endDate: end, time: days.length === 1 ? input.time : "" });
     first ??= e;
     await dbRun(
-      `INSERT INTO calendar_events (id, athlete_id, author_id, updated_by, kind, title, start_date, end_date, time, location, notes, sport, duration_minutes)
+      `INSERT INTO calendar_events (id, athlete_id, author_id, updated_by, kind, title, start_date, end_date, time, location, notes, sport, duration_minutes, discipline)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [randomUUID(), athleteId, user.id, user.id, e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes, e.sport, e.duration_minutes]
+      [randomUUID(), athleteId, user.id, user.id, e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes, e.sport, e.duration_minutes, e.discipline]
     );
   }
   // Une seule notification, même pour plusieurs dates.
@@ -110,9 +115,9 @@ export async function updateCalendarEventAction(id: string, input: CalendarEvent
   const user = await requireManager(row.athlete_id);
   const e = clean(input);
   await dbRun(
-    `UPDATE calendar_events SET kind = ?, title = ?, start_date = ?, end_date = ?, time = ?, location = ?, notes = ?, sport = ?, duration_minutes = ?,
+    `UPDATE calendar_events SET kind = ?, title = ?, start_date = ?, end_date = ?, time = ?, location = ?, notes = ?, sport = ?, discipline = ?, duration_minutes = ?,
        updated_by = ?, updated_at = datetime('now') WHERE id = ?`,
-    [e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes, e.sport, e.duration_minutes, user.id, id]
+    [e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes, e.sport, e.discipline, e.duration_minutes, user.id, id]
   );
   await notifyEventChange(user, row.athlete_id, "updated", e);
   revalidateCalendars(row.athlete_id, [row.start_date, e.start_date, e.end_date]);

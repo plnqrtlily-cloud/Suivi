@@ -661,6 +661,7 @@ export interface ImportedActivity {
   notes: string | null;
   route_points: string | null;
   created_by?: string | null;
+  discipline?: string | null;
 }
 
 export interface PersonalRecord {

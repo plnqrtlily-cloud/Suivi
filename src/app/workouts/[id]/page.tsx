@@ -7,6 +7,8 @@ import { computeVolume, formatSeconds } from "@/lib/strength-volume";
 import { formatWorkoutTime, isTimeOfDaySlug } from "@/lib/time-of-day";
 import { Nav } from "@/components/nav";
 import { Card, StatusBadge, sportLabel } from "@/components/ui";
+import { mtbLabel } from "@/lib/mtb";
+import { parsePlan } from "@/lib/discipline";
 import { StatusForm } from "./status-form";
 import { CommentForm } from "./comment-form";
 import { CancelWorkoutButton } from "./cancel-button";
@@ -141,7 +143,7 @@ export default async function WorkoutDetailPage({
         <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-sm text-slate">
-              {sportLabel(workout.sport)} ·{" "}
+              {mtbLabel(parsePlan(workout.plan_json)?.discipline) ?? sportLabel(workout.sport)} ·{" "}
               {workout.flex_week && !workout.flex_placed
                 ? `à placer dans la semaine du ${new Date(`${workout.flex_week}T00:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`
                 : new Date(`${workout.date}T00:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
@@ -368,12 +370,22 @@ export default async function WorkoutDetailPage({
                   };
                 };
 
-                const renderBlock = (b: any) => (
+                // La démonstration (GIF, vidéo) ne s'affiche plus dans la liste :
+                // elle s'ouvre en touchant l'exercice, dans sa fiche détaillée.
+                const renderBlock = (b: any) => {
+                  const detail = detailOf(b);
+                  return (
                   <div key={b.id} className="border-l-2 border-moss/40 pl-3">
-                  <ExerciseDetailButton data={detailOf(b)}>
+                  <ExerciseDetailButton data={detail}>
                     <p className="text-xs uppercase tracking-wide text-slate">{blockTitle(b)}</p>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-ink">{b.exercise_name}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium text-ink underline decoration-moss/40 decoration-dotted underline-offset-4">{b.exercise_name}</p>
+                      {detail.demo && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-moss/10 px-2 py-0.5 text-[10px] font-semibold text-moss-dark">
+                          <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden><path d="M2 1l7 4-7 4z" fill="currentColor" /></svg>
+                          Voir le mouvement
+                        </span>
+                      )}
                       {b.training_quality && (
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${QUALITY_STYLES[b.training_quality]}`}>
                           {QUALITY_LABELS[b.training_quality]}
@@ -422,26 +434,10 @@ export default async function WorkoutDetailPage({
                       </div>
                     )}
                     {b.notes && <p className="text-sm text-ink-soft">{b.notes}</p>}
-                    {b.resource_id && (
-                      <div className="mt-2 max-w-xs overflow-hidden rounded-md border border-line">
-                        {b.resource_type === "video" ? (
-                          <video controls className="aspect-video w-full bg-ink">
-                            <source src={`/api/resources/file/${b.resource_id}`} type={b.resource_mime_type} />
-                          </video>
-                        ) : (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={`/api/resources/file/${b.resource_id}`}
-                            alt={b.resource_title}
-                            className="aspect-video w-full object-cover"
-                          />
-                        )}
-                        <p className="bg-paper-dim px-2 py-1 text-xs text-slate">{b.resource_title}</p>
-                      </div>
-                    )}
                   </ExerciseDetailButton>
                   </div>
-                );
+                  );
+                };
 
                 return segments.map((segment, i) => {
                   if (!segment.circuitId) return <div key={`s${i}`}>{segment.blocks.map(renderBlock)}</div>;

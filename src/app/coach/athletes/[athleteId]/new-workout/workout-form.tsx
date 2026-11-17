@@ -8,6 +8,7 @@ import { DaysPicker } from "@/components/days-picker";
 import { StrengthBuilder, BlockRow, LibraryResource, sortBlocksByGroupOrder } from "./strength-builder";
 import type { IntervalItem } from "./interval-builder";
 import { StructureBuilder, toBlocs, defaultStructure, adaptStructure, type BlocItem, type StructureItem, type ZoneLabels } from "./structure-builder";
+import { MtbPicker } from "@/components/mtb-picker";
 import { ACTIVITIES, PLAN_FIELDS, activityById, activityForSport, parsePlan, type PlanKey } from "@/lib/discipline";
 import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, isTimeOfDaySlug, type TimeOfDay } from "@/lib/time-of-day";
 
@@ -102,6 +103,7 @@ export function WorkoutForm({
   const activity = activityById(activityId);
   const sport = activity.sport;
   const [planValues, setPlanValues] = useState<Partial<Record<PlanKey, string>>>(initialPlan?.values ?? {});
+  const [mtbType, setMtbType] = useState<string | null>(initialPlan?.discipline ?? null);
   const [plannedRpe, setPlannedRpe] = useState(initial?.plannedRpe ? String(initial.plannedRpe) : "");
   const [duration, setDuration] = useState(initial?.durationMinutes ? String(initial.durationMinutes) : "");
   const [structure, setStructure] = useState<BlocItem[]>(() => {
@@ -204,7 +206,7 @@ export function WorkoutForm({
   function planJson(): string {
     const values: Partial<Record<PlanKey, string>> = {};
     for (const k of activity.plan) if (planValues[k]?.trim()) values[k] = planValues[k]!.trim();
-    return JSON.stringify({ activity: activity.id, values });
+    return JSON.stringify({ activity: activity.id, values, ...(activity.id === "mtb" && mtbType ? { discipline: mtbType } : {}) });
   }
   const rpeNumber = plannedRpe ? Number(plannedRpe) : undefined;
 
@@ -349,6 +351,8 @@ export function WorkoutForm({
             </select>
           </label>
         </div>
+
+        {activityId === "mtb" && <MtbPicker value={mtbType} onChange={setMtbType} />}
 
         {(category === "objectif" || category === "evenement") && (
           <label className={label}>

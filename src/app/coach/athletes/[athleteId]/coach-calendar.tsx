@@ -1,5 +1,6 @@
 "use client";
 
+import { MtbPicker } from "@/components/mtb-picker";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -62,7 +63,8 @@ const STATUS_COLOR: Record<EntryStatus, string> = {
 const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 const DOW_LONG = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const SPORTS = [
-  { value: "cycling", label: "Vélo" },
+  { value: "mtb", label: "VTT" },
+  { value: "cycling", label: "Vélo route" },
   { value: "running", label: "Course à pied" },
   { value: "swimming", label: "Natation" },
   { value: "hiking", label: "Randonnée" },
@@ -1747,6 +1749,8 @@ function AddPanel({
   // Le jour cliqué est présélectionné ; d'autres jours peuvent s'y ajouter.
   const [dates, setDates] = useState<string[]>([date]);
   const [doneDates, setDoneDates] = useState<string[]>(date <= data.today ? [date] : []);
+  const [doneSport, setDoneSport] = useState("mtb");
+  const [doneMtb, setDoneMtb] = useState<string | null>(null);
   const daysField = (value: string[], onChange: (d: string[]) => void, max?: string) => (
     <div className="max-w-sm">
       <span className="mb-1.5 block text-sm font-bold text-ink">Jour(s)</span>
@@ -1789,13 +1793,14 @@ function AddPanel({
             {daysField(doneDates, setDoneDates, data.today)}
             <div className="grid gap-3 sm:grid-cols-5">
               <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Activité
-                <select name="sport" defaultValue="cycling" className={input}>{SPORTS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}</select>
+                <select name="sport" value={doneSport} onChange={(ev) => setDoneSport(ev.target.value)} className={input}>{SPORTS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}</select>
               </label>
               <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Durée (min)<input name="durationMinutes" type="number" min={1} required className={input} /></label>
               <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">RPE<input name="rpe" type="number" min={1} max={10} className={input} /></label>
               <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Distance (km)<input name="distanceKm" type="number" step="0.1" min={0} className={input} /></label>
               <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">FC moyenne<input name="avgHr" type="number" min={30} max={230} className={input} /></label>
             </div>
+            {doneSport === "mtb" && <MtbPicker value={doneMtb} onChange={setDoneMtb} name="discipline" />}
             <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Notes<textarea name="notes" rows={2} placeholder="Ce que l'athlète vous a dit de la séance…" className={`${input} resize-y`} /></label>
             <div><button type="submit" disabled={pending || !doneDates.length} className={pillMain}>Enregistrer{doneDates.length > 1 ? ` (${doneDates.length} jours)` : ""}</button></div>
           </form>

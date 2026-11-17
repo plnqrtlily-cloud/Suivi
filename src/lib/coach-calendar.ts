@@ -1,6 +1,7 @@
 // Chargement du calendrier coach (vue semaine ou mois) : toutes les requêtes
 // de la période en une fois, puis mise en forme dans CoachCalendarData.
 
+import { mtbLabel } from "./mtb";
 import { getCalendarEvents } from "./calendar-events";
 import { eventsOn } from "./calendar-event-kinds";
 import {
@@ -211,7 +212,7 @@ export async function loadCalendarWeeks(params: {
       date: w.date,
       title: w.title,
       sport: w.sport,
-      sportLabel: plan?.activity ? activityForSport(w.sport, plan).label : SPORT_LABELS[w.sport] || w.sport,
+      sportLabel: mtbLabel(plan?.discipline) ?? (plan?.activity ? activityForSport(w.sport, plan).label : SPORT_LABELS[w.sport] || w.sport),
       plan: planSummary(plan),
       status: workoutStatus(w, today),
       isGoal: w.category === "objectif" || w.category === "evenement",
@@ -239,9 +240,9 @@ export async function loadCalendarWeeks(params: {
     id: a.id,
     kind: "import",
     date: a.activity_date,
-    title: a.notes?.split("\n")[0]?.slice(0, 60) || SPORT_LABELS[a.sport] || "Activité",
+    title: a.notes?.split("\n")[0]?.slice(0, 60) || mtbLabel(a.discipline) || SPORT_LABELS[a.sport] || "Activité",
     sport: a.sport,
-    sportLabel: SPORT_LABELS[a.sport] || a.sport,
+    sportLabel: mtbLabel(a.discipline) ?? (SPORT_LABELS[a.sport] || a.sport),
     status: "hors",
     isGoal: false,
     isDraft: false,

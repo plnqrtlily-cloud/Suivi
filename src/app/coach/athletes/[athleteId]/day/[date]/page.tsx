@@ -13,6 +13,7 @@ import {
 import { Nav } from "@/components/nav";
 import { CoachSidebar } from "@/components/coach-sidebar";
 import { Card, StatusBadge, sportLabel } from "@/components/ui";
+import { mtbLabel } from "@/lib/mtb";
 import { RouteMap } from "@/components/route-map";
 import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, TIME_OF_DAY_HINTS, groupByTimeOfDay, formatPreciseTime } from "@/lib/time-of-day";
 import { AVAILABILITY_SLOT_LABELS } from "@/lib/time-of-day";
@@ -81,7 +82,7 @@ export default async function CoachAthleteDayPage({ params }: { params: Promise<
       return {
         id: `i-${a.id}`,
         time: a.activity_time,
-        title: sportLabel(a.sport),
+        title: mtbLabel(a.discipline) ?? sportLabel(a.sport),
         subtitle: `${a.duration_minutes ? `${a.duration_minutes} min · ` : ""}${a.distance_km ? `${a.distance_km} km · ` : ""}${
           a.avg_hr ? `FC moy. ${a.avg_hr}${zone ? ` (Z${zone.zone})` : ""} · ` : ""
         }${a.created_by ? (a.created_by === user.id ? "renseignée par vous" : "renseignée par un coach") : SOURCE_LABELS[a.source] || a.source}`,

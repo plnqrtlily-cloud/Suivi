@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getWorkoutsForAthlete, getCheckinForDate, getImportedActivitiesForRange, getAvailabilityBlocksForRange, getLatestMeasurements } from "@/lib/queries";
 import { Nav } from "@/components/nav";
 import { Card, StatusBadge, sportLabel } from "@/components/ui";
+import { mtbLabel } from "@/lib/mtb";
 import { ReadinessSummary } from "../../readiness-summary";
 import { DailyCheckin } from "../../daily-checkin";
 import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, TIME_OF_DAY_HINTS, groupByTimeOfDay, formatPreciseTime } from "@/lib/time-of-day";
@@ -70,7 +71,7 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
       return {
         id: `i-${a.id}`,
         time: a.activity_time,
-        title: sportLabel(a.sport),
+        title: mtbLabel(a.discipline) ?? sportLabel(a.sport),
         subtitle: `${a.duration_minutes ? `${a.duration_minutes} min · ` : ""}${a.distance_km ? `${a.distance_km} km · ` : ""}${
           a.avg_hr ? `FC moy. ${a.avg_hr}${zone ? ` (Z${zone.zone})` : ""} · ` : ""
         }${a.created_by ? "renseignée par votre coach" : SOURCE_LABELS[a.source] || a.source}`,
