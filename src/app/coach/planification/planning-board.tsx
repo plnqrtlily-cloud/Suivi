@@ -1,5 +1,6 @@
 "use client";
 
+import { MoreMenu, MenuSeparator, menuItem } from "@/components/more-menu";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -182,6 +183,7 @@ export function PlanningBoard({
   const [pickDays, setPickDays] = useState(false);
   const [form, setForm] = useState({ title: "", sport: "cycling", minutes: "60", date: "" });
   const [dup, setDup] = useState<string[]>([]);
+  const [dupOpen, setDupOpen] = useState(false);
   const [err, setErr] = useState("");
 
   const stripRef = useRef<HTMLDivElement>(null);
@@ -384,6 +386,7 @@ export function PlanningBoard({
       () => planningMoveWorkoutAction({ workoutId: x.id, athleteId, date }),
       `« ${x.title} » déplacée ${x.athleteId !== athleteId ? `vers ${who}, ` : ""}${dayLong(date)}`
     );
+    setDupOpen(false);
     setPanel({ type: "item", id: x.id });
   }
   function openNew(athleteId: string, date: string) {
@@ -397,6 +400,7 @@ export function PlanningBoard({
   function openItem(id: string) {
     setEdit(false);
     setDup([]);
+    setDupOpen(false);
     setPanel((p) => (p?.type === "item" && p.id === id ? null : { type: "item", id }));
   }
   function copyVisible(a: PlanAthlete) {
@@ -938,51 +942,61 @@ export function PlanningBoard({
                     Publier
                   </button>
                 )}
-                {cur.mine && !cur.isGoal && (
-                  <>
-                    <button
-                      type="button"
-                      className={btnPrimary}
-                      onClick={() => {
-                        setForm({ title: cur.title, sport: cur.sport, minutes: String(cur.minutes || 60), date: cur.date });
-                        setEdit(true);
-                      }}
-                    >
-                      Modifier
-                    </button>
-                    <button
-                      type="button"
-                      className={btnSmall}
-                      onClick={() => run(() => duplicateWorkoutAction({ workoutId: cur.id, targetDate: addDays(cur.date, 7) }), `Copiée au ${frs(addDays(cur.date, 7))}`)}
-                    >
-                      Copier la semaine suivante
-                    </button>
-                    <CopyWorkoutButton workout={{ id: cur.id, title: cur.title, athleteName: athleteById(cur.athleteId)?.name ?? "" }} className={btnSmall} />
-                  </>
-                )}
-                <Link href={`/workouts/${cur.id}`} className={btnSmall}>
-                  Ouvrir la séance
-                </Link>
-                <Link href={`/coach/athletes/${cur.athleteId}`} className={btnSmall}>
-                  Calendrier de {athleteById(cur.athleteId)?.name}
-                </Link>
-                <span className="flex-1" />
-                {cur.mine && (
-                  <button
-                    type="button"
-                    className={`${btnSmall} !text-[#a4492a]`}
-                    onClick={() => {
-                      const t = cur.title;
-                      setItems((prev) => prev.filter((y) => y.id !== cur.id));
-                      setPanel(null);
-                      run(() => planningDeleteWorkoutAction(cur.id), `« ${t} » supprimée`);
-                    }}
-                  >
-                    Supprimer
-                  </button>
-                )}
+                {/* Les actions sont regroupées dans le menu « ⋯ ». */}
+                <MoreMenu label="Actions sur la séance">
+                  {cur.mine && !cur.isGoal && (
+                    <>
+                      <button
+                        type="button"
+                        className={menuItem}
+                        onClick={() => {
+                          setForm({ title: cur.title, sport: cur.sport, minutes: String(cur.minutes || 60), date: cur.date });
+                          setEdit(true);
+                        }}
+                      >
+                        Modifier
+                      </button>
+                      <button
+                        type="button"
+                        className={menuItem}
+                        onClick={() => run(() => duplicateWorkoutAction({ workoutId: cur.id, targetDate: addDays(cur.date, 7) }), `Copiée au ${frs(addDays(cur.date, 7))}`)}
+                      >
+                        Copier la semaine suivante
+                      </button>
+                      <CopyWorkoutButton workout={{ id: cur.id, title: cur.title, athleteName: athleteById(cur.athleteId)?.name ?? "" }} className={menuItem} />
+                      {athletes.length > 1 && (
+                        <button type="button" className={menuItem} onClick={() => setDupOpen(true)}>
+                          Dupliquer pour d&apos;autres athlètes…
+                        </button>
+                      )}
+                    </>
+                  )}
+                  <Link href={`/workouts/${cur.id}`} className={menuItem}>
+                    Ouvrir la séance
+                  </Link>
+                  <Link href={`/coach/athletes/${cur.athleteId}`} className={menuItem}>
+                    Calendrier de {athleteById(cur.athleteId)?.name}
+                  </Link>
+                  {cur.mine && (
+                    <>
+                      <MenuSeparator />
+                      <button
+                        type="button"
+                        className={`${menuItem} !text-[#a4492a]`}
+                        onClick={() => {
+                          const t = cur.title;
+                          setItems((prev) => prev.filter((y) => y.id !== cur.id));
+                          setPanel(null);
+                          run(() => planningDeleteWorkoutAction(cur.id), `« ${t} » supprimée`);
+                        }}
+                      >
+                        Supprimer
+                      </button>
+                    </>
+                  )}
+                </MoreMenu>
               </div>
-              {cur.mine && !cur.isGoal && athletes.length > 1 && (
+              {cur.mine && !cur.isGoal && athletes.length > 1 && dupOpen && (
                 <div className="flex flex-wrap items-center gap-2 border-t border-[#eef1f0] pt-3">
                   <span className="mr-1 text-[13px] font-semibold text-ink-soft">Dupliquer le même jour pour</span>
                   {athletes

@@ -1,6 +1,7 @@
 "use client";
 
 import { MtbPicker } from "@/components/mtb-picker";
+import { MoreMenu, MenuSeparator, menuItem } from "@/components/more-menu";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -1385,16 +1386,22 @@ function EntryPanel({
               {e.status === "todo" || e.status === "noreport" ? "Renseigner" : "Modifier le retour"}
             </button>
           )}
-          {isWorkout && <Link href={`/workouts/${e.id}?apercu=athlete`} className={pill}>Vue athlète</Link>}
-          {isWorkout && <Link href={`/workouts/${e.id}/edit`} className={pill}>Modifier</Link>}
-          {isWorkout && <CopyWorkoutButton workout={{ id: e.id, title: e.title, athleteName: data.athleteName }} className={pill} />}
-          {isWorkout && <button type="button" disabled={pending} onClick={() => togglePicker("dup")} className={pill} style={picker?.mode === "dup" ? { background: "#e3eeed" } : undefined}>{e.status === "miss" ? "Reprogrammer" : "Dupliquer"}</button>}
-          {isWorkout && (e.status === "todo" || e.status === "noreport") && <button type="button" disabled={pending} onClick={() => togglePicker("move")} className={pill} style={picker?.mode === "move" ? { background: "#e3eeed" } : undefined}>Déplacer</button>}
-          {!isWorkout && e.createdByMe && <button type="button" disabled={pending} onClick={onDeleteImport} className={pill}>Supprimer</button>}
-          {isWorkout && e.createdByMe && !confirmDelete && (
-            <button type="button" disabled={pending} onClick={() => setConfirmDelete(true)} className={`${pill} !text-[#a4492a]`}>
-              Supprimer
-            </button>
+          {/* Les autres actions sont regroupées dans le menu « ⋯ ». */}
+          {(isWorkout || e.createdByMe) && (
+            <MoreMenu label="Actions sur la séance">
+              {isWorkout && <Link href={`/workouts/${e.id}?apercu=athlete`} className={menuItem}>Voir comme l&apos;athlète</Link>}
+              {isWorkout && <Link href={`/workouts/${e.id}/edit`} className={menuItem}>Modifier</Link>}
+              {isWorkout && <CopyWorkoutButton workout={{ id: e.id, title: e.title, athleteName: data.athleteName }} className={menuItem} />}
+              {isWorkout && <button type="button" disabled={pending} onClick={() => togglePicker("dup")} className={menuItem}>{e.status === "miss" ? "Reprogrammer…" : "Dupliquer…"}</button>}
+              {isWorkout && (e.status === "todo" || e.status === "noreport") && <button type="button" disabled={pending} onClick={() => togglePicker("move")} className={menuItem}>Déplacer / reporter…</button>}
+              {e.createdByMe && <MenuSeparator />}
+              {!isWorkout && e.createdByMe && <button type="button" disabled={pending} onClick={onDeleteImport} className={`${menuItem} !text-[#a4492a]`}>Supprimer</button>}
+              {isWorkout && e.createdByMe && (
+                <button type="button" disabled={pending} onClick={() => setConfirmDelete(true)} className={`${menuItem} !text-[#a4492a]`}>
+                  Supprimer
+                </button>
+              )}
+            </MoreMenu>
           )}
         </div>
       </PanelHead>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { copyWorkoutToAthletesAction } from "@/lib/actions";
 import { DaysPicker } from "@/components/days-picker";
@@ -108,7 +109,9 @@ export function SendToAthletesButton({
   athleteName,
   date,
   athletes,
+  className,
 }: {
+  className?: string;
   workoutId: string;
   workoutTitle: string;
   athleteId: string;
@@ -142,10 +145,11 @@ export function SendToAthletesButton({
 
   return (
     <>
-      <button type="button" onClick={() => (setOpen(true), setDone(null))} className="text-sm font-semibold text-moss-dark hover:underline">
-        Envoyer à…
+      <button type="button" onClick={() => (setOpen(true), setDone(null))} className={className ?? "text-sm font-semibold text-moss-dark hover:underline"}>
+        Envoyer à un autre athlète…
       </button>
-      {open && (
+      {/* Hors du menu « ⋯ » (masqué une fois l'action choisie) : rendu sur la page. */}
+      {open && createPortal(
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-ink/35 sm:items-center sm:p-6" onClick={() => setOpen(false)}>
           <div
             role="dialog"
@@ -193,7 +197,7 @@ export function SendToAthletesButton({
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </>
   );
 }

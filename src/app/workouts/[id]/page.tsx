@@ -8,6 +8,7 @@ import { formatWorkoutTime, isTimeOfDaySlug } from "@/lib/time-of-day";
 import { Nav } from "@/components/nav";
 import { Card, StatusBadge, sportLabel } from "@/components/ui";
 import { mtbLabel } from "@/lib/mtb";
+import { MoreMenu, MenuSeparator, menuItem } from "@/components/more-menu";
 import { parsePlan } from "@/lib/discipline";
 import { StatusForm } from "./status-form";
 import { CommentForm } from "./comment-form";
@@ -172,23 +173,28 @@ export default async function WorkoutDetailPage({
             </div>
             {role === "coach" && (
               <div className="flex flex-wrap items-center gap-3">
-                <Link href={`/workouts/${workout.id}?apercu=athlete`} className="text-sm font-semibold text-moss-dark hover:underline">
-                  Voir comme l&apos;athlète
-                </Link>
                 {workout.is_draft ? <PublishWorkoutButton workoutId={workout.id} /> : null}
-                <Link href={`/workouts/${workout.id}/edit`} className="text-sm font-semibold text-moss-dark hover:underline">
-                  Modifier
-                </Link>
-                <CopyWorkoutButton workout={{ id: workout.id, title: workout.title, athleteName: athleteFirstName }} />
-                <SendToAthletesButton
-                  workoutId={workout.id}
-                  workoutTitle={workout.title}
-                  athleteId={workout.athlete_id}
-                  athleteName={athleteFirstName}
-                  date={workout.flex_week && !workout.flex_placed ? workout.flex_week : workout.date}
-                  athletes={otherAthletes}
-                />
-                <CancelWorkoutButton workoutId={workout.id} />
+                {/* Les autres actions sont regroupées dans le menu « ⋯ ». */}
+                <MoreMenu label="Actions sur la séance">
+                  <Link href={`/workouts/${workout.id}?apercu=athlete`} className={menuItem}>
+                    Voir comme l&apos;athlète
+                  </Link>
+                  <Link href={`/workouts/${workout.id}/edit`} className={menuItem}>
+                    Modifier
+                  </Link>
+                  <CopyWorkoutButton workout={{ id: workout.id, title: workout.title, athleteName: athleteFirstName }} className={menuItem} />
+                  <SendToAthletesButton
+                    workoutId={workout.id}
+                    workoutTitle={workout.title}
+                    athleteId={workout.athlete_id}
+                    athleteName={athleteFirstName}
+                    date={workout.flex_week && !workout.flex_placed ? workout.flex_week : workout.date}
+                    athletes={otherAthletes}
+                    className={menuItem}
+                  />
+                  <MenuSeparator />
+                  <CancelWorkoutButton workoutId={workout.id} className={`${menuItem} !text-[#a4492a]`} />
+                </MoreMenu>
               </div>
             )}
             {role === "athlete" && (
