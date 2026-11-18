@@ -3,6 +3,7 @@
 import { MtbPicker } from "@/components/mtb-picker";
 import { Linkify, safeUrl, shortUrl } from "@/components/linkify";
 import { SESSION_TONES, type SessionTone } from "@/lib/session-status";
+import { StatusIcon } from "@/components/status-icon";
 import { MoreMenu, MenuSeparator, menuItem } from "@/components/more-menu";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
@@ -36,8 +37,9 @@ import { eventKind, eventSubtitle, type CalendarEventView } from "@/lib/calendar
 // défilement), et un panneau de détail qui s'ouvre en douceur sous le
 // calendrier (jour, séance, ajout, copie).
 
-// Code couleur commun (cf. src/lib/session-status.ts) : à faire bleu, faite
-// (à valider) ambre, validée vert. « done » ici = réalisée ET validée.
+// Statut repéré par une icône (cf. src/lib/session-status.ts) : flèche à
+// faire, sablier faite (à valider), coche validée, croix pas faite.
+// « done » ici = réalisée ET validée.
 const TONE_OF: Record<EntryStatus, SessionTone> = {
   done: "validated",
   tovalidate: "done",
@@ -55,11 +57,14 @@ const STATUS_LABEL: Record<EntryStatus, string> = {
   done: "Validée",
   tovalidate: "Faite · à valider",
   noreport: "Pas de retour",
-  miss: "Non réalisée",
+  miss: "Pas faite",
   postponed: "Reportée",
   todo: "À faire",
   hors: "Hors programme",
 };
+function EntryIcon({ status, size = 13 }: { status: EntryStatus; size?: number }) {
+  return <StatusIcon name={toneOf(status).icon} size={size} className="mr-1 inline-block flex-shrink-0 -translate-y-px align-middle" />;
+}
 const STATUS_COLOR = Object.fromEntries((Object.keys(TONE_OF) as EntryStatus[]).map((k) => [k, toneOf(k).fg])) as Record<EntryStatus, string>;
 const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 const DOW_LONG = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
@@ -733,8 +738,10 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate">
         {(["todo", "tovalidate", "done", "noreport", "miss", "postponed", "hors"] as EntryStatus[]).map((k) => (
           <span key={k} className="inline-flex items-center gap-1.5">
-            <span className="h-3.5 w-5 rounded-r" style={{ borderLeft: BAR[k], background: toneOf(k).bg }} />
-            <span style={{ color: ["todo", "tovalidate", "done"].includes(k) ? toneOf(k).fg : undefined, fontWeight: ["todo", "tovalidate", "done"].includes(k) ? 600 : undefined }}>{STATUS_LABEL[k]}</span>
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#eef2f1] text-[#1b4b4f]">
+              <StatusIcon name={toneOf(k).icon} size={12} />
+            </span>
+            <span>{STATUS_LABEL[k]}</span>
           </span>
         ))}
         {data.cycleShared && (
@@ -1011,12 +1018,11 @@ function DayCard({
             className="rounded-r-lg py-1 pl-2.5 pr-1.5 text-left transition-colors"
             style={{
               borderLeft: e.isGoal ? "3px solid #a4492a" : BAR[e.status],
-              background: e.isGoal ? (on ? "#eef1f0" : "transparent") : on ? toneOf(e.status).bg : `${toneOf(e.status).bg}99`,
-              boxShadow: on ? `inset 0 0 0 1.5px ${toneOf(e.status).bar}` : undefined,
+              background: on ? "#eef1f0" : "transparent",
               opacity: e.isDraft ? 0.6 : 1,
             }}
           >
-            <span className="block text-[13px] font-bold leading-snug text-ink">{e.title}{e.isDraft ? " · brouillon" : ""}</span>
+            <span className="block text-[13px] font-bold leading-snug text-ink">{!e.isGoal && <EntryIcon status={e.status} />}{e.title}{e.isDraft ? " · brouillon" : ""}</span>
             <span className="mt-0.5 block text-xs leading-snug text-ink-soft">{entrySub(e)}</span>
           </button>
         );
@@ -1147,7 +1153,7 @@ function MonthScroller({
                       </span>
                     )}
                     {d.entries.map((e) => (
-                      <button key={e.id} type="button" onClick={() => onOpenEntry(e.id)} className="hidden truncate rounded-r py-px pl-1.5 text-left sm:block text-[12.5px] font-semibold text-ink" style={{ borderLeft: e.isGoal ? "3px solid #a4492a" : BAR[e.status], background: e.isGoal ? undefined : `${toneOf(e.status).bg}cc`, opacity: e.isDraft ? 0.6 : 1 }}>
+                      <button key={e.id} type="button" onClick={() => onOpenEntry(e.id)} className="hidden truncate rounded-r py-px pl-1.5 text-left sm:block text-[12.5px] font-semibold text-ink" style={{ borderLeft: e.isGoal ? "3px solid #a4492a" : BAR[e.status], opacity: e.isDraft ? 0.6 : 1 }}>{!e.isGoal && <EntryIcon status={e.status} size={11} />}
                         {e.title}
                       </button>
                     ))}
@@ -1292,7 +1298,7 @@ function DayPanel({
           </div>
           {day.entries.length === 0 && day.blocks.length === 0 && <p className="text-[13.5px] text-slate">Rien de prévu ce jour-là.</p>}
           {day.entries.map((e) => (
-            <button key={e.id} type="button" onClick={() => onOpenEntry(e.id)} className="rounded-r-lg py-1 pl-3 text-left" style={{ borderLeft: e.isGoal ? "3px solid #a4492a" : BAR[e.status], background: e.isGoal ? undefined : `${toneOf(e.status).bg}cc` }}>
+            <button key={e.id} type="button" onClick={() => onOpenEntry(e.id)} className="rounded-r-lg py-1 pl-3 text-left" style={{ borderLeft: e.isGoal ? "3px solid #a4492a" : BAR[e.status] }}>{!e.isGoal && <EntryIcon status={e.status} />}
               <span className="block text-sm font-semibold text-ink">{e.title}</span>
               <span className="mt-0.5 block text-[13px] text-ink-soft">{entrySub(e)}{e.reportedByCoach ? " · renseignée par vous" : ""}</span>
             </button>
@@ -1438,7 +1444,7 @@ function EntryPanel({
       )}
       <div className="-mt-3 mb-5 flex items-center gap-2.5 text-sm text-ink-soft">
         <span className="h-4" style={{ borderLeft: e.isGoal ? "3px solid #a4492a" : BAR[e.status] }} />
-        <b style={{ color: STATUS_COLOR[e.status] }}>{e.isGoal ? "Objectif" : STATUS_LABEL[e.status]}</b>
+        <b className="inline-flex items-center" style={{ color: STATUS_COLOR[e.status] }}>{!e.isGoal && <EntryIcon status={e.status} size={14} />}{e.isGoal ? "Objectif" : STATUS_LABEL[e.status]}</b>
         <span className="text-[#aab4b1]">·</span>
         {e.sportLabel}
         {e.timeLabel && <><span className="text-[#aab4b1]">·</span>{e.timeLabel}</>}

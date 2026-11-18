@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SESSION_TONES, workoutTone } from "@/lib/session-status";
+import { StatusIcon } from "./status-icon";
 import { ButtonHTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, TextareaHTMLAttributes } from "react";
 
 export function Field({
@@ -139,7 +140,7 @@ const STATUS_STYLES: Record<string, string> = {
   postponed: "bg-status-postponed/15 text-status-postponed",
 };
 
-/** Statut d'une séance, au code couleur commun (cf. src/lib/session-status.ts). */
+/** Statut d'une séance, avec son icône (cf. src/lib/session-status.ts). */
 export function StatusBadge({ status, validated, date, today }: { status: string; validated?: boolean; date?: string; today?: string }) {
   const tone = SESSION_TONES[workoutTone({ status, date, coach_validated_at: validated ? "1" : null }, today)];
   if (!tone) {
@@ -150,8 +151,8 @@ export function StatusBadge({ status, validated, date, today }: { status: string
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: tone.bg, color: tone.fg }}>
-      <span className="h-1.5 w-1.5 rounded-full" style={{ background: tone.bar }} aria-hidden />
+    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: tone.bg, color: tone.fg }}>
+      <StatusIcon name={tone.icon} size={13} />
       {tone.label}
     </span>
   );

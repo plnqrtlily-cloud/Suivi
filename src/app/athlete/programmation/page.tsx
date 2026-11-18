@@ -179,7 +179,7 @@ function DayItems({
             .filter(Boolean)
             .join(" · ")}
           href={`/athlete/day/${date}`}
-          chip={<Chip k="done" />}
+          chip={<Chip k="hors" />}
           actions={
             <span className="flex flex-shrink-0 items-center gap-3.5 pl-1 text-slate">
               <EditImportedActivityModal activity={a} className="hover:text-ink" />

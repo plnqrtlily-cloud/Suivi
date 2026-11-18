@@ -374,7 +374,7 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
           {dayImports.map((a: ImportedActivity) => (
             <ItemCard
               key={a.id}
-              chip={<Chip k="done" />}
+              chip={<Chip k="hors" />}
               by={a.created_by ? "par ton coach" : a.source === "manual" ? "par toi" : a.source === "garmin" ? "Garmin" : "Strava"}
               icon={<SportIcon sport={a.sport} size={19} />}
               iconColor="#8a5a44"

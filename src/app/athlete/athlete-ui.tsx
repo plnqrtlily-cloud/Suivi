@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { Workout } from "@/lib/queries";
 import { sportIconPath } from "@/lib/sport-icons";
-import { SESSION_TONES } from "@/lib/session-status";
+import { SESSION_TONES, type StatusIconName } from "@/lib/session-status";
+import { StatusIcon } from "@/components/status-icon";
 
 // Éléments partagés par l'accueil et le calendrier de l'athlète : statuts,
 // icône de sport, durée lisible et carte d'élément (séance, ajout…).
@@ -18,16 +19,17 @@ export function durationLabel(min: number | null) {
   return h ? `${h} h${m ? ` ${String(m).padStart(2, "0")}` : ""}` : `${m} min`;
 }
 
-// Code couleur commun (cf. src/lib/session-status.ts) : à faire bleu, faite
-// ambre, validée par le coach vert.
+// Statut repéré par une icône (cf. src/lib/session-status.ts) : flèche à
+// faire, sablier faite (en attente de validation), coche validée, croix pas faite.
 const T = SESSION_TONES;
-export const STATUS_CHIP: Record<string, { label: string; bg: string; fg: string }> = {
-  todo: { label: T.todo.label, bg: T.todo.bg, fg: T.todo.fg },
-  noreturn: { label: T.noreport.label, bg: T.noreport.bg, fg: T.noreport.fg },
-  done: { label: T.done.label, bg: T.done.bg, fg: T.done.fg },
-  validated: { label: T.validated.label, bg: T.validated.bg, fg: T.validated.fg },
-  not_done: { label: "Pas faite", bg: T.missed.bg, fg: T.missed.fg },
-  postponed: { label: T.postponed.label, bg: T.postponed.bg, fg: T.postponed.fg },
+export const STATUS_CHIP: Record<string, { label: string; bg: string; fg: string; icon: StatusIconName }> = {
+  todo: T.todo,
+  noreturn: T.noreport,
+  done: T.done,
+  validated: T.validated,
+  not_done: T.missed,
+  postponed: T.postponed,
+  hors: T.hors,
 };
 export function statusKey(w: Workout, today: string) {
   if (w.status === "done" || w.status === "partial") return w.coach_validated_at ? "validated" : "done";
@@ -38,7 +40,8 @@ export function statusKey(w: Workout, today: string) {
 export function Chip({ k }: { k: string }) {
   const c = STATUS_CHIP[k];
   return (
-    <span className="whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: c.bg, color: c.fg }}>
+    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: c.bg, color: c.fg }}>
+      <StatusIcon name={c.icon} size={13} />
       {c.label}
     </span>
   );

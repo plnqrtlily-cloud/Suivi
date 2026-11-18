@@ -1,20 +1,25 @@
-// Code couleur des séances, le même partout (calendriers coach et athlète,
-// planification, page séance) :
-//   À faire  → bleu
-//   Faite    → ambre (réalisée, en attente de validation du coach)
-//   Validée  → vert  (le coach a validé)
-// Les autres états restent neutres : jamais de rouge qui culpabilise
-// l'athlète pour une séance non faite (gris), sauf « pas de retour » (brique).
+// Statut des séances, le même partout (calendriers coach et athlète,
+// planification, page séance, journée). Repéré par une icône plutôt que par
+// une couleur :
+//   À faire  → flèche
+//   Faite    → sablier (réalisée, en attente de validation du coach)
+//   Validée  → coche
+//   Pas faite→ croix
+// Couleurs neutres : jamais de rouge qui culpabilise l'athlète.
 export type SessionTone = "todo" | "done" | "validated" | "noreport" | "missed" | "postponed" | "hors";
+export type StatusIconName = "arrow" | "hourglass" | "check" | "cross" | "question" | "postpone" | "plus";
 
-export const SESSION_TONES: Record<SessionTone, { label: string; fg: string; bg: string; bar: string }> = {
-  todo: { label: "À faire", fg: "#1f5fa8", bg: "#e7f0fb", bar: "#3a7fd5" },
-  done: { label: "Faite", fg: "#8a5300", bg: "#fdf0d8", bar: "#e39b1b" },
-  validated: { label: "Validée", fg: "#17704a", bg: "#ddf3e7", bar: "#22a06b" },
-  noreport: { label: "Pas de retour", fg: "#a4492a", bg: "#fbe3da", bar: "#c96f52" },
-  missed: { label: "Non réalisée", fg: "#5b6660", bg: "#e9ecea", bar: "#9aa39c" },
-  postponed: { label: "Reportée", fg: "#5b6660", bg: "#eceeed", bar: "#9aa39c" },
-  hors: { label: "Hors programme", fg: "#5e4331", bg: "#f2ece6", bar: "#b9a18f" },
+const NEUTRAL = { fg: "#1b4b4f", bg: "#eef2f1", bar: "#9fb3b0" };
+const MUTED = { fg: "#5b6660", bg: "#eef0ef", bar: "#c3cac6" };
+
+export const SESSION_TONES: Record<SessionTone, { label: string; fg: string; bg: string; bar: string; icon: StatusIconName }> = {
+  todo: { label: "À faire", ...NEUTRAL, icon: "arrow" },
+  done: { label: "Faite", ...NEUTRAL, icon: "hourglass" },
+  validated: { label: "Validée", ...NEUTRAL, icon: "check" },
+  noreport: { label: "Pas de retour", ...MUTED, icon: "question" },
+  missed: { label: "Pas faite", ...MUTED, icon: "cross" },
+  postponed: { label: "Reportée", ...MUTED, icon: "postpone" },
+  hors: { label: "Hors programme", ...MUTED, icon: "plus" },
 };
 
 /** Ton d'une séance à partir de son statut en base. */

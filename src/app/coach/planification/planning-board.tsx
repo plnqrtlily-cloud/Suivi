@@ -1,6 +1,7 @@
 "use client";
 
-import { SESSION_TONES } from "@/lib/session-status";
+import { SESSION_TONES, type StatusIconName } from "@/lib/session-status";
+import { StatusIcon } from "@/components/status-icon";
 import { MoreMenu, MenuSeparator, menuItem } from "@/components/more-menu";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
@@ -60,8 +61,8 @@ export interface PlanBlock {
   kindLabel?: string;
 }
 
-// Code couleur commun (cf. src/lib/session-status.ts) : à faire bleu, faite
-// ambre, validée vert.
+// Statut repéré par une icône (cf. src/lib/session-status.ts) : flèche à
+// faire, sablier faite, coche validée, croix pas faite.
 const COLOR: Record<PlanStatus, string> = {
   valid: SESSION_TONES.validated.bar,
   done: SESSION_TONES.done.bar,
@@ -70,6 +71,7 @@ const COLOR: Record<PlanStatus, string> = {
   todo: SESSION_TONES.todo.bar,
   goal: "#a4492a",
 };
+const STATUS_ICON: Record<PlanStatus, StatusIconName | null> = { valid: "check", done: "hourglass", part: "hourglass", miss: "cross", todo: "arrow", goal: null };
 const STATUS_LABEL: Record<PlanStatus, string> = { valid: "Validée", done: "Faite · à valider", part: "Partielle", miss: "Non réalisée", todo: "À faire", goal: "Objectif" };
 const SPORTS = [
   { value: "cycling", label: "Vélo" },
@@ -663,6 +665,7 @@ export function PlanningBoard({
                                             border: `1.5px ${x.status === "todo" ? "dashed" : "solid"} ${COLOR[x.status]}`,
                                           }}
                                         />
+                                        {STATUS_ICON[x.status] && <StatusIcon name={STATUS_ICON[x.status]!} size={11} className="shrink-0 text-[#1b4b4f]" />}
                                         <span className="whitespace-nowrap text-[10.5px] text-slate">{x.isGoal ? "Objectif" : x.minutes ? hm(x.minutes) : "—"}</span>
                                       </div>
                                     </div>
@@ -773,10 +776,13 @@ export function PlanningBoard({
           <div className="flex flex-wrap gap-[18px]">
             {(["todo", "done", "valid", "part", "miss", "goal"] as PlanStatus[]).map((s) => (
               <span key={s} className="inline-flex items-center gap-1.5">
-                <span
-                  className="h-2 w-[22px] rounded"
-                  style={{ background: s === "todo" ? "#ffffff" : COLOR[s], border: `1.5px ${s === "todo" ? "dashed" : "solid"} ${COLOR[s]}` }}
-                />
+                {STATUS_ICON[s] ? (
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#eef2f1] text-[#1b4b4f]">
+                    <StatusIcon name={STATUS_ICON[s]!} size={12} />
+                  </span>
+                ) : (
+                  <span className="h-2 w-[22px] rounded" style={{ background: COLOR[s] }} />
+                )}
                 {s === "miss" ? "Non faite" : STATUS_LABEL[s]}
               </span>
             ))}
@@ -895,7 +901,7 @@ export function PlanningBoard({
               <span className="text-[13px] text-slate">
                 {athleteById(cur.athleteId)?.name} · {dayLong(cur.date)} · {cur.isGoal ? "Objectif" : cur.sportLabel}
                 {!cur.isGoal && !edit ? ` · ${hm(cur.minutes)}` : ""}
-                {!cur.isGoal && <> · <b className="text-ink-soft">{STATUS_LABEL[cur.status]}</b></>}
+                {!cur.isGoal && <> · <b className="inline-flex items-center gap-1 text-ink-soft">{STATUS_ICON[cur.status] && <StatusIcon name={STATUS_ICON[cur.status]!} size={12} />}{STATUS_LABEL[cur.status]}</b></>}
                 {cur.isDraft ? " · brouillon" : ""}
               </span>
             </div>

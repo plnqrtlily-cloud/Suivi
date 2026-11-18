@@ -1,4 +1,3 @@
-import { SESSION_TONES, workoutTone } from "@/lib/session-status";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
@@ -126,7 +125,7 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
     const content = (
       <div
         className={`rounded-md border border-line bg-white p-4 text-sm ${e.href ? "hover:border-moss" : ""}`}
-        style={{ borderLeftColor: e.status ? SESSION_TONES[workoutTone({ status: e.status, date: e.date, coach_validated_at: e.validated ? "1" : null }, todayISO())].bar : e.color, borderLeftWidth: 4 }}
+        style={{ borderLeftColor: e.color, borderLeftWidth: 3 }}
       >
         <div className="flex items-center justify-between gap-2">
           <p className="font-medium text-ink">{e.title}</p>
