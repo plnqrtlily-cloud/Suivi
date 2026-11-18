@@ -40,7 +40,7 @@ export function Linkify({ text, className = "font-semibold text-moss-dark underl
   for (const m of text.matchAll(PATTERN)) {
     const start = m.index ?? 0;
     let raw = m[2] ?? m[3];
-    let label = m[1] ?? null;
+    const label = m[1] ?? null;
     let end = start + m[0].length;
     if (!label) {
       // La ponctuation qui suit une adresse ne fait pas partie du lien.
