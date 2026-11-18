@@ -16,6 +16,8 @@ export function AutoRefresh({ everyMs = 30_000 }: { everyMs?: number }) {
       // Pas de rafraîchissement pendant une saisie : il pourrait perturber un formulaire ouvert.
       const el = document.activeElement;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || (el as HTMLElement).isContentEditable)) return;
+      // Ni pendant qu'une fenêtre est ouverte (détail d'un exercice, formulaire…).
+      if (document.querySelector('[role="dialog"], [aria-modal="true"]')) return;
       last = Date.now();
       router.refresh();
     };

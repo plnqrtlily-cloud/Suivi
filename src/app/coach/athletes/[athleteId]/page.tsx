@@ -115,14 +115,15 @@ export default async function AthleteDetailPage({
   const { view, week, month } = await searchParams;
 
   // Garde de permission (cf. prompt : règle la plus critique du produit).
-  if (!(await isCoachLinkedToAthlete(user.id, athleteId))) {
+  // Les périodes fixent l'étendue de la frise, donc la plage de données à
+  // charger : lues en même temps que la vérification (rien n'est affiché
+  // avant qu'elle soit passée).
+  const [linked, trainingPeriodsEarly] = await Promise.all([isCoachLinkedToAthlete(user.id, athleteId), getTrainingPeriods(athleteId)]);
+  if (!linked) {
     notFound();
   }
 
   const today = todayISO();
-  // Les périodes fixent l'étendue de la frise, donc la plage de données à
-  // charger : elles passent avant le reste.
-  const trainingPeriodsEarly = await getTrainingPeriods(athleteId);
   const span = seasonSpan(trainingPeriodsEarly, today);
   const currentMonday = mondayOf(today);
   // Une seule plage couvre l'aperçu (6 mois + semaine suivante) et la frise
@@ -196,6 +197,18 @@ export default async function AthleteDetailPage({
 
   const link = links.find((l) => l.athlete_id === athleteId);
   const cycleShared = athleteGender === "female" && !!cycleSettings.share_with_coaches;
+  // Lectures indépendantes lancées ensemble, attendues plus bas.
+  const seasonFrom = span.season?.start_date ?? `${Number(today.slice(0, 4)) - (Number(today.slice(5, 7)) < 9 ? 1 : 0)}-09-01`;
+  const seasonRecordsP = getPersonalRecordsForAthlete(athleteId, seasonFrom);
+  const threadRowsP = injuries.length
+    ? dbAll<{ injury_id: string; count: number; unread: number }>(
+        `SELECT injury_id, SUM(kind = 'message') as count,
+                SUM(kind = 'message' AND author_id != ? AND read_at IS NULL) as unread
+         FROM health_messages WHERE injury_id IN (${injuries.map(() => "?").join(",")}) GROUP BY injury_id`,
+        [user.id, ...injuries.map((i) => i.id)]
+      )
+    : Promise.resolve([] as { injury_id: string; count: number; unread: number }[]);
+  const interviewNotesP = getCoachNotes(user.id, athleteId);
   const calendarData = await loadCoachCalendar({
     athleteId,
     athleteName: firstName,
@@ -357,8 +370,7 @@ export default async function AthleteDetailPage({
     return records;
   };
   // Saison : celle de la périodisation, sinon depuis le 1er septembre.
-  const seasonFrom = span.season?.start_date ?? `${Number(today.slice(0, 4)) - (Number(today.slice(5, 7)) < 9 ? 1 : 0)}-09-01`;
-  const seasonRecords = await getPersonalRecordsForAthlete(athleteId, seasonFrom);
+  const seasonRecords = await seasonRecordsP;
   const records = { season: recordsOf(seasonRecords), all: recordsOf(personalRecords), seasonFrom: frDay(seasonFrom) };
 
   const METRICS = PERFORMANCE_METRICS.map((m) => ({
@@ -368,14 +380,7 @@ export default async function AthleteDetailPage({
   }));
 
   // ---------- Santé ----------
-  const threadRows = injuries.length
-    ? await dbAll<{ injury_id: string; count: number; unread: number }>(
-        `SELECT injury_id, SUM(kind = 'message') as count,
-                SUM(kind = 'message' AND author_id != ? AND read_at IS NULL) as unread
-         FROM health_messages WHERE injury_id IN (${injuries.map(() => "?").join(",")}) GROUP BY injury_id`,
-        [user.id, ...injuries.map((i) => i.id)]
-      )
-    : [];
+  const threadRows = await threadRowsP;
   const healthThreads: Record<string, { count: number; unread: number }> = Object.fromEntries(
     threadRows.map((r) => [r.injury_id, { count: Number(r.count), unread: Number(r.unread) }])
   );
@@ -407,7 +412,7 @@ export default async function AthleteDetailPage({
     : null;
 
   const sportsLine = athleteSports.map((s: string) => sportLabel(s)).join(" · ");
-  const interviewNotes = await getCoachNotes(user.id, athleteId);
+  const interviewNotes = await interviewNotesP;
   const interviewHtml = interviewNotes?.interview_html ?? legacyInterviewHtml(interviewNotes);
 
   return (

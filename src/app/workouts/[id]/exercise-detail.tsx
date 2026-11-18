@@ -28,8 +28,45 @@ function restLabel(s: number) {
   return s >= 60 ? `${Math.floor(s / 60)} min${s % 60 ? ` ${String(s % 60).padStart(2, "0")}` : ""}` : `${s} s`;
 }
 
+// Animation de démonstration : fond de chargement pendant le téléchargement, et
+// nouvel essai automatique si le chargement échoue (réseau mobile instable) —
+// plus besoin de quitter la séance et d'y revenir pour la voir.
+function DemoImage({ url, alt }: { url: string; alt: string }) {
+  const [attempt, setAttempt] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const src = attempt === 0 ? url : `${url}${url.includes("?") ? "&" : "?"}r=${attempt}`;
+  return (
+    <div className="relative aspect-video w-full bg-white">
+      {!loaded && (
+        <div className="absolute inset-0 flex items-center justify-center" aria-hidden>
+          <span className="h-7 w-7 animate-spin rounded-full border-[3px] border-line border-t-[#1b4b4f]" />
+        </div>
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        key={src}
+        src={src}
+        alt={alt}
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        onError={() => attempt < 3 && setTimeout(() => setAttempt((a) => a + 1), 400 * (attempt + 1))}
+        className={`h-full w-full object-contain transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0"}`}
+      />
+    </div>
+  );
+}
+
+/** Lance le téléchargement de la démonstration avant même l'ouverture de la fiche. */
+function preload(url: string | undefined) {
+  if (!url || typeof window === "undefined") return;
+  const img = new window.Image();
+  img.decoding = "async";
+  img.src = url;
+}
+
 export function ExerciseDetailButton({ data, children }: { data: ExerciseDetailData; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const demoImage = data.demo?.kind === "image" ? data.demo.url : undefined;
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
@@ -48,6 +85,8 @@ export function ExerciseDetailButton({ data, children }: { data: ExerciseDetailD
           setOpen(true);
         }}
         onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setOpen(true))}
+        onPointerEnter={() => preload(demoImage)}
+        onPointerDown={() => preload(demoImage)}
         className="group -mx-1.5 cursor-pointer rounded-xl px-1.5 py-1 transition-colors hover:bg-paper-dim/60"
         aria-label={`Voir le détail de ${data.name}`}
       >
@@ -84,8 +123,7 @@ export function ExerciseDetailButton({ data, children }: { data: ExerciseDetailD
                       <source src={data.demo.url} type={data.demo.mime} />
                     </video>
                   ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={data.demo.url} alt={data.demo.title} className="aspect-video w-full bg-white object-contain" />
+                    <DemoImage url={data.demo.url} alt={data.demo.title} />
                   )}
                   {(data.demo.caption || data.demo.builtIn) && (
                     <figcaption className="px-3 py-2 text-[13px] text-ink-soft">

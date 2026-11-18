@@ -3,8 +3,7 @@ import { getCurrentUser, isCoachLinkedToAthlete } from "@/lib/auth";
 import { getResourceById } from "@/lib/queries";
 import { readUploadedFile } from "@/lib/storage";
 import { bundledAnimationFile } from "@/lib/animation-upgrade";
-import { promises as fsp } from "fs";
-import nodePath from "path";
+import { animationUrl } from "@/lib/exercise-animations";
 import { createHash } from "crypto";
 
 // Sert le fichier déposé par le coach. Accessible au coach propriétaire, et à ses
@@ -26,6 +25,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Non autorisé." }, { status: 403 });
   }
 
+  // Animation livrée avec l'application : servie par le CDN (fichier public).
+  const bundled = bundledAnimationFile(resource.file_path);
+  if (bundled) return NextResponse.redirect(new URL(animationUrl(bundled), request.url), 307);
+
   // Le fichier peut changer sous la même adresse (animation refaite, cf.
   // src/lib/animation-upgrade.ts) : le navigateur revalide à chaque affichage
   // et ne retélécharge que si le fichier a changé.
@@ -34,11 +37,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return new NextResponse(null, { status: 304, headers: { ETag: etag, "Cache-Control": "private, no-cache" } });
   }
 
-  // Animation livrée avec l'application (cf. src/lib/animation-upgrade.ts).
-  const bundled = bundledAnimationFile(resource.file_path);
-  const buffer = bundled
-    ? await fsp.readFile(nodePath.join(process.cwd(), "src", "assets", "exercise-animations", bundled)).catch(() => null)
-    : await readUploadedFile(resource.file_path);
+  const buffer = await readUploadedFile(resource.file_path);
   if (!buffer) return NextResponse.json({ error: "Fichier introuvable sur le serveur." }, { status: 404 });
 
   return new NextResponse(new Uint8Array(buffer), {

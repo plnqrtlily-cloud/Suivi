@@ -36,7 +36,7 @@ export default async function EditWorkoutPage({ params }: { params: Promise<{ id
     getLatestExerciseMaxes(workout.athlete_id),
     getLatestMeasurements(workout.athlete_id),
   ]);
-  const resources = rawResources.map((r) => ({ id: r.id, title: r.title, type: r.type }));
+  const resources = rawResources.map((r) => ({ id: r.id, title: r.title, type: r.type, file_path: r.file_path }));
 
   const blocks: BlockRow[] = rawBlocks.map((b: any) => ({
     key: b.id,

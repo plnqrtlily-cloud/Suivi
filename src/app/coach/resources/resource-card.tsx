@@ -1,5 +1,6 @@
 "use client";
 
+import { resourceFileUrl } from "@/lib/exercise-animations";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { deleteResourceAction } from "@/lib/actions";
@@ -23,11 +24,11 @@ export function ResourceCard({ resource }: { resource: any }) {
     <div className="overflow-hidden rounded-2xl border border-line bg-white">
       {resource.file_path && resource.type === "video" ? (
         <video controls className="aspect-video w-full bg-ink object-cover">
-          <source src={`/api/resources/file/${resource.id}`} type={resource.mime_type} />
+          <source src={resourceFileUrl(resource)} type={resource.mime_type} />
         </video>
       ) : resource.file_path ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={`/api/resources/file/${resource.id}`} alt={resource.title} className="aspect-video w-full object-cover" />
+        <img src={resourceFileUrl(resource)} alt={resource.title} loading="lazy" decoding="async" className="aspect-video w-full object-cover" />
       ) : (
         <div className="flex aspect-video w-full items-center justify-center bg-paper-dim text-xs text-slate">
           Pas de photo

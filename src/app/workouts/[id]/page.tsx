@@ -8,6 +8,8 @@ import { formatWorkoutTime, isTimeOfDaySlug } from "@/lib/time-of-day";
 import { Nav } from "@/components/nav";
 import { Card, StatusBadge, sportLabel } from "@/components/ui";
 import { mtbLabel } from "@/lib/mtb";
+import { resourceFileUrl } from "@/lib/exercise-animations";
+import { after } from "next/server";
 import { MoreMenu, MenuSeparator, menuItem } from "@/components/more-menu";
 import { parsePlan } from "@/lib/discipline";
 import { StatusForm } from "./status-form";
@@ -93,13 +95,15 @@ export default async function WorkoutDetailPage({
   const preview = user.role === "coach" && apercu === "athlete";
   const role = preview ? "athlete" : user.role;
 
-  // Animations refaites depuis leur import : remplacées avant l'affichage.
-  await upgradeOutdatedAnimations(workout.coach_id);
+  // Animations refaites depuis leur import : remplacées en arrière-plan, sans
+  // retarder l'affichage (la démonstration pointe déjà vers la bonne version).
+  after(() => upgradeOutdatedAnimations(workout.coach_id));
 
-  const [blocks, comments, coachAthletes] = await Promise.all([
+  const [blocks, comments, coachAthletes, strengthMaxes] = await Promise.all([
     getBlocksForWorkout(id),
     getCommentsForWorkout(id),
     user.role === "coach" ? getAthletesForCoach(user.id) : Promise.resolve([]),
+    getLatestExerciseMaxes(workout.athlete_id),
   ]);
   const otherAthletes = coachAthletes
     .filter((a): a is typeof a & { athlete_id: string; first_name: string; last_name: string } =>
@@ -110,7 +114,6 @@ export default async function WorkoutDetailPage({
 
   // Volume de musculation, calculé depuis les blocs enregistrés. Les charges en
   // pourcentage sont converties via les maxima de l'athlète quand ils existent.
-  const strengthMaxes = blocks.length > 0 ? await getLatestExerciseMaxes(workout.athlete_id) : {};
   const strengthVolume = computeVolume(
     blocks.map((b: any) => ({
       exercise_name: b.exercise_name,
@@ -364,7 +367,7 @@ export default async function WorkoutDetailPage({
                     demo: b.resource_id
                       ? {
                           kind: b.resource_type === "video" ? "video" : "image",
-                          url: `/api/resources/file/${b.resource_id}`,
+                          url: resourceFileUrl({ id: b.resource_id, file_path: b.resource_file_path, title: b.resource_title, description: b.resource_description }),
                           mime: b.resource_mime_type || undefined,
                           title: b.resource_title || b.exercise_name,
                           caption: b.resource_description || null,

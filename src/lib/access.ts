@@ -13,6 +13,11 @@ import { computePlanStatus, trialEndDate } from "./billing";
 // l'administratrice peut le réinitialiser depuis /admin.
 
 /** Coach : bloqué quand l'essai est terminé sans abonnement. */
+/** Coach dont l'essai est terminé sans abonnement (ligne users déjà lue). */
+export function coachRowBlocked(c: { plan: string; created_at: string; email: string }): boolean {
+  return !computePlanStatus(c.plan, c.created_at, c.email).hasAccess;
+}
+
 export async function isCoachBlocked(userId: string): Promise<boolean> {
   const c = await dbGet<{ plan: string; created_at: string; email: string }>(
     `SELECT plan, created_at, email FROM users WHERE id = ?`,
@@ -38,15 +43,20 @@ export function athleteTrialExhausted(trialStart: string | null, now = new Date(
  * et que l'athlète n'a pas déjà épuisé ses 3 mois d'essai. Un athlète sans
  * coach garde l'accès, pour pouvoir en rejoindre un depuis ses Paramètres.
  */
-export async function isAthleteSuspended(userId: string): Promise<boolean> {
-  const coaches = await dbAll<CoachRow>(
-    `SELECT c.plan, c.created_at, c.email FROM coach_athlete_links l
-     JOIN users c ON c.id = l.coach_id
-     WHERE l.athlete_id = ? AND l.status = 'active'`,
-    [userId]
-  );
+export async function isAthleteSuspended(userId: string, knownTrialStart?: string | null): Promise<boolean> {
+  // Coachs et début d'essai lus en parallèle (un seul aller-retour).
+  const [coaches, me] = await Promise.all([
+    dbAll<CoachRow>(
+      `SELECT c.plan, c.created_at, c.email FROM coach_athlete_links l
+       JOIN users c ON c.id = l.coach_id
+       WHERE l.athlete_id = ? AND l.status = 'active'`,
+      [userId]
+    ),
+    knownTrialStart !== undefined
+      ? Promise.resolve({ athlete_trial_start: knownTrialStart })
+      : dbGet<{ athlete_trial_start: string | null }>(`SELECT athlete_trial_start FROM users WHERE id = ?`, [userId]),
+  ]);
   if (!coaches.length) return false;
-  const me = await dbGet<{ athlete_trial_start: string | null }>(`SELECT athlete_trial_start FROM users WHERE id = ?`, [userId]);
   const start = me?.athlete_trial_start ?? null;
 
   if (coaches.some(isPaid)) {

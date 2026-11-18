@@ -1,4 +1,4 @@
-# Moteur des animations d'exercices (src/assets/exercise-animations/*.gif).
+# Moteur des animations d'exercices (public/exercise-animations/*.gif).
 #
 # Un bonhomme articulé (cinématique directe : angles absolus des segments), vu
 # de profil, de face ou de dessus, avec son matériel, et des repères pour

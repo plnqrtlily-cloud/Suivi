@@ -12,9 +12,12 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-self.addEventListener("fetch", (event) => {
-  event.respondWith(fetch(event.request));
-});
+// Gestionnaire fetch volontairement vide (version 2) : il suffit à rendre l'app
+// installable, et laisse le navigateur charger lui-même pages, images et
+// animations. L'ancien relais (respondWith(fetch(...))) ralentissait chaque
+// requête et cassait par moments les redirections et les images sur iPhone —
+// il fallait quitter l'app pour retrouver l'affichage.
+self.addEventListener("fetch", () => {});
 
 // Notifications système (Web Push) — le payload est le JSON envoyé par
 // sendPushToUser côté serveur : { title, body, url }.

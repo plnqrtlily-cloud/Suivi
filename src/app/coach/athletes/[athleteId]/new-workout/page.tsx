@@ -40,7 +40,7 @@ export default async function NewWorkoutPage({
     getAthletesForCoach(user.id),
     getLatestMeasurements(athleteId),
   ]);
-  const resources = rawResources.map((r) => ({ id: r.id, title: r.title, type: r.type }));
+  const resources = rawResources.map((r) => ({ id: r.id, title: r.title, type: r.type, file_path: r.file_path }));
   const templates: WorkoutTemplateOption[] = rawTemplates.map((t) => ({
     id: t.id,
     name: t.name,

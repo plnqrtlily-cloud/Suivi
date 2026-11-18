@@ -67,13 +67,25 @@ async function generateEventReminders(athleteId: string): Promise<void> {
   }
 }
 
+// Les rappels d'événements ne changent qu'au fil des jours : générés au plus
+// toutes les 10 minutes par utilisateur, pour ne pas ajouter un aller-retour
+// vers la base à chaque page.
+const remindersCheckedAt = new Map<string, number>();
+async function maybeGenerateEventReminders(userId: string) {
+  const last = remindersCheckedAt.get(userId) ?? 0;
+  if (Date.now() - last < 10 * 60_000) return;
+  remindersCheckedAt.set(userId, Date.now());
+  if (remindersCheckedAt.size > 5000) remindersCheckedAt.clear();
+  await generateEventReminders(userId);
+}
+
 export async function getNotifications(userId: string, limit = 20): Promise<Notification[]> {
-  await generateEventReminders(userId); // no-op si l'utilisateur est un coach ou n'a pas d'événement proche
+  await maybeGenerateEventReminders(userId); // no-op si l'utilisateur est un coach ou n'a pas d'événement proche
   return dbAll(`SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`, [userId, limit]);
 }
 
 export async function getUnreadCount(userId: string): Promise<number> {
-  await generateEventReminders(userId);
+  await maybeGenerateEventReminders(userId);
   const row = await dbGet<any>(`SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND read_at IS NULL`, [
     userId,
   ]);

@@ -2085,7 +2085,6 @@ export async function importExerciseAnimationsAction(): Promise<{ added?: number
   const existing = await dbAll<{ id: string; title: string; description: string | null }>(`SELECT id, title, description FROM resources WHERE coach_id = ?`, [user.id]);
   const titles = new Set(existing.map((r) => r.title));
   const todo = EXERCISE_ANIMATIONS.filter((a) => !titles.has(a.title));
-  const dir = nodePath.join(process.cwd(), "src", "assets", "exercise-animations");
 
   // Animations déjà importées dans une ancienne version : remplacées sur place.
   await upgradeOutdatedAnimations(user.id);
@@ -2097,7 +2096,7 @@ export async function importExerciseAnimationsAction(): Promise<{ added?: number
     for (let i = 0; i < todo.length; i += 6) {
       await Promise.all(
         todo.slice(i, i + 6).map(async (a) => {
-          const { size } = await fsp.stat(nodePath.join(dir, a.file));
+          const size = 0; // fichier public, servi par le CDN (cf. exercise-animations.ts)
           await dbRun(
             `INSERT INTO resources (id, coach_id, type, title, description, sport, file_path, mime_type, file_size)
              VALUES (?, ?, 'photo', ?, ?, ?, ?, 'image/gif', ?)`,

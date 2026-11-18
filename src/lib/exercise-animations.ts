@@ -1,13 +1,40 @@
 // Animations d'exercices (bonhomme schématique, GIF 16:9) livrées avec l'application,
 // importables en un clic dans la bibliothèque du coach (cf. importExerciseAnimationsAction).
-// Les fichiers sont dans src/assets/exercise-animations/ et inclus dans le déploiement
-// via outputFileTracingIncludes (next.config.ts).
+// Les fichiers sont dans public/exercise-animations/ (générés par
+// scripts/animations/build.py) : servis tels quels par le CDN, sans passer par
+// une fonction serveur — affichage immédiat, même sur un téléphone lent.
 export const EXERCISE_ANIMATIONS_SPORT = "Préparation physique";
 
 // Version des animations (scripts/animations/) : à augmenter à chaque refonte.
 // Change l'adresse des GIF (les téléphones ne réaffichent pas l'ancienne image
 // en cache) et fait remplacer les copies déjà importées par les coachs.
 export const ANIMATIONS_REVISION = 3;
+
+/** Adresse publique (CDN) d'une animation livrée. */
+export function animationUrl(file: string) {
+  return `/exercise-animations/${file}?v=${ANIMATIONS_REVISION}`;
+}
+
+/** Fichier livré correspondant à un chemin « bundled:… » enregistré en base. */
+export function bundledFileOf(filePath: string | null | undefined): string | null {
+  if (!filePath?.startsWith("bundled:")) return null;
+  const file = filePath.slice("bundled:".length).split("?")[0];
+  const a = EXERCISE_ANIMATIONS.find((x) => x.file === file || x.previousFiles?.includes(file));
+  return a ? a.file : null;
+}
+
+/**
+ * Adresse à afficher pour le fichier d'une ressource : l'animation livrée
+ * directement depuis le CDN quand c'en est une, sinon le fichier du coach.
+ */
+export function resourceFileUrl(r: { id: string; file_path?: string | null; title?: string | null; description?: string | null }) {
+  const bundled = bundledFileOf(r.file_path);
+  if (bundled) return animationUrl(bundled);
+  // Copie importée d'une version précédente, pas encore remplacée : on montre
+  // déjà la version actuelle.
+  const a = r.title ? EXERCISE_ANIMATIONS.find((x) => isOutdatedAnimation(x, { title: r.title!, description: r.description ?? null, file_path: r.file_path })) : undefined;
+  return a ? animationUrl(a.file) : `/api/resources/file/${r.id}`;
+}
 
 /** Chemin enregistré en base pour une animation livrée avec l'application. */
 export function bundledPath(a: { file: string }) {

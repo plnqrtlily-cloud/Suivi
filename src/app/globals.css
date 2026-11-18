@@ -175,3 +175,12 @@ body {
 .note-editor .selectedCell::after { content: ""; position: absolute; inset: 0; background: rgba(27, 75, 79, 0.08); pointer-events: none; }
 .note-editor .tableWrapper { overflow-x: auto; }
 .note-editor p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: #9aa39c; float: left; height: 0; pointer-events: none; }
+
+/* Barre de chargement de navigation (cf. nav-progress.tsx) */
+@keyframes navprogress-in {
+  from { width: 0%; }
+  to { width: 80%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*="navprogress-in"] { animation: none !important; }
+}

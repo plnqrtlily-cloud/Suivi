@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces, Public_Sans } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
+import { NavProgress } from "@/components/nav-progress";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -53,6 +54,7 @@ export default function RootLayout({
     <html lang="fr" className={`${fraunces.variable} ${publicSans.variable}`}>
       <body className="antialiased">
         <ServiceWorkerRegistration />
+        <NavProgress />
         {children}
       </body>
     </html>

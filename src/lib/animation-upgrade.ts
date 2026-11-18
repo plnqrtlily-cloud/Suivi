@@ -30,9 +30,4 @@ export async function upgradeOutdatedAnimations(coachId: string): Promise<number
 }
 
 /** Nom de fichier d'une animation livrée, si ce chemin y renvoie. */
-export function bundledAnimationFile(filePath: string): string | null {
-  if (!filePath.startsWith("bundled:")) return null;
-  const file = filePath.slice("bundled:".length).split("?")[0];
-  const a = EXERCISE_ANIMATIONS.find((a) => a.file === file || a.previousFiles?.includes(file));
-  return a ? a.file : null;
-}
+export { bundledFileOf as bundledAnimationFile } from "./exercise-animations";

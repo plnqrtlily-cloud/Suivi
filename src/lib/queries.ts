@@ -284,20 +284,23 @@ export async function getWorkoutById(id: string): Promise<Workout | undefined> {
 }
 
 export async function getBlocksForWorkout(workoutId: string) {
-  const blocks = await dbAll<any>(
-    `SELECT b.*, r.title as resource_title, r.type as resource_type, r.mime_type as resource_mime_type, r.description as resource_description
-     FROM workout_blocks b
-     LEFT JOIN resources r ON r.id = b.resource_id
-     WHERE b.workout_id = ? ORDER BY b.order_index ASC`,
-    [workoutId]
-  );
-
-  return Promise.all(
-    blocks.map(async (b) => {
-      const exerciseSets = await dbAll(`SELECT * FROM exercise_sets WHERE block_id = ? ORDER BY order_index ASC`, [b.id]);
-      return { ...b, exerciseSets };
-    })
-  );
+  // Exercices et séries lus en parallèle (un seul aller-retour vers la base).
+  const [blocks, sets] = await Promise.all([
+    dbAll<any>(
+      `SELECT b.*, r.title as resource_title, r.type as resource_type, r.mime_type as resource_mime_type, r.description as resource_description,
+              r.file_path as resource_file_path
+       FROM workout_blocks b
+       LEFT JOIN resources r ON r.id = b.resource_id
+       WHERE b.workout_id = ? ORDER BY b.order_index ASC`,
+      [workoutId]
+    ),
+    dbAll<any>(
+      `SELECT s.* FROM exercise_sets s JOIN workout_blocks b ON b.id = s.block_id
+       WHERE b.workout_id = ? ORDER BY s.order_index ASC`,
+      [workoutId]
+    ),
+  ]);
+  return blocks.map((b) => ({ ...b, exerciseSets: sets.filter((x) => x.block_id === b.id) }));
 }
 
 // Versions groupées pour le calendrier coach : une requête pour toute la

@@ -1,5 +1,6 @@
 "use client";
 
+import { resourceFileUrl } from "@/lib/exercise-animations";
 import { useState } from "react";
 import { Button, SelectField } from "@/components/ui";
 import { COMMON_EXERCISES } from "@/lib/exercise-library";
@@ -105,6 +106,7 @@ export interface LibraryResource {
   id: string;
   title: string;
   type: "video" | "photo" | "equipment";
+  file_path?: string | null;
 }
 
 function emptySet(): SetRow {
@@ -598,12 +600,12 @@ export function StrengthBuilder({
                                   <div className="w-28 overflow-hidden rounded-lg border border-line">
                                     {resource.type === "video" ? (
                                       <video className="aspect-video w-full bg-ink" muted>
-                                        <source src={`/api/resources/file/${resource.id}`} />
+                                        <source src={resourceFileUrl(resource)} />
                                       </video>
                                     ) : (
                                       // eslint-disable-next-line @next/next/no-img-element
                                       <img
-                                        src={`/api/resources/file/${resource.id}`}
+                                        src={resourceFileUrl(resource)}
                                         alt={resource.title}
                                         className="aspect-video w-full object-cover"
                                       />

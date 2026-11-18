@@ -1,5 +1,5 @@
 // Aides au détail d'un exercice affiché à l'athlète (sans dépendance serveur).
-import { ANIMATIONS_REVISION, EXERCISE_ANIMATIONS } from "./exercise-animations";
+import { EXERCISE_ANIMATIONS, animationUrl } from "./exercise-animations";
 
 function norm(s: string) {
   return s
@@ -26,7 +26,7 @@ export function animationFor(exerciseName: string): { url: string; title: string
       const t = norm(a.title);
       return (t.length >= 6 && n.includes(t)) || (n.length >= 6 && t.includes(n));
     });
-  return loose ? { url: `/api/exercise-animations/${loose.file}?v=${ANIMATIONS_REVISION}`, title: loose.title, description: loose.description.replace(/\s*\([^)]*\)\s*$/, "") } : null;
+  return loose ? { url: animationUrl(loose.file), title: loose.title, description: loose.description.replace(/\s*\([^)]*\)\s*$/, "") } : null;
 }
 
 /** « 3-1-X-0 » → les quatre phases expliquées, ou null si le format n'est pas reconnu. */
