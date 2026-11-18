@@ -8,6 +8,7 @@ import { formatWorkoutTime, isTimeOfDaySlug } from "@/lib/time-of-day";
 import { Nav } from "@/components/nav";
 import { Card, StatusBadge, sportLabel } from "@/components/ui";
 import { mtbLabel } from "@/lib/mtb";
+import { Linkify, safeUrl, shortUrl } from "@/components/linkify";
 import { resourceFileUrl } from "@/lib/exercise-animations";
 import { after } from "next/server";
 import { MoreMenu, MenuSeparator, menuItem } from "@/components/more-menu";
@@ -268,13 +269,29 @@ export default async function WorkoutDetailPage({
           <Card className="mb-6">
             <h2 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate"><span className="h-3 w-0.5 rounded-full bg-moss" />Liens utiles</h2>
             <ul className="flex flex-col gap-1.5">
-              {(JSON.parse(workout.links_json) as { label: string; url: string }[]).map((l, i) => (
-                <li key={i}>
-                  <a href={l.url} target="_blank" rel="noopener noreferrer" className="text-sm text-moss-dark underline hover:text-moss">
-                    🔗 {l.label || l.url}
-                  </a>
-                </li>
-              ))}
+              {(JSON.parse(workout.links_json) as { label: string; url: string }[]).map((l, i) => {
+                const url = safeUrl(l.url);
+                if (!url) return null;
+                return (
+                  <li key={i}>
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 rounded-xl border border-line px-3 py-2.5 hover:border-moss hover:bg-paper-dim/50"
+                    >
+                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#e3eeed] text-moss-dark" aria-hidden>
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M8.5 11.5a3.5 3.5 0 005 0l2.5-2.5a3.5 3.5 0 00-5-5l-1 1M11.5 8.5a3.5 3.5 0 00-5 0L4 11a3.5 3.5 0 005 5l1-1" /></svg>
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <b className="block truncate text-sm font-semibold text-ink">{l.label || shortUrl(url)}</b>
+                        <span className="block truncate text-xs text-slate">{shortUrl(url)}</span>
+                      </span>
+                      <span className="text-slate" aria-hidden>↗</span>
+                    </a>
+                  </li>
+                );
+              })}
             </ul>
           </Card>
         )}
@@ -282,7 +299,7 @@ export default async function WorkoutDetailPage({
         {workout.description && (
           <Card className="mb-6">
             <h2 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate"><span className="h-3 w-0.5 rounded-full bg-moss" />Consignes du coach</h2>
-            <p className="whitespace-pre-line text-sm leading-relaxed text-ink">{workout.description}</p>
+            <p className="whitespace-pre-line text-sm leading-relaxed text-ink"><Linkify text={workout.description} /></p>
           </Card>
         )}
 
@@ -442,7 +459,7 @@ export default async function WorkoutDetailPage({
                         </table>
                       </div>
                     )}
-                    {b.notes && <p className="text-sm text-ink-soft">{b.notes}</p>}
+                    {b.notes && <p className="whitespace-pre-line text-sm text-ink-soft"><Linkify text={b.notes} /></p>}
                   </ExerciseDetailButton>
                   </div>
                   );
@@ -538,7 +555,7 @@ export default async function WorkoutDetailPage({
           <div className="mb-4 flex flex-col gap-3">
             {comments.map((c) => (
               <div key={c.id} className="rounded-md bg-paper-dim p-2 text-sm">
-                <p className="text-ink">{c.body}</p>
+                <p className="whitespace-pre-line text-ink"><Linkify text={c.body} /></p>
                 {c.video_path && (
                   // eslint-disable-next-line jsx-a11y/media-has-caption
                   <video controls className="mt-2 max-w-xs rounded-md bg-ink" src={`/api/workout-comments/${c.id}/video`} />

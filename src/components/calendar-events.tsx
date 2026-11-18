@@ -8,6 +8,7 @@ import { DaysPicker } from "@/components/days-picker";
 import { dateRangeToList } from "@/components/date-range-picker";
 import { createCalendarEventAction, deleteCalendarEventAction, updateCalendarEventAction } from "@/lib/calendar-event-actions";
 import { MtbPicker } from "@/components/mtb-picker";
+import { Linkify } from "@/components/linkify";
 import { EVENT_KINDS, TRAINING_SPORTS, guessMtbFromTitle, guessSportFromTitle, eventKind, eventSubtitle, type CalendarEventView } from "@/lib/calendar-event-kinds";
 
 // Événements du calendrier partagé athlète ↔ coach : formulaire (ajout et
@@ -245,7 +246,7 @@ export function EventDetail({
           <span className="block text-[13px] text-slate">{eventSubtitle(event, you)}</span>
         </div>
       </div>
-      {event.notes && <p className="whitespace-pre-line rounded-xl bg-paper px-3 py-2.5 text-sm text-ink-soft">{event.notes}</p>}
+      {event.notes && <p className="whitespace-pre-line rounded-xl bg-paper px-3 py-2.5 text-sm text-ink-soft"><Linkify text={event.notes} /></p>}
       <p className="text-xs text-slate">Modifiable par {you === "toi" ? "toi et ton coach" : "vous et l'athlète"} · {other}</p>
       <div className="flex gap-2">
         <Button type="button" variant="secondary" onClick={() => setEditing(true)}>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { Linkify } from "@/components/linkify";
 
 // Détail d'un exercice de musculation, ouvert en touchant l'exercice dans la
 // séance : démonstration, consignes, prescription série par série (charge
@@ -137,7 +138,7 @@ export function ExerciseDetailButton({ data, children }: { data: ExerciseDetailD
               {data.coachNotes && (
                 <section className="mb-4 rounded-2xl bg-[#e3eeed] px-3.5 py-3">
                   <p className="mb-0.5 text-[11px] font-bold uppercase tracking-wider text-moss-dark">Consigne du coach</p>
-                  <p className="whitespace-pre-line text-[14.5px] text-ink">{data.coachNotes}</p>
+                  <p className="whitespace-pre-line text-[14.5px] text-ink"><Linkify text={data.coachNotes} /></p>
                 </section>
               )}
 

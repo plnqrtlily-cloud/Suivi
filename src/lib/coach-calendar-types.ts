@@ -42,6 +42,8 @@ export interface CalEntry {
   power: number | null;
   timeLabel: string | null;
   description: string | null;
+  /** Liens ajoutés par le coach (rubrique « Liens et ressources »). */
+  links?: { label: string; url: string }[];
   content: string[];
   /** Déroulé structuré (intervals_json) des séances d'endurance, affiché en visuel. */
   structure: string | null;

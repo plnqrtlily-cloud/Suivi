@@ -227,6 +227,13 @@ export async function loadCalendarWeeks(params: {
       power: w.avg_power_w,
       timeLabel: formatWorkoutTime(w.time) || null,
       description: w.description,
+      links: (() => {
+        try {
+          return w.links_json ? (JSON.parse(w.links_json) as { label: string; url: string }[]) : [];
+        } catch {
+          return [];
+        }
+      })(),
       content,
       structure: w.sport !== "strength" && w.intervals_json ? w.intervals_json : null,
       feedback: w.athlete_feedback,

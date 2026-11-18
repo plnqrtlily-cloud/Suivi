@@ -1,5 +1,6 @@
 "use client";
 
+import { Linkify } from "@/components/linkify";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -220,7 +221,7 @@ export function ConversationThread({
                           </span>
                         </a>
                       )}
-                      {m.body && <p className="whitespace-pre-line">{m.body}</p>}
+                      {m.body && <p className="whitespace-pre-line"><Linkify text={m.body} className="underline underline-offset-2 break-words" /></p>}
                     </div>
                   )}
                 </div>

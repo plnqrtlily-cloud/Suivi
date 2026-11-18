@@ -1,6 +1,7 @@
 "use client";
 
 import { MtbPicker } from "@/components/mtb-picker";
+import { Linkify, safeUrl, shortUrl } from "@/components/linkify";
 import { SESSION_TONES, type SessionTone } from "@/lib/session-status";
 import { MoreMenu, MenuSeparator, menuItem } from "@/components/more-menu";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -1502,7 +1503,20 @@ function EntryPanel({
               {e.description && (
                 <div className="rounded-2xl bg-[#f5f7f6] px-4 py-3">
                   {(e.structure || e.content.length > 0) && <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate">Consignes</span>}
-                  <p className="whitespace-pre-line text-sm leading-relaxed text-ink-soft">{e.description}</p>
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-ink-soft"><Linkify text={e.description} /></p>
+                </div>
+              )}
+              {!!e.links?.length && (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate">Liens</span>
+                  {e.links.map((l, i) => {
+                    const url = safeUrl(l.url);
+                    return url ? (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="truncate text-sm font-semibold text-moss-dark underline decoration-moss/40 underline-offset-2 hover:text-moss">
+                        🔗 {l.label || shortUrl(url)}
+                      </a>
+                    ) : null;
+                  })}
                 </div>
               )}
             </div>

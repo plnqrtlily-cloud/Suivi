@@ -9,6 +9,7 @@ import { StrengthBuilder, BlockRow, LibraryResource, sortBlocksByGroupOrder } fr
 import type { IntervalItem } from "./interval-builder";
 import { StructureBuilder, toBlocs, defaultStructure, adaptStructure, type BlocItem, type StructureItem, type ZoneLabels } from "./structure-builder";
 import { MtbPicker } from "@/components/mtb-picker";
+import { safeUrl } from "@/components/linkify";
 import { ACTIVITIES, PLAN_FIELDS, activityById, activityForSport, parsePlan, type PlanKey } from "@/lib/discipline";
 import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, isTimeOfDaySlug, type TimeOfDay } from "@/lib/time-of-day";
 
@@ -73,6 +74,17 @@ export interface WorkoutFormInitial {
 export interface OtherAthleteOption {
   id: string;
   name: string;
+}
+
+/** Liens à enregistrer : adresse obligatoire (complétée en https://), titre facultatif. */
+function cleanLinks(links: { label: string; url: string }[]) {
+  return links
+    .map((l) => {
+      const raw = l.url.trim();
+      const url = safeUrl(/^https?:\/\//i.test(raw) || /^www\./i.test(raw) ? raw : raw.includes(".") ? `https://${raw}` : raw);
+      return url ? { label: l.label.trim(), url } : null;
+    })
+    .filter((l): l is { label: string; url: string } => !!l);
 }
 
 export function WorkoutForm({
@@ -238,7 +250,7 @@ export function WorkoutForm({
           intervalsJson: structureJson(),
           plannedRpe: rpeNumber,
           planJson: planJson(),
-          linksJson: JSON.stringify(links.filter((l) => l.label && l.url)),
+          linksJson: JSON.stringify(cleanLinks(links)),
         });
         if (initial.isDraft && !draftRef.current) await publishWorkoutAction(initial.workoutId);
         router.push(`/coach/athletes/${athleteId}`);
@@ -281,7 +293,7 @@ export function WorkoutForm({
         intervalsJson: structureJson(),
           plannedRpe: rpeNumber,
           planJson: planJson(),
-        linksJson: JSON.stringify(links.filter((l) => l.label && l.url)),
+        linksJson: JSON.stringify(cleanLinks(links)),
         isDraft: draftRef.current,
         toPlace: placeMode,
       });
@@ -301,7 +313,7 @@ export function WorkoutForm({
           intervalsJson: structureJson(),
           plannedRpe: rpeNumber,
           planJson: planJson(),
-          linksJson: JSON.stringify(links.filter((l) => l.label && l.url)),
+          linksJson: JSON.stringify(cleanLinks(links)),
           toPlace: placeMode,
         });
       }
@@ -519,10 +531,11 @@ export function WorkoutForm({
         </label>
         <div className="flex flex-col gap-2">
           <span className="text-sm font-bold text-ink">Liens et ressources</span>
+          <span className="-mt-1 text-[12.5px] text-slate">Vidéo, parcours, document… Une adresse collée dans les consignes devient aussi cliquable.</span>
           {links.map((l, i) => (
             <div key={i} className="flex flex-wrap items-center gap-2">
               <input value={l.label} onChange={(e) => setLinks(links.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} placeholder="Titre (ex. carte du parcours)" className={`${input} flex-1`} />
-              <input value={l.url} onChange={(e) => setLinks(links.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))} placeholder="https://…" className={`${input} flex-[2]`} />
+              <input value={l.url} onChange={(e) => setLinks(links.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))} placeholder="Coller l'adresse (youtube.com/…, strava.com/…)" inputMode="url" className={`${input} flex-[2]`} />
               <button type="button" onClick={() => setLinks(links.filter((_, j) => j !== i))} aria-label="Retirer le lien" className="flex h-8 w-8 items-center justify-center rounded-full bg-paper text-slate">×</button>
             </div>
           ))}
