@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, isCoachLinkedToAthlete } from "@/lib/auth";
 import { dbGet } from "@/lib/db";
-import { readUploadedFile } from "@/lib/storage";
+import { blobRedirect, readUploadedFile } from "@/lib/storage";
 
 // Sert la pièce jointe (photo/vidéo/PDF) d'un résultat de test à l'effort —
 // accessible au coach qui suit l'athlète et à l'athlète concerné, comme le
@@ -22,6 +22,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const isLinkedCoach = user.role === "coach" && (await isCoachLinkedToAthlete(user.id, result.athlete_id));
   if (!isSelf && !isLinkedCoach) return NextResponse.json({ error: "Non autorisé." }, { status: 403 });
 
+  const redirect = blobRedirect(result.attachment_path);
+  if (redirect) return redirect;
   const buffer = await readUploadedFile(result.attachment_path);
   if (!buffer) return NextResponse.json({ error: "Fichier introuvable sur le serveur." }, { status: 404 });
 

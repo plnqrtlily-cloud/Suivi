@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import type { CoachNoteEntry } from "@/lib/queries";
 import {
   addCoachNoteEntryAction,
@@ -21,7 +20,6 @@ function grow(el: HTMLTextAreaElement) {
 }
 
 function Entry({ entry }: { entry: CoachNoteEntry }) {
-  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [pending, start] = useTransition();
 
@@ -41,7 +39,6 @@ function Entry({ entry }: { entry: CoachNoteEntry }) {
             start(async () => {
               await updateCoachNoteEntryAction(fd);
               setEditing(false);
-              router.refresh();
             });
           }}
         >
@@ -82,7 +79,6 @@ function Entry({ entry }: { entry: CoachNoteEntry }) {
                 fd.set("entryId", entry.id);
                 start(async () => {
                   await deleteCoachNoteEntryAction(fd);
-                  router.refresh();
                 });
               }}
               className="flex h-7 w-7 items-center justify-center rounded-full text-lg leading-none text-slate hover:bg-paper-dim hover:text-clay"
@@ -97,7 +93,6 @@ function Entry({ entry }: { entry: CoachNoteEntry }) {
 }
 
 function Journal({ athleteId, entries }: { athleteId: string; entries: CoachNoteEntry[] }) {
-  const router = useRouter();
   const [pending, start] = useTransition();
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -113,7 +108,6 @@ function Journal({ athleteId, entries }: { athleteId: string; entries: CoachNote
         ref.current.value = "";
         grow(ref.current);
       }
-      router.refresh();
     });
   }
 

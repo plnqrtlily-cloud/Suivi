@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { deleteEffortTestBatchAction } from "@/lib/actions";
 import { EFFORT_TEST_CATALOG, ergometerLabel, parseCustomFields } from "@/lib/effort-tests";
 import { PERFORMANCE_METRICS } from "@/lib/performance-metrics";
@@ -47,7 +46,6 @@ export function TestBubble({
   onEdit: () => void;
   onDeleted: () => void;
 }) {
-  const router = useRouter();
   const [confirm, setConfirm] = useState(false);
   const [pending, start] = useTransition();
   const [error, setError] = useState("");
@@ -77,7 +75,6 @@ export function TestBubble({
         return;
       }
       onDeleted();
-      router.refresh();
     });
   }
 

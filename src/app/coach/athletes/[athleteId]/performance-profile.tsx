@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   addPerformanceQualityAction,
   seedPerformanceProfileAction,
@@ -118,7 +117,6 @@ function Radar({ qs, dom, onDom, showAth, showPrev }: { qs: Q[]; dom: string | n
 }
 
 function QualityRow({ q, rank, prevDate, athleteName }: { q: Q; rank: number | null; prevDate: string | null; athleteName: string }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [plan, setPlan] = useState(q.plan ?? "");
   const [pending, start] = useTransition();
@@ -128,7 +126,6 @@ function QualityRow({ q, rank, prevDate, athleteName }: { q: Q; rank: number | n
   const save = (patch: { level?: number; importance?: number; plan?: string }) =>
     start(async () => {
       await updatePerformanceQualityAction(q.id, patch);
-      router.refresh();
     });
   return (
     <div className={`flex flex-col rounded-lg border-t border-line ${open ? "bg-paper" : ""}`}>
@@ -203,7 +200,6 @@ function QualityRow({ q, rank, prevDate, athleteName }: { q: Q; rank: number | n
               onClick={() =>
                 start(async () => {
                   await deletePerformanceQualityAction(q.id);
-                  router.refresh();
                 })
               }
               className="text-[13px] font-semibold text-clay hover:underline"
@@ -220,7 +216,6 @@ function QualityRow({ q, rank, prevDate, athleteName }: { q: Q; rank: number | n
 // Bibliothèque du coach pour ce domaine : ses qualités créées, retirables
 // (sans effet sur les profils où elles ont déjà été ajoutées).
 function MyQualities({ items }: { items: CoachProfileQuality[] }) {
-  const router = useRouter();
   const [pending, start] = useTransition();
   if (items.length === 0) return null;
   return (
@@ -237,7 +232,6 @@ function MyQualities({ items }: { items: CoachProfileQuality[] }) {
             onClick={() =>
               start(async () => {
                 await deleteCoachProfileQualityAction(q.id);
-                router.refresh();
               })
             }
             className="flex h-5 w-5 items-center justify-center rounded-full text-sm leading-none text-slate hover:bg-paper-dim hover:text-clay"
@@ -263,7 +257,6 @@ function AddQuality({
   mine: CoachProfileQuality[];
   onDone: () => void;
 }) {
-  const router = useRouter();
   const [name, setName] = useState("");
   const [other, setOther] = useState("");
   const [keep, setKeep] = useState(true);
@@ -327,7 +320,6 @@ function AddQuality({
               const r = await addPerformanceQualityAction(athleteId, domain, n, level, imp, name === "__autre" && keep);
               if ("error" in r) return setError(r.error);
               onDone();
-              router.refresh();
             });
           }}
         >
@@ -359,7 +351,6 @@ export function PerformanceProfile({
   selfEvalDate: string | null;
   coachQualities: CoachProfileQuality[];
 }) {
-  const router = useRouter();
   const [pending, start] = useTransition();
   const [dom, setDom] = useState<ProfileDomain | null>(null);
   const [showAth, setShowAth] = useState(true);
@@ -391,7 +382,6 @@ export function PerformanceProfile({
             onClick={() =>
               start(async () => {
                 await seedPerformanceProfileAction(athleteId);
-                router.refresh();
               })
             }
           >
@@ -438,7 +428,6 @@ export function PerformanceProfile({
             onClick={() =>
               start(async () => {
                 await requestSelfEvaluationAction(athleteId);
-                router.refresh();
               })
             }
           >
@@ -452,7 +441,6 @@ export function PerformanceProfile({
             onClick={() =>
               start(async () => {
                 await newPerformanceEvaluationAction(athleteId);
-                router.refresh();
               })
             }
           >

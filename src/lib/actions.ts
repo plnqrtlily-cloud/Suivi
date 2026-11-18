@@ -1,8 +1,6 @@
 "use server";
 
 import { randomUUID } from "crypto";
-import { promises as fsp } from "fs";
-import nodePath from "path";
 import { redirect } from "next/navigation";
 import { revalidatePath as nextRevalidatePath, refresh } from "next/cache";
 
@@ -35,7 +33,7 @@ import {
   updateUserPassword,
   Role,
 } from "./auth";
-import { saveUploadedFile, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MESSAGE_DOC_TYPES } from "./storage";
+import { saveUploadedFile, uploadFromForm, deleteUploadedFile, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MESSAGE_DOC_TYPES } from "./storage";
 import { EXERCISE_ANIMATIONS, EXERCISE_ANIMATIONS_SPORT, bundledPath } from "./exercise-animations";
 import { upgradeOutdatedAnimations } from "./animation-upgrade";
 import { parseDiscipline } from "./mtb";
@@ -652,7 +650,7 @@ export async function addCompletionPhotoAction(workoutId: string, formData: Form
   if (!workout) throw new Error("Séance introuvable.");
   if (workout.athlete_id !== user.id) throw new Error("Non autorisé.");
 
-  const file = formData.get("photo") as File | null;
+  const file = await uploadFromForm(formData, "photo");
   if (!file || file.size === 0) return;
   if (!file.type.startsWith("image/")) throw new Error("Une photo est attendue.");
   if (file.size > MAX_FILE_SIZE_BYTES) throw new Error("Photo trop volumineuse (50 Mo max).");
@@ -1008,7 +1006,7 @@ export async function addWorkoutCommentAction(workoutId: string, formData: FormD
   if (!user) throw new Error("Non autorisé.");
 
   const body = String(formData.get("body") || "").trim();
-  const file = formData.get("video") as File | null;
+  const file = await uploadFromForm(formData, "video");
   if (!body && (!file || file.size === 0)) return;
 
   const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [workoutId]);
@@ -1250,7 +1248,7 @@ export async function addEffortTestResultAction(formData: FormData): Promise<{ o
   // d'enregistrer un résultat ci-dessous — un coach reçoit souvent le résultat
   // sous forme de capture d'écran ou de feuille imprimée, plus rapide à joindre
   // qu'à retranscrire champ par champ.
-  const attachmentFile = formData.get("attachment") as File | null;
+  const attachmentFile = await uploadFromForm(formData, "attachment");
   let attachmentPath: string | null = null;
   let attachmentMimeType: string | null = null;
   let attachmentName: string | null = null;
@@ -2037,7 +2035,7 @@ export async function uploadResourceAction(formData: FormData) {
   const title = String(formData.get("title") || "").trim();
   const description = String(formData.get("description") || "").trim();
   const sport = String(formData.get("sport") || "").trim();
-  const file = formData.get("file") as File | null;
+  const file = await uploadFromForm(formData, "file");
 
   if (!title || !type) return { error: "Le titre et le type sont obligatoires." };
 
@@ -2545,7 +2543,7 @@ export async function uploadAvatarAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
 
-  const file = formData.get("file") as File | null;
+  const file = await uploadFromForm(formData, "file");
   if (!file || file.size === 0) return { error: "Merci de sélectionner une photo." };
   if (file.size > MAX_FILE_SIZE_BYTES) {
     return { error: `Fichier trop volumineux (limite : ${MAX_FILE_SIZE_BYTES / (1024 * 1024)} Mo).` };
@@ -2624,7 +2622,7 @@ export async function sendMessageAction(formData: FormData) {
   const coachId = String(formData.get("coachId") || "");
   const athleteId = String(formData.get("athleteId") || "");
   const body = String(formData.get("body") || "").trim();
-  const file = formData.get("media") as File | null;
+  const file = await uploadFromForm(formData, "media");
   // Un message peut être une photo/vidéo seule, sans texte.
   if (!body && (!file || file.size === 0)) return;
 

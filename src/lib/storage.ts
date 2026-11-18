@@ -1,7 +1,8 @@
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
-import { put, del } from "@vercel/blob";
+import { put, del, head } from "@vercel/blob";
+import { NextResponse } from "next/server";
 
 // Stockage des fichiers uploadés (bibliothèque de ressources, photos de profil) :
 // disque local en développement (aucun compte requis, comme la base de données),
@@ -44,10 +45,44 @@ function ensureUploadsDir(): void {
   if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
+/**
+ * Fichier reçu par une action : soit le fichier lui-même (petit fichier, ou
+ * développement local), soit la référence d'un fichier déjà envoyé directement
+ * au stockage par le navigateur (cf. src/lib/upload-client.ts).
+ */
+export type IncomingUpload = { name: string; type: string; size: number; file?: File; blobUrl?: string };
+
+export async function uploadFromForm(formData: FormData, field: string): Promise<IncomingUpload | null> {
+  const v = formData.get(field);
+  if (v instanceof File) return v.size > 0 ? { name: v.name, type: v.type, size: v.size, file: v } : null;
+  if (typeof v !== "string" || !v.startsWith("blobref:") || !isBlobEnabled) return null;
+  let ref: { url?: string; name?: string };
+  try {
+    ref = JSON.parse(v.slice("blobref:".length));
+  } catch {
+    return null;
+  }
+  if (!ref.url) return null;
+  let host = "";
+  try {
+    host = new URL(ref.url).hostname;
+  } catch {
+    return null;
+  }
+  // Seuls les fichiers de notre stockage, avec leur taille et leur type réels.
+  if (!host.endsWith(".blob.vercel-storage.com")) return null;
+  const meta = await head(ref.url).catch(() => null);
+  if (!meta) return null;
+  return { name: String(ref.name || meta.pathname), type: meta.contentType, size: meta.size, blobUrl: meta.url };
+}
+
 // Retourne un identifiant de fichier opaque : un nom de fichier local en mode
 // disque, l'URL Vercel Blob en mode hébergé. Jamais le nom d'origine (pour éviter
 // tout risque de traversée de chemin ou de collision).
-export async function saveUploadedFile(file: File): Promise<{ storedName: string; size: number }> {
+export async function saveUploadedFile(input: File | IncomingUpload): Promise<{ storedName: string; size: number }> {
+  // Déjà dans le stockage (envoi direct depuis le navigateur).
+  if (!(input instanceof File) && input.blobUrl) return { storedName: input.blobUrl, size: input.size };
+  const file = input instanceof File ? input : input.file!;
   const ext = path.extname(file.name).toLowerCase();
   const storedName = `${randomUUID()}${ext}`;
 
@@ -93,4 +128,18 @@ export async function readUploadedFile(storedName: string): Promise<Buffer | nul
   if (!filePath.startsWith(UPLOADS_DIR)) return null;
   if (!fs.existsSync(filePath)) return null;
   return fs.readFileSync(filePath);
+}
+
+
+/**
+ * Fichier du stockage Vercel : après la vérification des droits, on renvoie le
+ * navigateur vers le fichier au lieu de le relire et de le retransmettre —
+ * plus rapide, et sans la limite de 4,5 Mo d'une réponse de l'app (une vidéo
+ * plus lourde ne s'affichait pas). `download` force le téléchargement sous ce nom.
+ */
+export function blobRedirect(storedName: string | null | undefined, opts: { download?: string } = {}): NextResponse | null {
+  if (!storedName || !storedName.startsWith("http")) return null;
+  const url = new URL(storedName);
+  if (opts.download) url.searchParams.set("download", "1");
+  return NextResponse.redirect(url, { status: 307, headers: { "Cache-Control": "private, max-age=300" } });
 }

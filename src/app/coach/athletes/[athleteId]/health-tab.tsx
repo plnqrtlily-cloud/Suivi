@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   saveInjuryForAthleteAction,
   setInjuryImpactAction,
@@ -123,7 +122,6 @@ function Followups({ injury }: { injury: InjuryView }) {
 }
 
 function ImpactChips({ injury, sports, editable }: { injury: InjuryView; sports: { key: string; label: string }[]; editable: boolean }) {
-  const router = useRouter();
   const [pending, start] = useTransition();
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -139,7 +137,6 @@ function ImpactChips({ injury, sports, editable }: { injury: InjuryView; sports:
             onClick={() =>
               start(async () => {
                 await setInjuryImpactAction(injury.id, { ...injury.impact, [sp.key]: NEXT_IMPACT[k] });
-                router.refresh();
               })
             }
             className={cls}
@@ -171,7 +168,6 @@ function InjuryForm({
   today: string;
   onDone: () => void;
 }) {
-  const router = useRouter();
   const [pending, start] = useTransition();
   const src = injury ?? preset ?? {};
   const known = src.bodyPart && (BODY_PARTS as readonly string[]).includes(src.bodyPart);
@@ -197,7 +193,6 @@ function InjuryForm({
             return;
           }
           onDone();
-          router.refresh();
         });
       }}
     >
@@ -304,7 +299,6 @@ function InjuryForm({
 }
 
 function ActiveInjury({ injury, sports, today, onEdit }: { injury: InjuryView; sports: { key: string; label: string }[]; today: string; onEdit: () => void }) {
-  const router = useRouter();
   const [pending, start] = useTransition();
   const [mode, setMode] = useState<"follow" | "heal" | null>(null);
   const [error, setError] = useState("");
@@ -330,7 +324,6 @@ function ActiveInjury({ injury, sports, today, onEdit }: { injury: InjuryView; s
         return;
       }
       setMode(null);
-      router.refresh();
     });
   }
 
@@ -408,7 +401,6 @@ function ActiveInjury({ injury, sports, today, onEdit }: { injury: InjuryView; s
 }
 
 function PastInjury({ injury, sports, open, onToggle, onEdit, onRelapse }: { injury: InjuryView; sports: { key: string; label: string }[]; open: boolean; onToggle: () => void; onEdit: () => void; onRelapse: () => void }) {
-  const router = useRouter();
   const [pending, start] = useTransition();
   const [confirm, setConfirm] = useState(false);
   const n = days(injury.dateStart, injury.dateEnd!) || 1;
@@ -473,7 +465,6 @@ function PastInjury({ injury, sports, open, onToggle, onEdit, onRelapse }: { inj
                   onClick={() =>
                     start(async () => {
                       await deleteInjuryForAthleteAction(injury.id);
-                      router.refresh();
                     })
                   }
                   className="rounded-full bg-clay px-3.5 py-1.5 text-[13px] font-semibold text-white"

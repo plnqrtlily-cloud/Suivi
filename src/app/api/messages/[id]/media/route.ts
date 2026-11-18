@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { dbGet } from "@/lib/db";
-import { readUploadedFile } from "@/lib/storage";
+import { blobRedirect, readUploadedFile } from "@/lib/storage";
 
 const EXT_MIME: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -36,6 +36,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Non autorisé." }, { status: 403 });
   }
 
+  // Stockage Vercel : redirection (un document est toujours téléchargé).
+  const redirect = blobRedirect(message.media_path, { download: message.media_type === "document" ? message.media_name || "document" : undefined });
+  if (redirect) return redirect;
   const buffer = await readUploadedFile(message.media_path);
   if (!buffer) return NextResponse.json({ error: "Fichier introuvable sur le serveur." }, { status: 404 });
 

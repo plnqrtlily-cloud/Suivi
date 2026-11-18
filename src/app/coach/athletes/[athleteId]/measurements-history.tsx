@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { updateMeasurementAction, deleteMeasurementAction } from "@/lib/actions";
 import { MEASUREMENT_DEVICES, deviceLabel, groupMetrics } from "@/lib/performance-metrics";
 import type { AthleteMeasurement } from "@/lib/queries";
@@ -24,7 +23,6 @@ export function MeasurementsHistory({
   history: AthleteMeasurement[];
   metrics: MetricOption[];
 }) {
-  const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [showAll, setShowAll] = useState(false);
@@ -43,14 +41,12 @@ export function MeasurementsHistory({
     await updateMeasurementAction(id, athleteId, formData);
     setPending(false);
     setEditingId(null);
-    router.refresh();
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Supprimer cette mesure ?")) return;
     setItems((prev) => prev.filter((h) => h.id !== id));
     await deleteMeasurementAction(id, athleteId);
-    router.refresh();
   }
 
   if (items.length === 0) {

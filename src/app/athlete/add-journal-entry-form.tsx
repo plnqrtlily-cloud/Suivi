@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { addJournalEntryAction } from "@/lib/actions";
 import { TextAreaField, Button } from "@/components/ui";
 
@@ -10,7 +9,6 @@ import { TextAreaField, Button } from "@/components/ui";
 // directement à une Server Action. Sans ce composant, le texte saisi restait
 // affiché après l'ajout, comme si la note n'avait pas été prise en compte.
 export function AddJournalEntryForm({ selectedDate }: { selectedDate: string }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
   const [formKey, setFormKey] = useState(0);
 
@@ -21,7 +19,6 @@ export function AddJournalEntryForm({ selectedDate }: { selectedDate: string }) 
     await addJournalEntryAction(formData);
     setPending(false);
     setFormKey((k) => k + 1);
-    router.refresh();
   }
 
   return (

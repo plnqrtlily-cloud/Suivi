@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { placeFlexWorkoutAction } from "@/lib/actions";
 
 // Séances « à placer » d'une semaine : le coach les propose, l'athlète les
@@ -51,7 +50,6 @@ export function PlaceTray({
   /** Registre : l'athlète (« toi ») ou le coach qui place pour lui (« vous »). */
   you?: "toi" | "vous";
 }) {
-  const router = useRouter();
   // Placement optimiste : la case se remplit tout de suite, la base suit.
   const [items, setItems] = useState(initial);
   const [synced, setSynced] = useState(initial);
@@ -80,7 +78,6 @@ export function PlaceTray({
     startTransition(async () => {
       try {
         await placeFlexWorkoutAction(id, date);
-        router.refresh();
       } catch (e) {
         setItems(before);
         setError(e instanceof Error ? e.message : "Impossible de placer la séance.");

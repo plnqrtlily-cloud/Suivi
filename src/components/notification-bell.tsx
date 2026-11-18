@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { markNotificationReadAction, markAllNotificationsReadAction } from "@/lib/actions";
 import type { Notification } from "@/lib/notifications";
@@ -58,7 +57,6 @@ function TypeIcon({ type }: { type: string }) {
 }
 
 export function NotificationBell({ notifications }: { notifications: Notification[] }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const unreadCount = notifications.filter((n) => !n.read_at).length;
@@ -74,12 +72,10 @@ export function NotificationBell({ notifications }: { notifications: Notificatio
   async function handleOpenNotification(n: Notification) {
     if (!n.read_at) await markNotificationReadAction(n.id);
     setOpen(false);
-    router.refresh();
   }
 
   async function handleMarkAllRead() {
     await markAllNotificationsReadAction();
-    router.refresh();
   }
 
   return (

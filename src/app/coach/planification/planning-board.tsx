@@ -5,7 +5,6 @@ import { StatusIcon } from "@/components/status-icon";
 import { MoreMenu, MenuSeparator, menuItem } from "@/components/more-menu";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   copyWeekAction,
   loadPlanningRangeAction,
@@ -159,7 +158,6 @@ export function PlanningBoard({
   days: number;
   today: string;
 }) {
-  const router = useRouter();
   const [, startTransition] = useTransition();
   // Plage affichée : elle s'étend au fil du défilement (semaines chargées au bord).
   const [start, setStart] = useState(initialStart);
@@ -330,7 +328,6 @@ export function PlanningBoard({
         await fn();
         setToast(message);
         after?.();
-        router.refresh();
       } catch (e) {
         setItems((prev) => [...initialItems, ...prev.filter((x) => x.date < initialStart || x.date > initialEnd)]);
         setToast(e instanceof Error ? e.message : "Une erreur est survenue.");
@@ -901,7 +898,13 @@ export function PlanningBoard({
               <span className="text-[13px] text-slate">
                 {athleteById(cur.athleteId)?.name} · {dayLong(cur.date)} · {cur.isGoal ? "Objectif" : cur.sportLabel}
                 {!cur.isGoal && !edit ? ` · ${hm(cur.minutes)}` : ""}
-                {!cur.isGoal && <> · <b className="inline-flex items-center gap-1 text-ink-soft">{STATUS_ICON[cur.status] && <StatusIcon name={STATUS_ICON[cur.status]!} size={12} />}{STATUS_LABEL[cur.status]}</b></>}
+                {!cur.isGoal && <> · {STATUS_ICON[cur.status] ? (
+                      <span title={STATUS_LABEL[cur.status]} aria-label={STATUS_LABEL[cur.status]} role="img" className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#eef2f1] align-middle text-[#1b4b4f]">
+                        <StatusIcon name={STATUS_ICON[cur.status]!} size={12} />
+                      </span>
+                    ) : (
+                      <b className="text-ink-soft">{STATUS_LABEL[cur.status]}</b>
+                    )}</>}
                 {cur.isDraft ? " · brouillon" : ""}
               </span>
             </div>

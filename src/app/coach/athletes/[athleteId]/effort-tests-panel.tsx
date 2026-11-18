@@ -1,5 +1,6 @@
 "use client";
 
+import { withDirectUploads } from "@/lib/upload-client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -136,7 +137,13 @@ export function EffortTestsPanel({
     if (custom) formData.set("customTestId", custom.id);
     if (isOther) formData.set("customLabel", name);
     if (editBatch) formData.set("replaceBatchId", editBatch.batchId);
-    const result = await addEffortTestResultAction(formData);
+    let result: Awaited<ReturnType<typeof addEffortTestResultAction>>;
+    try {
+      await withDirectUploads(formData, ["attachment"]);
+      result = await addEffortTestResultAction(formData);
+    } catch (err) {
+      result = { error: err instanceof Error ? err.message : "Envoi impossible." };
+    }
     setPending(false);
     if ("error" in result) {
       setError(result.error);
@@ -169,7 +176,6 @@ export function EffortTestsPanel({
     if (!confirm("Supprimer ce test et tous ses résultats ?")) return;
     setDeletingBatchId(batchId);
     await deleteEffortTestBatchAction(batchId, athleteId);
-    router.refresh();
     setDeletingBatchId(null);
   }
 

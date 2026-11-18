@@ -1,14 +1,14 @@
 "use client";
 
+import { withDirectUploads } from "@/lib/upload-client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { addWorkoutCommentAction } from "@/lib/actions";
 import { Button } from "@/components/ui";
 
 export function CommentForm({ workoutId }: { workoutId: string }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -16,11 +16,17 @@ export function CommentForm({ workoutId }: { workoutId: string }) {
     const formData = new FormData(form);
     if (!String(formData.get("body") || "").trim() && !(formData.get("video") as File)?.size) return;
     setPending(true);
-    await addWorkoutCommentAction(workoutId, formData);
-    setPending(false);
-    form.reset();
-    setShowVideo(false);
-    router.refresh();
+    setError(null);
+    try {
+      await withDirectUploads(formData, ["video"]);
+      await addWorkoutCommentAction(workoutId, formData);
+      form.reset();
+      setShowVideo(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Le commentaire n'a pas pu être envoyé.");
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -47,6 +53,7 @@ export function CommentForm({ workoutId }: { workoutId: string }) {
           Envoyer
         </Button>
       </div>
+      {error && <p className="text-sm text-clay">{error}</p>}
       {showVideo && (
         <input
           type="file"

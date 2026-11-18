@@ -6,7 +6,6 @@ import { StatusIcon } from "@/components/status-icon";
 
 // Éléments partagés par l'accueil et le calendrier de l'athlète : statuts,
 // icône de sport, durée lisible et carte d'élément (séance, ajout…).
-const PET = "#1b4b4f";
 
 export function isGoal(w: Workout) {
   return w.category === "objectif" || w.category === "evenement";
@@ -40,9 +39,14 @@ export function statusKey(w: Workout, today: string) {
 export function Chip({ k }: { k: string }) {
   const c = STATUS_CHIP[k];
   return (
-    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: c.bg, color: c.fg }}>
-      <StatusIcon name={c.icon} size={13} />
-      {c.label}
+    <span
+      title={c.label}
+      aria-label={c.label}
+      role="img"
+      className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full"
+      style={{ background: c.bg, color: c.fg }}
+    >
+      <StatusIcon name={c.icon} size={15} />
     </span>
   );
 }

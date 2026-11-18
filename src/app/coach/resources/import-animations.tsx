@@ -1,14 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { importExerciseAnimationsAction } from "@/lib/actions";
 import { Button, ErrorText } from "@/components/ui";
 
 // Proposé tant qu'il reste des animations livrées avec l'application qui ne sont
 // pas encore dans la bibliothèque du coach (cf. src/lib/exercise-animations.ts).
 export function ImportAnimationsCard({ missing, outdated = 0, total }: { missing: number; outdated?: number; total: number }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
@@ -18,7 +16,6 @@ export function ImportAnimationsCard({ missing, outdated = 0, total }: { missing
     const result = await importExerciseAnimationsAction();
     setPending(false);
     if (result?.error) setError(result.error);
-    router.refresh();
   }
 
   return (

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { copyWeekAction } from "@/lib/actions";
 import { Button, Field } from "@/components/ui";
 
@@ -9,7 +8,6 @@ import { Button, Field } from "@/components/ui";
 // que de recréer chaque séance une par une (cf. demande coach : "publier plus
 // facilement").
 export function CopyWeekForm({ athleteId }: { athleteId: string }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<number | null>(null);
@@ -27,7 +25,6 @@ export function CopyWeekForm({ athleteId }: { athleteId: string }) {
         targetWeekStart: String(formData.get("targetWeekStart")),
       });
       setResult(res.count);
-      router.refresh();
     } catch (err: any) {
       setError(err.message || "Une erreur est survenue.");
     } finally {

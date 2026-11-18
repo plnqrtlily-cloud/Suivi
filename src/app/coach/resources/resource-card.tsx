@@ -2,14 +2,12 @@
 
 import { resourceFileUrl } from "@/lib/exercise-animations";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { deleteResourceAction } from "@/lib/actions";
 import { Button } from "@/components/ui";
 
 const TYPE_LABELS: Record<string, string> = { video: "Vidéo", photo: "Photo", equipment: "Matériel" };
 
 export function ResourceCard({ resource }: { resource: any }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
 
   async function handleDelete() {
@@ -17,7 +15,6 @@ export function ResourceCard({ resource }: { resource: any }) {
     setPending(true);
     await deleteResourceAction(resource.id);
     setPending(false);
-    router.refresh();
   }
 
   return (

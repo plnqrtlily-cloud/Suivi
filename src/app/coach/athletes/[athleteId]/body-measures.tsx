@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { addMeasurementAction, updateMeasurementAction, deleteMeasurementAction } from "@/lib/actions";
 import { BODY_METRICS, normalizeMetricName } from "@/lib/performance-metrics";
 import type { AthleteMeasurement } from "@/lib/queries";
@@ -54,7 +53,6 @@ export function BodyMeasures({
   /** Dernières puissances de référence (tests) pour le rapport poids / puissance. */
   power: { pma?: { value: number; date: string }; ftp?: { value: number; date: string } };
 }) {
-  const router = useRouter();
   const [pending, start] = useTransition();
   const [adding, setAdding] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
@@ -92,7 +90,6 @@ export function BodyMeasures({
         setError("");
         await fn();
         after?.();
-        router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Une erreur est survenue.");
       }

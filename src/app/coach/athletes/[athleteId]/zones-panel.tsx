@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { saveZoneOverridesAction } from "@/lib/actions";
 import {
   ZONE_FEEL,
@@ -52,7 +51,6 @@ export function ZonesPanel({
   refs: { pma?: number; vma?: number; fcMax?: number };
   activities: ZoneActivity[];
 }) {
-  const router = useRouter();
   const zones: ZoneSet = { hr: overrides.hr ?? auto.hr, pw: overrides.pw ?? auto.pw, pace: overrides.pace ?? auto.pace };
   const refOptions: { value: Ref; label: string; ok: boolean }[] = [
     { value: "pma", label: "PMA", ok: !!refs.pma && !!zones.pw },
@@ -128,7 +126,6 @@ export function ZonesPanel({
         return;
       }
       setDraft(null);
-      router.refresh();
     });
   }
 

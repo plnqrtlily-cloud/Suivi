@@ -7,7 +7,6 @@ import { StatusIcon } from "@/components/status-icon";
 import { MoreMenu, MenuSeparator, menuItem } from "@/components/more-menu";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   addWorkoutCommentAction,
   coachAddActivityAction,
@@ -119,7 +118,6 @@ function entrySub(e: CalEntry): string {
 }
 
 export function CoachCalendar({ data }: { data: CoachCalendarData }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [panel, setPanel] = useState<Panel>(null);
   const [picker, setPicker] = useState<{ mode: "move" | "dup"; id: string } | null>(null);
@@ -450,7 +448,6 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
         await fn();
         setToast(message);
         after?.();
-        router.refresh();
       } catch (e) {
         setToast(e instanceof Error ? e.message : "Une erreur est survenue.");
       }
@@ -841,7 +838,6 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
                   onEventDone={() => {
                     setToast("Événement ajouté · notification envoyée");
                     setPanel({ type: "day", date: panel.date });
-                    router.refresh();
                   }}
                   onActivity={(fd, dates) =>
                     run(
@@ -1444,7 +1440,13 @@ function EntryPanel({
       )}
       <div className="-mt-3 mb-5 flex items-center gap-2.5 text-sm text-ink-soft">
         <span className="h-4" style={{ borderLeft: e.isGoal ? "3px solid #a4492a" : BAR[e.status] }} />
-        <b className="inline-flex items-center" style={{ color: STATUS_COLOR[e.status] }}>{!e.isGoal && <EntryIcon status={e.status} size={14} />}{e.isGoal ? "Objectif" : STATUS_LABEL[e.status]}</b>
+        {e.isGoal ? (
+          <b style={{ color: STATUS_COLOR[e.status] }}>Objectif</b>
+        ) : (
+          <span title={STATUS_LABEL[e.status]} aria-label={STATUS_LABEL[e.status]} role="img" className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#eef2f1] text-[#1b4b4f]">
+            <StatusIcon name={toneOf(e.status).icon} size={14} />
+          </span>
+        )}
         <span className="text-[#aab4b1]">·</span>
         {e.sportLabel}
         {e.timeLabel && <><span className="text-[#aab4b1]">·</span>{e.timeLabel}</>}

@@ -17,7 +17,6 @@ export function HealthThreadActions({
   showPain: boolean;
   category: HealthCategory;
 }) {
-  const router = useRouter();
   const [painOpen, setPainOpen] = useState(false);
   const [pain, setPain] = useState<number | null>(null);
   const [confirm, setConfirm] = useState(false);
@@ -31,14 +30,12 @@ export function HealthThreadActions({
     setPending(false);
     setPainOpen(false);
     setPain(null);
-    router.refresh();
   }
   async function resolve() {
     setPending(true);
     await resolveHealthAction(injuryId);
     setPending(false);
     setConfirm(false);
-    router.refresh();
   }
 
   const btn = "flex-1 rounded-xl border border-line bg-white px-3 py-2.5 text-center text-sm font-bold text-moss-dark disabled:opacity-50";

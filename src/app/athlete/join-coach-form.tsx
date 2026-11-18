@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { joinCoachWithCodeAction } from "@/lib/actions";
 import { Field, Button, ErrorText } from "@/components/ui";
 
 export function JoinCoachForm({ initialError }: { initialError?: string }) {
-  const router = useRouter();
   const [error, setError] = useState<string | undefined>(initialError);
   const [done, setDone] = useState<string | undefined>();
   const [pending, setPending] = useState(false);
@@ -24,7 +22,6 @@ export function JoinCoachForm({ initialError }: { initialError?: string }) {
       } else {
         setDone(result.already ? `Tu es déjà suivi·e par ${result.coachName}.` : `C'est fait : ${result.coachName} est maintenant ton coach.`);
         form.reset();
-        router.refresh();
       }
     } catch {
       setError("La liaison a échoué. Réessaie dans un instant.");

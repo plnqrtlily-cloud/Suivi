@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { setGenderAction, setAthleteSportsAction } from "@/lib/actions";
 
 const SPORTS = [
@@ -24,7 +23,6 @@ const GENDERS = [
 // sports pratiqués et genre (qui ouvre le suivi du cycle pour un profil
 // féminin). L'athlète le consulte dans Moi › Mes infos.
 export function AthleteProfileEdit({ athleteId, gender, sports }: { athleteId: string; gender: string | null; sports: string[] }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [g, setG] = useState(gender ?? "");
   const [sel, setSel] = useState<string[]>(sports);
@@ -52,7 +50,6 @@ export function AthleteProfileEdit({ athleteId, gender, sports }: { athleteId: s
         start(async () => {
           await Promise.all([setAthleteSportsAction(fs), setGenderAction(fg)]);
           setOpen(false);
-          router.refresh();
         });
       }}
     >

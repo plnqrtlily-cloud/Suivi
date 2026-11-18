@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
 import { Button, Field, TextAreaField, ErrorText } from "@/components/ui";
 import { DaysPicker } from "@/components/days-picker";
 import { dateRangeToList } from "@/components/date-range-picker";
@@ -42,7 +41,6 @@ export function CalendarEventForm({
   onDone: () => void;
   onCancel?: () => void;
 }) {
-  const router = useRouter();
   const [kind, setKind] = useState<string>(event?.kind ?? initialKind ?? "competition");
   const [dates, setDates] = useState<string[]>(event ? dateRangeToList(event.startDate, event.endDate) : [defaultDate]);
   const [pending, setPending] = useState(false);
@@ -79,7 +77,6 @@ export function CalendarEventForm({
       if (event) await updateCalendarEventAction(event.id, input);
       else await createCalendarEventAction(input);
       onDone();
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Une erreur est survenue.");
     }
@@ -205,7 +202,6 @@ export function EventDetail({
   onClose: () => void;
   onChanged?: () => void;
 }) {
-  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [pending, setPending] = useState(false);
   const other = you === "toi" ? "Ton coach sera prévenu." : "L'athlète sera prévenu.";
@@ -217,7 +213,6 @@ export function EventDetail({
       await deleteCalendarEventAction(event.id);
       onChanged?.();
       onClose();
-      router.refresh();
     } finally {
       setPending(false);
     }

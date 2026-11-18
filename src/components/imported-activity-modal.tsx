@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { updateImportedActivityAction, deleteImportedActivityAction } from "@/lib/actions";
 import { Button, Field, SelectField, ErrorText } from "@/components/ui";
 import { MtbPicker } from "@/components/mtb-picker";
@@ -40,7 +39,6 @@ function Modal({ title, subtitle, onClose, children }: { title: string; subtitle
 // manuel (sync-panel.tsx) — même sports, mêmes champs affichés selon le
 // sport — pour que la modification ne surprenne pas après l'ajout.
 export function EditImportedActivityModal({ activity, className }: { activity: EditableActivity; className?: string }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   // Un VTT s'édite comme « VTT » + son type (enregistré en vélo, cf. mtb.ts).
@@ -57,7 +55,6 @@ export function EditImportedActivityModal({ activity, className }: { activity: E
     try {
       await updateImportedActivityAction(activity.id, new FormData(form));
       setOpen(false);
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Une erreur est survenue.");
     }
@@ -140,7 +137,6 @@ export function EditImportedActivityModal({ activity, className }: { activity: E
 }
 
 export function DeleteImportedActivityButton({ id, className }: { id: string; className?: string }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
   return (
     <button
@@ -153,7 +149,6 @@ export function DeleteImportedActivityButton({ id, className }: { id: string; cl
         setPending(true);
         try {
           await deleteImportedActivityAction(id);
-          router.refresh();
         } finally {
           setPending(false);
         }

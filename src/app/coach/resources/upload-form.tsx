@@ -1,12 +1,11 @@
 "use client";
 
+import { withDirectUploads } from "@/lib/upload-client";
 import { useState, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { uploadResourceAction } from "@/lib/actions";
 import { Field, SelectField, TextAreaField, Button, ErrorText } from "@/components/ui";
 
 export function UploadResourceForm() {
-  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [type, setType] = useState<"video" | "photo" | "equipment">("photo");
   const [error, setError] = useState<string | undefined>();
@@ -17,13 +16,18 @@ export function UploadResourceForm() {
     setPending(true);
     setError(undefined);
     const formData = new FormData(e.currentTarget);
-    const result = await uploadResourceAction(formData);
+    let result: Awaited<ReturnType<typeof uploadResourceAction>>;
+    try {
+      await withDirectUploads(formData, ["file"]);
+      result = await uploadResourceAction(formData);
+    } catch (err) {
+      result = { error: err instanceof Error ? err.message : "Envoi impossible." } as typeof result;
+    }
     setPending(false);
     if (result?.error) {
       setError(result.error);
     } else {
       formRef.current?.reset();
-      router.refresh();
     }
   }
 

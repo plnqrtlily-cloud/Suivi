@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { updateTeamMemberPositionAction } from "@/lib/actions";
 import { TEAM_SPORTS, type TeamSport } from "@/lib/team-sports";
 
@@ -16,7 +15,6 @@ export function UpdateMemberPositionForm({
   currentPosition: string;
   athleteName: string;
 }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
   return (
     <select
@@ -32,7 +30,6 @@ export function UpdateMemberPositionForm({
           setPending(false);
           return;
         }
-        router.refresh();
         setPending(false);
       }}
     >

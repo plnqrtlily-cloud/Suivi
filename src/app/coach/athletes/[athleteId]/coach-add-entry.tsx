@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { coachAddActivityAction, coachAddAvailabilityBlockAction, coachDeleteEntryAction } from "@/lib/actions";
 import { Button, Field, SelectField, TextAreaField, ErrorText } from "@/components/ui";
 import { AVAILABILITY_SLOT_LABELS } from "@/lib/time-of-day";
@@ -42,7 +41,6 @@ export function CoachAddEntryButton({
   today: string;
   initialMode?: Mode;
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   // Par défaut : un jour passé appelle plutôt une séance faite, un jour à venir
   // une séance à programmer.
@@ -93,7 +91,6 @@ export function CoachAddEntryButton({
       }
       form.reset();
       close();
-      router.refresh();
     } catch (err: any) {
       setError(err?.message || "Une erreur est survenue.");
     }
@@ -222,7 +219,6 @@ export function CoachAddEntryButton({
 // Petite croix sur une entrée saisie par le coach, pour corriger une erreur de
 // saisie — n'apparaît jamais sur ce que l'athlète a renseigné lui-même.
 export function CoachDeleteEntryButton({ kind, id, dark }: { kind: "activity" | "availability"; id: string; dark?: boolean }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
@@ -230,7 +226,6 @@ export function CoachDeleteEntryButton({ kind, id, dark }: { kind: "activity" | 
     setPending(true);
     try {
       await coachDeleteEntryAction(kind, id);
-      router.refresh();
     } finally {
       setPending(false);
       setConfirming(false);

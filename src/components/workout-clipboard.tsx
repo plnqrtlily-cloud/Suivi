@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
 import { copyWorkoutToAthletesAction } from "@/lib/actions";
 import { DaysPicker } from "@/components/days-picker";
 
@@ -120,7 +119,6 @@ export function SendToAthletesButton({
   /** Les autres athlètes actifs du coach. */
   athletes: AthleteOption[];
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [dates, setDates] = useState<string[]>([date]);
@@ -136,7 +134,6 @@ export function SendToAthletesButton({
       const r = await copyWorkoutToAthletesAction({ workoutId, athleteIds: selected, dates });
       setDone(`${r.count} séance${r.count > 1 ? "s" : ""} créée${r.count > 1 ? "s" : ""}`);
       setSelected([]);
-      router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Une erreur est survenue.");
     }

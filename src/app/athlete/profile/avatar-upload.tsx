@@ -1,5 +1,6 @@
 "use client";
 
+import { withDirectUploads } from "@/lib/upload-client";
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { uploadAvatarAction, deleteAvatarAction } from "@/lib/actions";
@@ -27,7 +28,13 @@ export function AvatarUpload({
     setError(undefined);
     const formData = new FormData();
     formData.set("file", file);
-    const result = await uploadAvatarAction(formData);
+    let result: Awaited<ReturnType<typeof uploadAvatarAction>>;
+    try {
+      await withDirectUploads(formData, ["file"]);
+      result = await uploadAvatarAction(formData);
+    } catch (err) {
+      result = { error: err instanceof Error ? err.message : "Envoi impossible." } as typeof result;
+    }
     setPending(false);
     if (result?.error) setError(result.error);
     else router.refresh();
@@ -37,7 +44,6 @@ export function AvatarUpload({
     setPending(true);
     await deleteAvatarAction();
     setPending(false);
-    router.refresh();
   }
 
   return (

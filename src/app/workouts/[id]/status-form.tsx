@@ -1,7 +1,7 @@
 "use client";
 
+import { withDirectUploads } from "@/lib/upload-client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { updateWorkoutStatusAction, addCompletionPhotoAction } from "@/lib/actions";
 import { Button, Field, TextAreaField } from "@/components/ui";
 import { todayISO } from "@/lib/dates";
@@ -28,7 +28,6 @@ export function StatusForm({
   // sens, c'est l'athlète qui l'aurait prise, pas lui.
   asCoach?: boolean;
 }) {
-  const router = useRouter();
   const [status, setStatus] = useState(currentStatus === "planned" || currentStatus === "partial" ? "done" : currentStatus);
   const [rpe, setRpe] = useState(5);
   const [pending, setPending] = useState(false);
@@ -57,10 +56,14 @@ export function StatusForm({
     if (photo && photo.size > 0 && showDone) {
       const photoData = new FormData();
       photoData.set("photo", photo);
-      await addCompletionPhotoAction(workoutId, photoData);
+      try {
+        await withDirectUploads(photoData, ["photo"]);
+        await addCompletionPhotoAction(workoutId, photoData);
+      } catch {
+        // La séance est enregistrée ; seule la photo n'a pas pu partir.
+      }
     }
     setPending(false);
-    router.refresh();
   }
 
   return (

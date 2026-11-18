@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { resetAthleteTrialAsAdminAction } from "@/lib/actions";
 import { Button } from "@/components/ui";
 
 export function ResetTrialButton({ userId, name }: { userId: string; name: string }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
   return (
     <Button
@@ -17,7 +15,6 @@ export function ResetTrialButton({ userId, name }: { userId: string; name: strin
         setPending(true);
         try {
           await resetAthleteTrialAsAdminAction(userId);
-          router.refresh();
         } finally {
           setPending(false);
         }

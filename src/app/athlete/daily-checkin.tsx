@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { upsertCheckinAction } from "@/lib/actions";
 import { TextAreaField } from "@/components/ui";
 import { GradientSlider } from "@/components/gradient-slider";
@@ -99,7 +98,6 @@ export function DailyCheckin({
   onSaved?: () => void;
   compact?: boolean;
 }) {
-  const router = useRouter();
   const [values, setValues] = useState<CheckinValues>({
     physical_level: existing?.physical_level ?? 5,
     mental_level: existing?.mental_level ?? 5,
@@ -117,7 +115,6 @@ export function DailyCheckin({
     formData.set("checkDate", date);
     await upsertCheckinAction(formData);
     setPending(false);
-    router.refresh();
     onSaved?.();
   }
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { setSelfEvaluationAction } from "@/lib/actions";
 import { PROFILE_DOMAINS, LEVEL_LABELS } from "@/lib/performance-profile";
 
@@ -9,7 +8,6 @@ const STAR = "M10 1.8l2.5 5.3 5.8.7-4.3 4 1.1 5.7L10 14.7l-5.1 2.8 1.1-5.7-4.3-4
 const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 
 export function SelfEvaluation({ qualities, lastDate }: { qualities: { id: string; domain: string; name: string; level: number }[]; lastDate: string | null }) {
-  const router = useRouter();
   const [levels, setLevels] = useState<Record<string, number>>(Object.fromEntries(qualities.map((q) => [q.id, q.level])));
   const [, start] = useTransition();
   const done = qualities.filter((q) => levels[q.id] > 0).length;
@@ -18,7 +16,6 @@ export function SelfEvaluation({ qualities, lastDate }: { qualities: { id: strin
     setLevels((l) => ({ ...l, [id]: i }));
     start(async () => {
       await setSelfEvaluationAction(id, i);
-      router.refresh();
     });
   }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, isCoachLinkedToAthlete } from "@/lib/auth";
 import { getUserAvatar } from "@/lib/queries";
-import { readUploadedFile } from "@/lib/storage";
+import { blobRedirect, readUploadedFile } from "@/lib/storage";
 
 // Sert la photo de profil d'un athlète. Visible par l'athlète lui-même et par ses
 // coachs activement liés — jamais par un tiers, même avec l'URL en main.
@@ -17,6 +17,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const avatar = await getUserAvatar(userId);
   if (!avatar?.avatar_path) return NextResponse.json({ error: "Pas de photo." }, { status: 404 });
 
+  const redirect = blobRedirect(avatar.avatar_path);
+  if (redirect) return redirect;
   const buffer = await readUploadedFile(avatar.avatar_path);
   if (!buffer) return NextResponse.json({ error: "Fichier introuvable." }, { status: 404 });
 

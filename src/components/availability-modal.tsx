@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { addAvailabilityBlockAction, updateAvailabilityBlockAction } from "@/lib/actions";
 import { Button, SelectField, Field, TextAreaField, ErrorText } from "@/components/ui";
 import { AVAILABILITY_SLOT_LABELS, AVAILABILITY_SLOT_ORDER, type AvailabilitySlot } from "@/lib/time-of-day";
@@ -18,7 +17,6 @@ interface ExistingBlock {
 // plusieurs jours d'affilée, ex. des vacances) — un enregistrement par jour
 // créé côté serveur, cf. addAvailabilityBlockAction.
 function AddAvailabilityForm({ defaultDate, onDone }: { defaultDate: string; onDone: () => void }) {
-  const router = useRouter();
   const [dates, setDates] = useState<string[]>([defaultDate]);
   const [timeOfDay, setTimeOfDay] = useState<AvailabilitySlot>("morning");
   const [error, setError] = useState<string | undefined>();
@@ -40,7 +38,6 @@ function AddAvailabilityForm({ defaultDate, onDone }: { defaultDate: string; onD
     });
     setPending(false);
     onDone();
-    router.refresh();
   }
 
   return (
@@ -69,7 +66,6 @@ function AddAvailabilityForm({ defaultDate, onDone }: { defaultDate: string; onD
 // indisponibilité déjà posée vers une plage n'aurait pas de sens (elle
 // deviendrait plusieurs briques distinctes, pas la même modifiée).
 function EditAvailabilityForm({ existing, onDone }: { existing: ExistingBlock; onDone: () => void }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
@@ -81,7 +77,6 @@ function EditAvailabilityForm({ existing, onDone }: { existing: ExistingBlock; o
     try {
       await updateAvailabilityBlockAction(existing.id, new FormData(form));
       onDone();
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Une erreur est survenue.");
     }

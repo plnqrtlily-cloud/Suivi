@@ -26,7 +26,13 @@ interface TemplateBlockInput {
   notes?: string;
   resource_id?: string;
   training_quality?: string;
-  sets?: { reps?: string; load?: string; restSeconds?: number; rpe?: number }[];
+  rep_type?: string;
+  tempo?: string;
+  exercise_type?: string;
+  circuit_id?: string;
+  circuit_rounds?: number;
+  circuit_rest_seconds?: number;
+  sets?: { reps?: string; load?: string; restSeconds?: number; rpe?: number; rir?: number }[];
 }
 
 export interface WorkoutTemplateOption {
@@ -157,6 +163,47 @@ export function WorkoutForm({
   const [templatePending, setTemplatePending] = useState(false);
 
 
+
+  // Charger un modèle enregistré : activité, catégorie, durée, consignes et,
+  // pour la musculation, tous les exercices et leurs séries.
+  function applyTemplate(id: string) {
+    const tpl = templates?.find((t) => t.id === id);
+    if (!tpl) {
+      setAppliedTemplate(null);
+      return;
+    }
+    setAppliedTemplate(tpl);
+    const act = activityForSport(tpl.sport);
+    setActivityId(act.id);
+    setStructure((st) => adaptStructure(st, act));
+    setCategory(tpl.category);
+    setColor(tpl.color);
+    setDuration(tpl.duration_minutes ? String(tpl.duration_minutes) : "");
+    setBlocks(
+      (tpl.blocks || []).map((b) => ({
+        key: crypto.randomUUID(),
+        block_type: b.block_type,
+        exercise_name: b.exercise_name,
+        notes: b.notes || "",
+        resource_id: b.resource_id || "",
+        training_quality: (b.training_quality as BlockRow["training_quality"]) || "",
+        rep_type: b.rep_type === "time" ? "time" : "reps",
+        tempo: b.tempo || "",
+        exercise_type: b.exercise_type ?? "",
+        circuit_id: b.circuit_id || crypto.randomUUID(),
+        circuit_rounds: b.circuit_rounds || 1,
+        circuit_rest_seconds: b.circuit_rest_seconds || undefined,
+        sets: (b.sets && b.sets.length ? b.sets : [{}]).map((st) => ({
+          reps: st.reps || "",
+          load: st.load || "",
+          restSeconds: st.restSeconds ? String(st.restSeconds) : "",
+          rpe: st.rpe ? String(st.rpe) : "",
+          rir: st.rir != null ? String(st.rir) : "",
+        })),
+      }))
+    );
+    setTemplateKey((k) => k + 1);
+  }
 
   async function handleSaveAsTemplate() {
     const name = window.prompt("Nom du modèle (ex. \"Bloc force bas du corps\") :");
@@ -338,6 +385,20 @@ export function WorkoutForm({
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-5">
       {knownDate && <input type="hidden" name="date" value={knownDate} />}
+
+      {!initial && templates && templates.length > 0 && (
+        <label className={`${label} rounded-2xl border border-dashed border-[#aab4b1] bg-white px-4 py-3`}>
+          Partir d&apos;un modèle
+          <select value={appliedTemplate?.id ?? ""} onChange={(e) => applyTemplate(e.target.value)} className={input}>
+            <option value="">Partir de zéro</option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <section className={section}>
         <h2 className="text-base font-bold text-ink">L&apos;essentiel</h2>

@@ -1,20 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { publishWorkoutAction } from "@/lib/actions";
 
 // Publie une séance restée en brouillon : elle devient visible par l'athlète,
 // qui reçoit alors seulement la notification.
 export function PublishWorkoutButton({ workoutId }: { workoutId: string }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
 
   async function handlePublish() {
     setPending(true);
     await publishWorkoutAction(workoutId);
     setPending(false);
-    router.refresh();
   }
 
   return (

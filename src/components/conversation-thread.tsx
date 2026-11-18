@@ -1,5 +1,6 @@
 "use client";
 
+import { withDirectUploads } from "@/lib/upload-client";
 import { Linkify } from "@/components/linkify";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -123,6 +124,7 @@ export function ConversationThread({
       fd.set("coachId", coachId);
       fd.set("athleteId", athleteId);
       try {
+        await withDirectUploads(fd, ["media"]);
         await sendMessageAction(fd);
       } catch (err) {
         const f = fd.get("media");

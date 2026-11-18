@@ -151,9 +151,14 @@ export function StatusBadge({ status, validated, date, today }: { status: string
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: tone.bg, color: tone.fg }}>
-      <StatusIcon name={tone.icon} size={13} />
-      {tone.label}
+    <span
+      title={tone.label}
+      aria-label={tone.label}
+      role="img"
+      className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full"
+      style={{ background: tone.bg, color: tone.fg }}
+    >
+      <StatusIcon name={tone.icon} size={15} />
     </span>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { updateCycleSharingAction, addCycleEntryAction } from "@/lib/actions";
 import { Button, Field, SelectField } from "@/components/ui";
 import { CycleEstimate, CycleSettings } from "@/lib/cycle-types";
@@ -28,7 +27,6 @@ export function CyclePanel({
   estimate: CycleEstimate;
   entries: any[];
 }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
   const [displayStyle, setDisplayStyle] = useState<"wheel" | "timeline" | "month">("wheel");
   const nextPeriod = predictNextPeriod(estimate, settings.average_cycle_length_days);
@@ -38,7 +36,6 @@ export function CyclePanel({
     setPending(true);
     await updateCycleSharingAction(new FormData(e.currentTarget));
     setPending(false);
-    router.refresh();
   }
 
   async function handleEntrySubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -48,7 +45,6 @@ export function CyclePanel({
     await addCycleEntryAction(new FormData(form));
     setPending(false);
     form.reset();
-    router.refresh();
   }
 
   return (

@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { setCoachPlanAction } from "@/lib/actions";
 import { Button } from "@/components/ui";
 
 export function SetPlanButton({ coachId, currentPlan }: { coachId: string; currentPlan: string }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
 
   if (currentPlan === "pro") {
@@ -18,7 +16,6 @@ export function SetPlanButton({ coachId, currentPlan }: { coachId: string; curre
           if (!confirm("Retirer le plan Pro de ce coach ? Si son essai est terminé, son espace sera bloqué.")) return;
           setPending(true);
           await setCoachPlanAction(coachId, "free");
-          router.refresh();
           setPending(false);
         }}
       >
@@ -34,7 +31,6 @@ export function SetPlanButton({ coachId, currentPlan }: { coachId: string; curre
       onClick={async () => {
         setPending(true);
         await setCoachPlanAction(coachId, "pro");
-        router.refresh();
         setPending(false);
       }}
     >

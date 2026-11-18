@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import type { TrainingPeriod } from "@/lib/queries";
 import type { LoadWeek } from "@/lib/athlete-overview";
 import {
@@ -215,7 +214,6 @@ export function PeriodizationPanel({
   weeks: LoadWeek[];
   goal: { title: string; date: string; dateLabel: string; days: number } | null;
 }) {
-  const router = useRouter();
   const [pending, start] = useTransition();
   const active = periodsOnDate(periods, today);
   const finest = active[active.length - 1] ?? null;
@@ -252,7 +250,6 @@ export function PeriodizationPanel({
     start(async () => {
       await fn(fd);
       after?.();
-      router.refresh();
     });
   }
 
@@ -410,7 +407,6 @@ export function PeriodizationPanel({
             start(async () => {
               const res = (await duplicateTrainingPeriodAction(fd)) as { id: string } | undefined;
               if (res?.id) setSelId(res.id);
-              router.refresh();
             });
           }}
           onDelete={() => {

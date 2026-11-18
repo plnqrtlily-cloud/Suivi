@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { sendBroadcastMessageAction } from "@/lib/actions";
 import { Button, TextAreaField, ErrorText } from "@/components/ui";
 
 export function BroadcastMessageModal({ athleteCount }: { athleteCount: number }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -21,7 +19,6 @@ export function BroadcastMessageModal({ athleteCount }: { athleteCount: number }
     try {
       await sendBroadcastMessageAction(body);
       setDone(true);
-      router.refresh();
     } catch (err: any) {
       setError(err.message || "Une erreur est survenue.");
     } finally {

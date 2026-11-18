@@ -231,7 +231,6 @@ export function InviteForm({
                       start(async () => {
                         const r = await resendInviteAction(p.id);
                         setFlash((f) => ({ ...f, [p.id]: r.emailed ? "renvoyée" : "envoi impossible" }));
-                        router.refresh();
                       })
                     }
                     className="shrink-0 rounded-full border border-line bg-white px-3 py-1.5 text-xs font-semibold text-moss-dark hover:bg-paper-dim"

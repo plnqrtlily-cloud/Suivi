@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { updateJournalEntryAction, deleteJournalEntryAction } from "@/lib/actions";
 import { Button, Field, TextAreaField } from "@/components/ui";
 
@@ -12,7 +11,6 @@ export interface JournalEntryItem {
 }
 
 export function JournalEntry({ entry }: { entry: JournalEntryItem }) {
-  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [pending, setPending] = useState(false);
 
@@ -24,7 +22,6 @@ export function JournalEntry({ entry }: { entry: JournalEntryItem }) {
     await updateJournalEntryAction(formData);
     setPending(false);
     setEditing(false);
-    router.refresh();
   }
 
   async function handleDelete() {
@@ -32,7 +29,6 @@ export function JournalEntry({ entry }: { entry: JournalEntryItem }) {
     setPending(true);
     await deleteJournalEntryAction(entry.id);
     setPending(false);
-    router.refresh();
   }
 
   if (editing) {

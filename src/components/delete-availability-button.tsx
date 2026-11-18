@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { deleteAvailabilityBlockAction } from "@/lib/actions";
 
 export function DeleteAvailabilityButton({ id, className }: { id: string; className?: string }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
   return (
     <button
@@ -18,7 +16,6 @@ export function DeleteAvailabilityButton({ id, className }: { id: string; classN
         setPending(true);
         try {
           await deleteAvailabilityBlockAction(id);
-          router.refresh();
         } finally {
           setPending(false);
         }

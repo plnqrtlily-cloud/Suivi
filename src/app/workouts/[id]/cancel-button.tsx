@@ -1,18 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { cancelWorkoutAction } from "@/lib/actions";
 import { Button } from "@/components/ui";
 
 export function CancelWorkoutButton({ workoutId, className }: { workoutId: string; className?: string }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
   const run = async () => {
     if (!confirm("Annuler cette séance ? L'athlète sera notifié.")) return;
     setPending(true);
     await cancelWorkoutAction(workoutId);
-    router.refresh();
     setPending(false);
   };
   if (className)
@@ -31,7 +28,6 @@ export function CancelWorkoutButton({ workoutId, className }: { workoutId: strin
         if (!confirm("Annuler cette séance ? L'athlète sera notifié.")) return;
         setPending(true);
         await cancelWorkoutAction(workoutId);
-        router.refresh();
         setPending(false);
       }}
     >

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { addExerciseMaxAction, deleteExerciseMaxAction } from "@/lib/actions";
 import { DurationInput, formatDuration } from "@/components/duration-input";
 import { estimateOneRm } from "@/lib/one-rm";
@@ -32,7 +31,6 @@ const inputCls = "rounded-lg border border-line bg-white px-2 py-1 text-[13.5px]
 
 /** Charges de référence : la dernière valeur par exercice, cliquable pour voir l'historique, modifier ou supprimer. */
 export function ChargesList({ athleteId, maxes }: { athleteId: string; maxes: ExerciseMax[] }) {
-  const router = useRouter();
   const [openEx, setOpenEx] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
@@ -53,7 +51,6 @@ export function ChargesList({ athleteId, maxes }: { athleteId: string; maxes: Ex
     start(async () => {
       await addExerciseMaxAction(athleteId, fd);
       setEditing(null);
-      router.refresh();
     });
   }
   function remove(m: ExerciseMax, left: number) {
@@ -61,7 +58,6 @@ export function ChargesList({ athleteId, maxes }: { athleteId: string; maxes: Ex
       await deleteExerciseMaxAction(m.id, athleteId);
       setConfirm(null);
       if (left <= 1) setOpenEx(null);
-      router.refresh();
     });
   }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, isCoachLinkedToAthlete } from "@/lib/auth";
 import { getResourceById } from "@/lib/queries";
-import { readUploadedFile } from "@/lib/storage";
+import { blobRedirect, readUploadedFile } from "@/lib/storage";
 import { bundledAnimationFile } from "@/lib/animation-upgrade";
 import { animationUrl } from "@/lib/exercise-animations";
 import { createHash } from "crypto";
@@ -37,6 +37,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return new NextResponse(null, { status: 304, headers: { ETag: etag, "Cache-Control": "private, no-cache" } });
   }
 
+  const redirect = blobRedirect(resource.file_path);
+  if (redirect) return redirect;
   const buffer = await readUploadedFile(resource.file_path);
   if (!buffer) return NextResponse.json({ error: "Fichier introuvable sur le serveur." }, { status: 404 });
 

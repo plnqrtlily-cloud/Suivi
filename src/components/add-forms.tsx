@@ -27,7 +27,6 @@ export const DONE_SPORTS = [
 ];
 
 function useSubmit(onDone: () => void) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | undefined>();
   async function run(fn: () => Promise<void | { error: string } | unknown>) {
@@ -42,7 +41,6 @@ function useSubmit(onDone: () => void) {
       }
       setPending(false);
       onDone();
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Une erreur est survenue.");
       setPending(false);

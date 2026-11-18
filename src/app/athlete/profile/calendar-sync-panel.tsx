@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { generateCalendarTokenAction, revokeCalendarTokenAction } from "@/lib/actions";
 import { Button } from "@/components/ui";
 
@@ -10,7 +9,6 @@ import { Button } from "@/components/ui";
 // lit pas l'agenda personnel, elle y publie les séances — pas de connexion
 // OAuth à installer, et rien de privé n'entre dans l'application.
 export function CalendarSyncPanel({ initialToken }: { initialToken: string | null }) {
-  const router = useRouter();
   const [token, setToken] = useState(initialToken);
   const [pending, setPending] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -22,7 +20,6 @@ export function CalendarSyncPanel({ initialToken }: { initialToken: string | nul
     const result = await generateCalendarTokenAction();
     setToken(result.token);
     setPending(false);
-    router.refresh();
   }
 
   async function handleRevoke() {
@@ -31,7 +28,6 @@ export function CalendarSyncPanel({ initialToken }: { initialToken: string | nul
     await revokeCalendarTokenAction();
     setToken(null);
     setPending(false);
-    router.refresh();
   }
 
   async function handleCopy() {

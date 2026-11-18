@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { addExerciseMaxAction, deleteExerciseMaxAction } from "@/lib/actions";
 import { Field, Button, SelectField } from "@/components/ui";
 import { DurationInput, formatDuration } from "@/components/duration-input";
@@ -39,7 +38,6 @@ export function ExerciseMaxesPanel({
   /** N'affiche que le formulaire d'ajout (la liste est rendue ailleurs). */
   formOnly?: boolean;
 }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
   const [valueType, setValueType] = useState<"charge" | "temps" | "repetitions">("charge");
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
@@ -55,13 +53,11 @@ export function ExerciseMaxesPanel({
     // Le type de mesure choisi est volontairement CONSERVÉ après l'ajout : on
     // saisit en général plusieurs mesures du même type à la suite, et le
     // remettre sur "charge" obligeait à le resélectionner à chaque fois.
-    router.refresh();
   }
 
   async function handleDelete(id: string) {
     setDeletingId(id);
     await deleteExerciseMaxAction(id, athleteId);
-    router.refresh();
     setDeletingId(null);
   }
 
