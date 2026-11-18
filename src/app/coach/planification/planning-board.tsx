@@ -1,5 +1,6 @@
 "use client";
 
+import { SESSION_TONES } from "@/lib/session-status";
 import { MoreMenu, MenuSeparator, menuItem } from "@/components/more-menu";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
@@ -26,7 +27,7 @@ import { guessSportFromTitle } from "@/lib/calendar-event-kinds";
 // fiche athlète. Séances déplaçables par glisser-déposer (autre jour ou autre
 // athlète), création dans une case vide, détail, duplication.
 
-export type PlanStatus = "done" | "part" | "miss" | "todo" | "goal";
+export type PlanStatus = "valid" | "done" | "part" | "miss" | "todo" | "goal";
 
 export interface PlanAthlete {
   id: string;
@@ -59,8 +60,17 @@ export interface PlanBlock {
   kindLabel?: string;
 }
 
-const COLOR: Record<PlanStatus, string> = { done: "#1b4b4f", part: "#e8896a", miss: "#9aa39c", todo: "#1b4b4f", goal: "#a4492a" };
-const STATUS_LABEL: Record<PlanStatus, string> = { done: "Réalisée", part: "Partielle", miss: "Non réalisée", todo: "À faire", goal: "Objectif" };
+// Code couleur commun (cf. src/lib/session-status.ts) : à faire bleu, faite
+// ambre, validée vert.
+const COLOR: Record<PlanStatus, string> = {
+  valid: SESSION_TONES.validated.bar,
+  done: SESSION_TONES.done.bar,
+  part: SESSION_TONES.done.bar,
+  miss: SESSION_TONES.missed.bar,
+  todo: SESSION_TONES.todo.bar,
+  goal: "#a4492a",
+};
+const STATUS_LABEL: Record<PlanStatus, string> = { valid: "Validée", done: "Faite · à valider", part: "Partielle", miss: "Non réalisée", todo: "À faire", goal: "Objectif" };
 const SPORTS = [
   { value: "cycling", label: "Vélo" },
   { value: "running", label: "Course à pied" },
@@ -349,7 +359,7 @@ export function PlanningBoard({
     const b = parse(visDays[6]);
     heading = `${a.getDate()}${a.getMonth() !== b.getMonth() ? ` ${ML[a.getMonth()]}` : ""} – ${b.getDate()} ${ML[b.getMonth()]}`;
     const shown = items.filter((x) => inVis(x.date) && !x.isGoal && vis.some((a) => a.id === x.athleteId));
-    sub = `Semaine ${isoWeek(visDays[3])} · ${vis.length} athlète${vis.length > 1 ? "s" : ""} · ${shown.length} séance${shown.length > 1 ? "s" : ""} programmée${shown.length > 1 ? "s" : ""} · ${shown.filter((x) => x.status === "done").length} faite${shown.filter((x) => x.status === "done").length > 1 ? "s" : ""}`;
+    sub = `Semaine ${isoWeek(visDays[3])} · ${vis.length} athlète${vis.length > 1 ? "s" : ""} · ${shown.length} séance${shown.length > 1 ? "s" : ""} programmée${shown.length > 1 ? "s" : ""} · ${shown.filter((x) => (x.status === "done" || x.status === "valid")).length} faite${shown.filter((x) => (x.status === "done" || x.status === "valid")).length > 1 ? "s" : ""}`;
   } else {
     heading = `${frs(m0)} – ${frs(m4)}`;
     sub = `Semaines ${isoWeek(m0)} à ${isoWeek(m4)} · ${vis.length} athlète${vis.length > 1 ? "s" : ""}`;
@@ -761,13 +771,13 @@ export function PlanningBoard({
       {view === "week" && !panel && athletes.length > 0 && (
         <div className="flex flex-col gap-2.5 px-0.5 text-xs text-slate">
           <div className="flex flex-wrap gap-[18px]">
-            {(["done", "part", "miss", "todo", "goal"] as PlanStatus[]).map((s) => (
+            {(["todo", "done", "valid", "part", "miss", "goal"] as PlanStatus[]).map((s) => (
               <span key={s} className="inline-flex items-center gap-1.5">
                 <span
                   className="h-2 w-[22px] rounded"
                   style={{ background: s === "todo" ? "#ffffff" : COLOR[s], border: `1.5px ${s === "todo" ? "dashed" : "solid"} ${COLOR[s]}` }}
                 />
-                {s === "done" ? "Faite" : s === "part" ? "Partielle" : s === "miss" ? "Non faite" : STATUS_LABEL[s]}
+                {s === "miss" ? "Non faite" : STATUS_LABEL[s]}
               </span>
             ))}
             <span>La longueur de la barre suit la durée</span>

@@ -169,7 +169,7 @@ export default async function WorkoutDetailPage({
                   Priorité {workout.priority}
                 </span>
               )}
-              <StatusBadge status={workout.status} />
+              <StatusBadge status={workout.status} validated={!!workout.coach_validated_at} />
               {workout.is_draft ? (
                 <span className="rounded-full bg-paper-dim px-2.5 py-0.5 text-xs font-semibold text-slate">Brouillon</span>
               ) : null}

@@ -1,3 +1,4 @@
+import { mtbLabel } from "@/lib/mtb";
 import { PlaceTray, type DayInfo, type FlexItem } from "@/components/place-tray";
 import { sportLabelPlain } from "@/lib/sport-labels";
 import { redirect } from "next/navigation";
@@ -377,7 +378,7 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
               by={a.created_by ? "par ton coach" : a.source === "manual" ? "par toi" : a.source === "garmin" ? "Garmin" : "Strava"}
               icon={<SportIcon sport={a.sport} size={19} />}
               iconColor="#8a5a44"
-              title={sportLabel(a.sport)}
+              title={mtbLabel(a.discipline) ?? sportLabel(a.sport)}
               sub={
                 [a.activity_time, a.duration_minutes ? `${a.duration_minutes} min` : null, a.distance_km ? `${String(a.distance_km).replace(".", ",")} km` : null, a.rpe ? `RPE ${a.rpe}` : null]
                   .filter(Boolean)

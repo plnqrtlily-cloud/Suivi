@@ -7,10 +7,10 @@ import { getCalendarEvents } from "./calendar-events";
 import { eventKind } from "./calendar-event-kinds";
 import type { PlanItem, PlanBlock, PlanStatus } from "@/app/coach/planification/planning-board";
 
-function planStatus(status: string, date: string, today: string): PlanStatus {
+function planStatus(status: string, date: string, today: string, validated = false): PlanStatus {
   switch (status) {
     case "done":
-      return "done";
+      return validated ? "valid" : "done";
     case "partial":
       return "part";
     case "not_done":
@@ -53,7 +53,7 @@ export async function loadPlanningRange(coachId: string, ids: string[], start: s
         sportLabel: sportLabelPlain(w.sport),
         minutes: isGoal ? 0 : w.duration_minutes ?? 0,
         doneMinutes: w.status === "done" || w.status === "partial" ? w.actual_duration_minutes ?? w.duration_minutes ?? 0 : 0,
-        status: isGoal ? "goal" : planStatus(w.status, w.date, today),
+        status: isGoal ? "goal" : planStatus(w.status, w.date, today, !!w.coach_validated_at),
         isGoal,
         isDraft: !!w.is_draft,
         mine: w.coach_id === coachId,

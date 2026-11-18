@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Workout } from "@/lib/queries";
 import { sportIconPath } from "@/lib/sport-icons";
+import { SESSION_TONES } from "@/lib/session-status";
 
 // Éléments partagés par l'accueil et le calendrier de l'athlète : statuts,
 // icône de sport, durée lisible et carte d'élément (séance, ajout…).
@@ -17,15 +18,19 @@ export function durationLabel(min: number | null) {
   return h ? `${h} h${m ? ` ${String(m).padStart(2, "0")}` : ""}` : `${m} min`;
 }
 
+// Code couleur commun (cf. src/lib/session-status.ts) : à faire bleu, faite
+// ambre, validée par le coach vert.
+const T = SESSION_TONES;
 export const STATUS_CHIP: Record<string, { label: string; bg: string; fg: string }> = {
-  todo: { label: "À faire", bg: "#e6eae9", fg: "#5b6660" },
-  noreturn: { label: "Pas de retour", bg: "#fbe3da", fg: "#a4492a" },
-  done: { label: "Faite", bg: "#dfeceb", fg: PET },
-  not_done: { label: "Pas faite", bg: "#e6eae9", fg: "#5b6660" },
-  postponed: { label: "Reportée", bg: "#fbf1dc", fg: "#7a5a14" },
+  todo: { label: T.todo.label, bg: T.todo.bg, fg: T.todo.fg },
+  noreturn: { label: T.noreport.label, bg: T.noreport.bg, fg: T.noreport.fg },
+  done: { label: T.done.label, bg: T.done.bg, fg: T.done.fg },
+  validated: { label: T.validated.label, bg: T.validated.bg, fg: T.validated.fg },
+  not_done: { label: "Pas faite", bg: T.missed.bg, fg: T.missed.fg },
+  postponed: { label: T.postponed.label, bg: T.postponed.bg, fg: T.postponed.fg },
 };
 export function statusKey(w: Workout, today: string) {
-  if (w.status === "done" || w.status === "partial") return "done";
+  if (w.status === "done" || w.status === "partial") return w.coach_validated_at ? "validated" : "done";
   if (w.status === "not_done") return "not_done";
   if (w.status === "postponed") return "postponed";
   return w.date < today ? "noreturn" : "todo";

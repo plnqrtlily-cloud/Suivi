@@ -1,3 +1,4 @@
+import { mtbLabel } from "@/lib/mtb";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
@@ -173,7 +174,7 @@ function DayItems({
           muted={muted}
           icon={<SportIcon sport={a.sport} size={18} />}
           iconColor={DONE_COLOR}
-          title={sportLabel(a.sport)}
+          title={mtbLabel(a.discipline) ?? sportLabel(a.sport)}
           sub={[a.activity_time, durationLabel(a.duration_minutes), a.distance_km ? `${String(a.distance_km).replace(".", ",")} km` : null, a.created_by ? "par ton coach" : "par toi"]
             .filter(Boolean)
             .join(" · ")}

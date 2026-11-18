@@ -127,7 +127,7 @@ async function CoachWeekView({ athleteId, offset, today, base }: { athleteId: st
                           {sportLabel(w.sport)}
                         </span>
                       </span>
-                      <StatusBadge status={w.status} />
+                      <StatusBadge status={w.status} validated={!!w.coach_validated_at} />
                     </Link>
                   ))}
                   {dayImports.map((a) => (

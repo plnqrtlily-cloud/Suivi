@@ -1,3 +1,4 @@
+import { SESSION_TONES, workoutTone } from "@/lib/session-status";
 import { AddEventButton, EventRow } from "@/components/calendar-events";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { getCalendarEvents } from "@/lib/calendar-events";
@@ -32,6 +33,8 @@ interface CalendarEntry {
   color: string;
   href?: string;
   status?: string;
+  validated?: boolean;
+  date?: string;
   routePoints?: string | null;
   // Activité saisie par ce coach : supprimable par lui, et signalée comme telle.
   coachEntryId?: string;
@@ -76,6 +79,8 @@ export default async function CoachAthleteDayPage({ params }: { params: Promise<
       color: w.color,
       href: `/workouts/${w.id}`,
       status: w.status,
+      validated: !!w.coach_validated_at,
+      date: w.date,
     })),
     ...imports.map((a) => {
       const zone = hrZone(a.avg_hr);
@@ -132,11 +137,11 @@ export default async function CoachAthleteDayPage({ params }: { params: Promise<
     const content = (
       <div
         className={`rounded-md border border-line bg-white p-4 text-sm ${e.href ? "hover:border-moss" : ""}`}
-        style={{ borderLeftColor: e.color, borderLeftWidth: 3 }}
+        style={{ borderLeftColor: e.status ? SESSION_TONES[workoutTone({ status: e.status, date: e.date, coach_validated_at: e.validated ? "1" : null }, todayISO())].bar : e.color, borderLeftWidth: 4 }}
       >
         <div className="flex items-center justify-between gap-2">
           <p className="font-medium text-ink">{e.title}</p>
-          {e.status && <StatusBadge status={e.status} />}
+          {e.status && <StatusBadge status={e.status} validated={e.validated} date={e.date} today={todayISO()} />}
           {e.coachEntryId && <CoachDeleteEntryButton kind="activity" id={e.coachEntryId} />}
         </div>
         <p className="mt-1 text-slate">
