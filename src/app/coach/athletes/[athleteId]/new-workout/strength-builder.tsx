@@ -1,5 +1,6 @@
 "use client";
 
+import { PART_COLORS, type BlockPart } from "@/lib/block-parts";
 import { resourceFileUrl } from "@/lib/exercise-animations";
 import { useState } from "react";
 import { Button, SelectField } from "@/components/ui";
@@ -293,9 +294,13 @@ export function StrengthBuilder({
         }
 
         return (
-          <div key={group.title} className="rounded-2xl border border-paper-dim bg-[#f7f9f8] p-4">
+          <div
+            key={group.title}
+            className="rounded-2xl border border-l-[5px] p-4"
+            style={{ borderColor: PART_COLORS[group.title as BlockPart]?.line, borderLeftColor: PART_COLORS[group.title as BlockPart]?.color, background: PART_COLORS[group.title as BlockPart]?.bg }}
+          >
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-base font-bold text-ink">{group.title}</h3>
+              <h3 className="text-base font-bold" style={{ color: PART_COLORS[group.title as BlockPart]?.color }}>{group.title}</h3>
               <div className="flex gap-2">
                 {groupRows.length > 1 && (
                   <Button

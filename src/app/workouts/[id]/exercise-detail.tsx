@@ -13,6 +13,8 @@ import { Linkify } from "@/components/linkify";
 export interface ExerciseDetailData {
   name: string;
   blockTitle: string;
+  /** Couleur de la partie de séance (échauffement, corps de séance…). */
+  partColor?: string;
   qualityLabel: string | null;
   qualityTip: string | null;
   repType: "reps" | "time";
@@ -109,7 +111,7 @@ export function ExerciseDetailButton({ data, children }: { data: ExerciseDetailD
               <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-line sm:hidden" />
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate">{data.blockTitle}</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: data.partColor ?? "#5b6660" }}>{data.blockTitle}</p>
                   <h2 className="text-[22px] font-bold leading-tight text-ink">{data.name}</h2>
                 </div>
                 <button type="button" onClick={() => setOpen(false)} aria-label="Fermer" className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-paper-dim text-slate hover:text-ink">

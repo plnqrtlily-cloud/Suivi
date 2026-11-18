@@ -8,6 +8,7 @@ import { formatWorkoutTime, isTimeOfDaySlug } from "@/lib/time-of-day";
 import { Nav } from "@/components/nav";
 import { Card, StatusBadge, sportLabel } from "@/components/ui";
 import { mtbLabel } from "@/lib/mtb";
+import { PART_COLORS, partColors, partOf } from "@/lib/block-parts";
 import { Linkify, safeUrl, shortUrl } from "@/components/linkify";
 import { resourceFileUrl } from "@/lib/exercise-animations";
 import { after } from "next/server";
@@ -365,6 +366,7 @@ export default async function WorkoutDetailPage({
                   return {
                     name: b.exercise_name,
                     blockTitle: blockTitle(b),
+                    partColor: partColors(b.block_type).color,
                     qualityLabel: b.training_quality ? QUALITY_LABELS[b.training_quality] : null,
                     qualityTip: b.training_quality ? QUALITY_TIPS[b.training_quality] ?? null : null,
                     repType: b.rep_type === "time" ? "time" : "reps",
@@ -400,10 +402,11 @@ export default async function WorkoutDetailPage({
                 // elle s'ouvre en touchant l'exercice, dans sa fiche détaillée.
                 const renderBlock = (b: any) => {
                   const detail = detailOf(b);
+                  const pc = partColors(b.block_type);
                   return (
-                  <div key={b.id} className="border-l-2 border-moss/40 pl-3">
+                  <div key={b.id} className="border-l-[3px] pl-3" style={{ borderColor: pc.color }}>
                   <ExerciseDetailButton data={detail}>
-                    <p className="text-xs uppercase tracking-wide text-slate">{blockTitle(b)}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: pc.color }}>{blockTitle(b)}</p>
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-medium text-ink underline decoration-moss/40 decoration-dotted underline-offset-4">{b.exercise_name}</p>
                       {detail.demo && (
@@ -465,11 +468,34 @@ export default async function WorkoutDetailPage({
                   );
                 };
 
+                // Chaque partie (échauffement, corps de séance, gainage, retour
+                // au calme) a sa couleur, avec un intitulé quand elle commence.
+                let prevPart: string | null = null;
                 return segments.map((segment, i) => {
-                  if (!segment.circuitId) return <div key={`s${i}`}>{segment.blocks.map(renderBlock)}</div>;
+                  const part = partOf(segment.blocks[0]?.block_type ?? "main");
+                  const pc = PART_COLORS[part];
+                  const header =
+                    part !== prevPart ? (
+                      <div className={`flex items-center gap-2 ${i > 0 ? "mt-3" : ""}`}>
+                        <span className="rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider" style={{ background: pc.bg, color: pc.color }}>
+                          {part}
+                        </span>
+                        <span className="h-px flex-1" style={{ background: pc.line }} />
+                      </div>
+                    ) : null;
+                  prevPart = part;
+                  if (!segment.circuitId)
+                    return (
+                      <div key={`s${i}`} className="flex flex-col gap-3">
+                        {header}
+                        {segment.blocks.map(renderBlock)}
+                      </div>
+                    );
                   return (
-                    <div key={segment.circuitId} className="rounded-xl border-2 border-dashed border-moss/40 p-3">
-                      <p className="mb-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-moss-dark">
+                    <div key={segment.circuitId} className="flex flex-col gap-3">
+                    {header}
+                    <div className="rounded-xl border-2 border-dashed p-3" style={{ borderColor: pc.line, background: `${pc.bg}80` }}>
+                      <p className="mb-2 flex flex-wrap items-center gap-2 text-sm font-semibold" style={{ color: pc.color }}>
                         <span>Série × {segment.rounds || 1}</span>
                         {segment.blocks[0]?.circuit_rest_seconds ? (
                           <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-ink-soft">
@@ -483,6 +509,7 @@ export default async function WorkoutDetailPage({
                         )}
                       </p>
                       <div className="flex flex-col gap-3">{segment.blocks.map(renderBlock)}</div>
+                    </div>
                     </div>
                   );
                 });
