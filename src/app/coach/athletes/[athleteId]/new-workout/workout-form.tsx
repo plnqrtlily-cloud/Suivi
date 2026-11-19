@@ -1,5 +1,6 @@
 "use client";
 
+import { SessionDurationInput } from "@/components/session-duration-input";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createWorkoutAction, updateWorkoutAction, saveWorkoutTemplateAction, createWorkoutBulkAction, publishWorkoutAction } from "@/lib/actions";
@@ -441,8 +442,8 @@ export function WorkoutForm({
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           <label className={label}>
-            Durée prévue (min)
-            <input type="number" min={0} value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="60" className={input} />
+            Durée prévue
+            <SessionDurationInput bare value={duration} onChange={setDuration} placeholder="45 min, 1h30" className={input} />
           </label>
           <label className={label}>
             RPE visé

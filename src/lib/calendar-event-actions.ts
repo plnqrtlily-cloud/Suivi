@@ -41,6 +41,7 @@ export interface CalendarEventInput {
   /** Type de VTT quand sport = « mtb » (cf. src/lib/mtb.ts). */
   discipline?: string | null;
   durationMinutes?: number;
+  elevationGainM?: number;
 }
 
 function clean(input: CalendarEventInput) {
@@ -62,6 +63,10 @@ function clean(input: CalendarEventInput) {
     // « VTT » : enregistré en vélo, avec son type à côté.
     sport: kind === "entrainement" && input.sport ? (input.sport === "mtb" ? "cycling" : input.sport.slice(0, 30)) : null,
     discipline: kind === "entrainement" && input.sport === "mtb" ? (parseDiscipline(input.discipline) ?? "mtb") : null,
+    elevation_gain_m:
+      kind === "entrainement" && ["mtb", "cycling", "running", "hiking", "trail"].includes(input.sport ?? "") && input.elevationGainM && input.elevationGainM > 0
+        ? Math.min(Math.round(input.elevationGainM), 20000)
+        : null,
     duration_minutes: kind === "entrainement" && input.durationMinutes && input.durationMinutes > 0 ? Math.min(Math.round(input.durationMinutes), 1440) : null,
   };
 }
@@ -99,9 +104,9 @@ export async function createCalendarEventAction(input: CalendarEventInput) {
     const e = clean({ ...input, startDate: start, endDate: end, time: days.length === 1 ? input.time : "" });
     first ??= e;
     await dbRun(
-      `INSERT INTO calendar_events (id, athlete_id, author_id, updated_by, kind, title, start_date, end_date, time, location, notes, sport, duration_minutes, discipline)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [randomUUID(), athleteId, user.id, user.id, e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes, e.sport, e.duration_minutes, e.discipline]
+      `INSERT INTO calendar_events (id, athlete_id, author_id, updated_by, kind, title, start_date, end_date, time, location, notes, sport, duration_minutes, discipline, elevation_gain_m)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [randomUUID(), athleteId, user.id, user.id, e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes, e.sport, e.duration_minutes, e.discipline, e.elevation_gain_m]
     );
   }
   // Une seule notification, même pour plusieurs dates.
@@ -113,14 +118,26 @@ export async function updateCalendarEventAction(id: string, input: CalendarEvent
   const row = await getCalendarEvent(id);
   if (!row) throw new Error("Cet événement n'existe plus.");
   const user = await requireManager(row.athlete_id);
-  const e = clean(input);
+  // Plusieurs jours non consécutifs : l'événement garde la première suite de
+  // jours, les suivantes deviennent de nouveaux événements identiques.
+  const days = [...new Set((input.dates ?? []).filter((d) => DATE_RE.test(d)))].sort().slice(0, 366);
+  const runs: [string, string][] = days.length ? (input.kind === "entrainement" ? days.map((d) => [d, d]) : consecutiveRuns(days)) : [];
+  const e = clean(runs.length ? { ...input, startDate: runs[0][0], endDate: runs[0][1], time: days.length === 1 ? input.time : "" } : input);
+  for (const [start, end] of runs.slice(1)) {
+    const x = clean({ ...input, startDate: start, endDate: end, time: "" });
+    await dbRun(
+      `INSERT INTO calendar_events (id, athlete_id, author_id, updated_by, kind, title, start_date, end_date, time, location, notes, sport, duration_minutes, discipline, elevation_gain_m)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [randomUUID(), row.athlete_id, user.id, user.id, x.kind, x.title, x.start_date, x.end_date, x.time, x.location, x.notes, x.sport, x.duration_minutes, x.discipline, x.elevation_gain_m]
+    );
+  }
   await dbRun(
-    `UPDATE calendar_events SET kind = ?, title = ?, start_date = ?, end_date = ?, time = ?, location = ?, notes = ?, sport = ?, discipline = ?, duration_minutes = ?,
+    `UPDATE calendar_events SET kind = ?, title = ?, start_date = ?, end_date = ?, time = ?, location = ?, notes = ?, sport = ?, discipline = ?, duration_minutes = ?, elevation_gain_m = ?,
        updated_by = ?, updated_at = datetime('now') WHERE id = ?`,
-    [e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes, e.sport, e.discipline, e.duration_minutes, user.id, id]
+    [e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes, e.sport, e.discipline, e.duration_minutes, e.elevation_gain_m, user.id, id]
   );
   await notifyEventChange(user, row.athlete_id, "updated", e);
-  revalidateCalendars(row.athlete_id, [row.start_date, e.start_date, e.end_date]);
+  revalidateCalendars(row.athlete_id, [row.start_date, e.start_date, e.end_date, ...days]);
 }
 
 export async function deleteCalendarEventAction(id: string) {

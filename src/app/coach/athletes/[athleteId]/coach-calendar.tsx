@@ -1,5 +1,7 @@
 "use client";
 
+import { SessionDurationInput } from "@/components/session-duration-input";
+import { formatDuration } from "@/lib/duration";
 import { MtbPicker } from "@/components/mtb-picker";
 import { Linkify, safeUrl, shortUrl } from "@/components/linkify";
 import { SESSION_TONES, type SessionTone } from "@/lib/session-status";
@@ -1578,6 +1580,7 @@ type ReportInput = {
   actualDurationMinutes?: number;
   distanceKm?: number;
   avgHr?: number;
+  elevationGainM?: number;
   postponedToDate?: string;
 };
 
@@ -1590,6 +1593,8 @@ function ReportForm({ entry: e, data, pending, onCancel, onSave }: { entry: CalE
   const [rpe, setRpe] = useState<number | null>(e.rpe ?? e.plannedRpe ?? null);
   const [dist, setDist] = useState(e.distanceKm != null ? String(e.distanceKm).replace(".", ",") : "");
   const [hr, setHr] = useState(e.avgHr != null ? String(e.avgHr) : "");
+  const [dplus, setDplus] = useState(e.elevation != null ? String(e.elevation) : "");
+  const withElevation = ["cycling", "running", "hiking", "mtb"].includes(e.sport);
   const [note, setNote] = useState(e.feedback ?? "");
   const [newDate, setNewDate] = useState("");
   const input = "w-full rounded-[10px] border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-moss";
@@ -1635,8 +1640,8 @@ function ReportForm({ entry: e, data, pending, onCancel, onSave }: { entry: CalE
         <>
           <div className="grid max-w-[640px] grid-cols-2 gap-3 sm:grid-cols-3">
             <label className={label}>
-              Durée réelle (min)
-              <input inputMode="numeric" value={minutes} onChange={(ev) => setMinutes(ev.target.value)} placeholder={e.plannedMin ? String(e.plannedMin) : "60"} className={input} />
+              Durée réelle
+              <SessionDurationInput bare value={minutes} onChange={setMinutes} placeholder={e.plannedMin ? formatDuration(e.plannedMin) : "1h"} className={input} />
             </label>
             <label className={label}>
               Distance (km)
@@ -1646,6 +1651,12 @@ function ReportForm({ entry: e, data, pending, onCancel, onSave }: { entry: CalE
               FC moyenne (bpm)
               <input inputMode="numeric" value={hr} onChange={(ev) => setHr(ev.target.value)} placeholder="—" className={input} />
             </label>
+            {withElevation && (
+              <label className={label}>
+                Dénivelé + (m)
+                <input inputMode="numeric" value={dplus} onChange={(ev) => setDplus(ev.target.value)} placeholder="—" className={input} />
+              </label>
+            )}
           </div>
           <div className="flex flex-col gap-1.5">
             <span className="text-[12.5px] font-semibold text-slate">
@@ -1695,7 +1706,7 @@ function ReportForm({ entry: e, data, pending, onCancel, onSave }: { entry: CalE
             onSave({
               status: choice,
               ...(realised
-                ? { actualDurationMinutes: num(minutes), distanceKm: num(dist), avgHr: num(hr), rpe: rpe ?? undefined }
+                ? { actualDurationMinutes: num(minutes), distanceKm: num(dist), avgHr: num(hr), elevationGainM: withElevation ? num(dplus) : undefined, rpe: rpe ?? undefined }
                 : {}),
               athleteFeedback: note.trim() || undefined,
               postponedToDate: choice === "postponed" && newDate ? newDate : undefined,
@@ -1828,10 +1839,13 @@ function AddPanel({
               <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Activité
                 <select name="sport" value={doneSport} onChange={(ev) => setDoneSport(ev.target.value)} className={input}>{SPORTS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}</select>
               </label>
-              <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Durée (min)<input name="durationMinutes" type="number" min={1} required className={input} /></label>
+              <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Durée<SessionDurationInput bare name="durationMinutes" required className={input} /></label>
               <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">RPE<input name="rpe" type="number" min={1} max={10} className={input} /></label>
               <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Distance (km)<input name="distanceKm" type="number" step="0.1" min={0} className={input} /></label>
               <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">FC moyenne<input name="avgHr" type="number" min={30} max={230} className={input} /></label>
+              {["mtb", "cycling", "running", "hiking"].includes(doneSport) && (
+                <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Dénivelé + (m)<input name="elevationGainM" type="number" min={0} step={10} className={input} /></label>
+              )}
             </div>
             {doneSport === "mtb" && <MtbPicker value={doneMtb} onChange={setDoneMtb} name="discipline" />}
             <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Notes<textarea name="notes" rows={2} placeholder="Ce que l'athlète vous a dit de la séance…" className={`${input} resize-y`} /></label>

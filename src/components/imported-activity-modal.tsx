@@ -1,5 +1,6 @@
 "use client";
 
+import { SessionDurationInput } from "@/components/session-duration-input";
 import { useState } from "react";
 import { updateImportedActivityAction, deleteImportedActivityAction } from "@/lib/actions";
 import { Button, Field, SelectField, ErrorText } from "@/components/ui";
@@ -98,7 +99,7 @@ export function EditImportedActivityModal({ activity, className }: { activity: E
                 <MtbPicker value={discipline} onChange={setDiscipline} name="discipline" />
               </div>
             )}
-            <Field label="Durée (minutes)" type="number" name="durationMinutes" min={0} defaultValue={activity.duration_minutes ?? ""} />
+            <SessionDurationInput label="Durée" name="durationMinutes" defaultMinutes={activity.duration_minutes ?? null} />
             {sport !== "strength" && (
               <Field label="Distance (km)" type="number" step="0.1" name="distanceKm" min={0} defaultValue={activity.distance_km ?? ""} />
             )}

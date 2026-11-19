@@ -33,6 +33,8 @@ export interface CalendarEventView {
   /** Type de VTT (cf. src/lib/mtb.ts), pour un entraînement vélo. */
   discipline?: string | null;
   durationMinutes: number | null;
+  /** Dénivelé positif prévu (m). */
+  elevationGainM?: number | null;
   authorName: string;
   mine: boolean;
 }
@@ -49,6 +51,9 @@ export function eventDateLabel(start: string, end: string) {
   if (start.slice(0, 7) === end.slice(0, 7)) return `${Number(start.slice(8)) === 1 ? "1er" : Number(start.slice(8))} → ${dm(end)}`;
   return `${dm(start)} → ${dm(end)}`;
 }
+
+/** Sports où le dénivelé positif a du sens. */
+export const ELEVATION_SPORTS = ["mtb", "cycling", "running", "hiking", "trail"];
 
 export const TRAINING_SPORTS = [
   { value: "mtb", label: "VTT" },
@@ -99,7 +104,7 @@ export function guessSportFromTitle(title: string): string | null {
  */
 export function eventSubtitle(e: CalendarEventView, you: "toi" | "vous" = "toi") {
   const multi = e.startDate !== e.endDate;
-  const training = e.kind === "entrainement" ? [mtbLabel(e.discipline) ?? TRAINING_SPORTS.find((s) => s.value === e.sport)?.label, e.durationMinutes ? minutesLabel(e.durationMinutes) : null] : [];
+  const training = e.kind === "entrainement" ? [mtbLabel(e.discipline) ?? TRAINING_SPORTS.find((s) => s.value === e.sport)?.label, e.durationMinutes ? minutesLabel(e.durationMinutes) : null, e.elevationGainM ? `D+ ${e.elevationGainM} m` : null] : [];
   return [e.kind === "entrainement" && e.sport ? null : eventKind(e.kind).label, ...training, multi ? eventDateLabel(e.startDate, e.endDate) : e.time, e.location, e.mine ? `par ${you}` : `par ${e.authorName}`]
     .filter(Boolean)
     .join(" · ");

@@ -1,5 +1,6 @@
 "use client";
 
+import { SessionDurationInput } from "@/components/session-duration-input";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createTeamSessionAction } from "@/lib/actions";
@@ -145,7 +146,7 @@ export function TeamSessionForm({ teamId, teamName }: { teamId: string; teamName
             )}
           </div>
         </div>
-        <Field label="Durée prévue (minutes)" type="number" name="duration" min={0} />
+        <SessionDurationInput label="Durée prévue" name="duration" />
       </div>
 
       <TextAreaField label="Description (facultatif)" name="description" rows={3} />

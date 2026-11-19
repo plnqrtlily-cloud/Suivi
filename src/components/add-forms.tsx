@@ -1,5 +1,6 @@
 "use client";
 
+import { SessionDurationInput } from "@/components/session-duration-input";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { addImportedActivityAction, addAvailabilityBlockAction, addJournalEntryAction, addCycleEntryAction } from "@/lib/actions";
@@ -103,7 +104,7 @@ export function DoneActivityForm({ defaultDate, onDone, onCancel }: { defaultDat
             <MtbPicker value={discipline} onChange={setDiscipline} />
           </div>
         )}
-        <Field label="Durée (min)" type="number" name="durationMinutes" min={0} />
+        <SessionDurationInput label="Durée" name="durationMinutes" />
         {sport !== "strength" && <Field label="Distance (km)" type="number" step="0.1" name="distanceKm" min={0} />}
         <Field label="FC moyenne (bpm)" type="number" name="avgHr" min={0} />
         {(sport === "running" || bike || sport === "hiking") && <Field label="Dénivelé + (m)" type="number" name="elevationGainM" min={0} />}

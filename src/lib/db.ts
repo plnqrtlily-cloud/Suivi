@@ -809,6 +809,8 @@ const MIGRATIONS: string[] = [
   // VTT sans type précisé ; cf. src/lib/mtb.ts). NULL : vélo de route / autre.
   `ALTER TABLE imported_activities ADD COLUMN discipline TEXT`,
   `ALTER TABLE calendar_events ADD COLUMN discipline TEXT`,
+  // Dénivelé positif prévu d'un entraînement (VTT, vélo, course, rando).
+  `ALTER TABLE calendar_events ADD COLUMN elevation_gain_m INTEGER`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

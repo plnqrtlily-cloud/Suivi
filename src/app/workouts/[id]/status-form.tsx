@@ -1,5 +1,6 @@
 "use client";
 
+import { SessionDurationInput } from "@/components/session-duration-input";
 import { withDirectUploads } from "@/lib/upload-client";
 import { useState } from "react";
 import { updateWorkoutStatusAction, addCompletionPhotoAction } from "@/lib/actions";
@@ -92,12 +93,7 @@ export function StatusForm({
             <input type="range" min={1} max={10} value={rpe} onChange={(e) => setRpe(Number(e.target.value))} />
           </label>
 
-          <input
-            type="number"
-            name="actualDuration"
-            placeholder="Durée réelle (minutes, facultatif)"
-            className="rounded-md border border-line bg-white px-3 py-2 text-sm"
-          />
+          <SessionDurationInput label="Durée réelle (facultatif)" name="actualDuration" placeholder="45 min ou 1h30" />
 
           {showDone && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

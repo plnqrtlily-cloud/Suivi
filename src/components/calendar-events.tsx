@@ -1,5 +1,6 @@
 "use client";
 
+import { SessionDurationInput } from "@/components/session-duration-input";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Button, Field, TextAreaField, ErrorText } from "@/components/ui";
@@ -8,7 +9,7 @@ import { dateRangeToList } from "@/components/date-range-picker";
 import { createCalendarEventAction, deleteCalendarEventAction, updateCalendarEventAction } from "@/lib/calendar-event-actions";
 import { MtbPicker } from "@/components/mtb-picker";
 import { Linkify } from "@/components/linkify";
-import { EVENT_KINDS, TRAINING_SPORTS, guessMtbFromTitle, guessSportFromTitle, eventKind, eventSubtitle, type CalendarEventView } from "@/lib/calendar-event-kinds";
+import { EVENT_KINDS, ELEVATION_SPORTS, TRAINING_SPORTS, guessMtbFromTitle, guessSportFromTitle, eventKind, eventSubtitle, type CalendarEventView } from "@/lib/calendar-event-kinds";
 
 // Événements du calendrier partagé athlète ↔ coach : formulaire (ajout et
 // modification), ligne d'affichage et fenêtre de détail. Utilisés des deux
@@ -70,6 +71,7 @@ export function CalendarEventForm({
       sport: String(fd.get("sport") || ""),
       discipline: sport === "mtb" ? mtb : null,
       durationMinutes: Number(fd.get("durationMinutes") || 0) || undefined,
+      elevationGainM: Number(fd.get("elevationGainM") || 0) || undefined,
     };
     setPending(true);
     setError(undefined);
@@ -136,7 +138,10 @@ export function CalendarEventForm({
               ))}
             </select>
           </label>
-          <Field label="Durée prévue (min)" type="number" name="durationMinutes" min={0} max={1440} defaultValue={event?.durationMinutes ?? ""} />
+          <SessionDurationInput label="Durée prévue" name="durationMinutes" defaultMinutes={event?.durationMinutes ?? null} />
+          {ELEVATION_SPORTS.includes(sport) && (
+            <Field label="Dénivelé + prévu (m)" type="number" name="elevationGainM" min={0} step={10} defaultValue={event?.elevationGainM ?? ""} placeholder="ex. 800" />
+          )}
           {sport === "mtb" && (
             <div className="col-span-2">
               <MtbPicker value={mtb} onChange={(v) => { setMtb(v); setMtbTouched(true); }} />
@@ -146,9 +151,9 @@ export function CalendarEventForm({
       )}
       <div>
         <span className="mb-1.5 block text-sm font-medium text-ink-soft">Jour(s)</span>
-        {/* Un événement existant reste une période continue ; à la création,
-            des jours séparés donnent un événement par suite de jours. */}
-        <DaysPicker value={dates} onChange={setDates} rangeOnly={!!event} />
+        {/* Des jours séparés donnent un événement par suite de jours
+            consécutifs (en modification : l'événement garde la première). */}
+        <DaysPicker value={dates} onChange={setDates} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         {singleDay && <Field label="Heure (facultatif)" type="time" name="time" defaultValue={event?.time ?? ""} />}

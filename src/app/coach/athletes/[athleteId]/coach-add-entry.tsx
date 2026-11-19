@@ -1,5 +1,6 @@
 "use client";
 
+import { SessionDurationInput } from "@/components/session-duration-input";
 import { useState } from "react";
 import Link from "next/link";
 import { coachAddActivityAction, coachAddAvailabilityBlockAction, coachDeleteEntryAction } from "@/lib/actions";
@@ -172,7 +173,7 @@ export function CoachAddEntryButton({
                     </option>
                   ))}
                 </SelectField>
-                <Field label="Durée (min)" type="number" name="durationMinutes" min={0} />
+                <SessionDurationInput label="Durée" name="durationMinutes" />
                 {sport !== "strength" && <Field label="Distance (km)" type="number" step="0.1" name="distanceKm" min={0} />}
                 <Field label="FC moyenne (bpm)" type="number" name="avgHr" min={0} />
                 {(sport === "running" || sport === "cycling" || sport === "hiking") && (

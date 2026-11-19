@@ -17,6 +17,7 @@ import {
   publishWorkoutsAction,
 } from "@/lib/actions";
 import { Avatar } from "@/components/avatar";
+import { SessionDurationInput } from "@/components/session-duration-input";
 import { DaysPicker } from "@/components/days-picker";
 import { CopyWorkoutButton, pasteWorkout, useCopiedWorkout } from "@/components/workout-clipboard";
 import { guessSportFromTitle } from "@/lib/calendar-event-kinds";
@@ -92,7 +93,6 @@ const PRESETS: [string, number][] = [
   ["Renfo", 45],
   ["Récupération", 45],
 ];
-const DURATIONS = [20, 30, 40, 45, 50, 60, 75, 90, 105, 120, 150, 180, 210, 240, 300];
 const DN = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 const MS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 const ML = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
@@ -831,7 +831,7 @@ export function PlanningBoard({
               />
             </label>
             <SportSelect value={form.sport} onChange={(v) => setForm({ ...form, sport: v })} label={label} input={input} />
-            <DurationSelect value={form.minutes} onChange={(v) => setForm({ ...form, minutes: v })} label={label} input={input} />
+            <SessionDurationInput label="Durée" value={form.minutes} onChange={(v) => setForm((f) => ({ ...f, minutes: v }))} labelClassName={label} labelTextClassName="" className={input} />
             <button
               type="button"
               className={btnPrimary}
@@ -919,7 +919,7 @@ export function PlanningBoard({
                 <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className={input} />
               </label>
               <SportSelect value={form.sport} onChange={(v) => setForm({ ...form, sport: v })} label={label} input={input} />
-              <DurationSelect value={form.minutes} onChange={(v) => setForm({ ...form, minutes: v })} label={label} input={input} />
+              <SessionDurationInput label="Durée" value={form.minutes} onChange={(v) => setForm((f) => ({ ...f, minutes: v }))} labelClassName={label} labelTextClassName="" className={input} />
               <label className={label}>
                 Date
                 <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className={input} />
@@ -1093,18 +1093,3 @@ function SportSelect({ value, onChange, label, input }: { value: string; onChang
   );
 }
 
-function DurationSelect({ value, onChange, label, input }: { value: string; onChange: (v: string) => void; label: string; input: string }) {
-  const opts = DURATIONS.includes(Number(value)) ? DURATIONS : [...DURATIONS, Number(value)].sort((a, b) => a - b);
-  return (
-    <label className={label}>
-      Durée
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={input}>
-        {opts.map((m) => (
-          <option key={m} value={String(m)}>
-            {hm(m)}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
