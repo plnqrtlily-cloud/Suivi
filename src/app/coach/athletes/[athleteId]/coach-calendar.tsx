@@ -28,6 +28,9 @@ import { WorkoutStructure } from "@/components/workout-structure";
 import { CalendarEventForm, EventDetail, EventFlag } from "@/components/calendar-events";
 import { DaysPicker } from "@/components/days-picker";
 import { StatusForm } from "@/app/workouts/[id]/status-form";
+import { CommentBody } from "@/components/comment-body";
+import { EditImportedActivityModal } from "@/components/imported-activity-modal";
+import { EditAvailabilityModal, type ExistingBlock } from "@/components/availability-modal";
 import { ElapsedTimeField, RouteUrlField } from "@/components/activity-extra-fields";
 import { PlaceTray } from "@/components/place-tray";
 import { ClipboardBar, CopyWorkoutButton, pasteWorkout, useCopiedWorkout, type CopiedWorkout } from "@/components/workout-clipboard";
@@ -1301,6 +1304,7 @@ function DayPanel({
                 <span className="block text-sm font-semibold text-ink">{b.label}</span>
                 {b.reason && <span className="block text-[13px] text-ink-soft">{b.reason}</span>}
               </div>
+              <EditAvailabilityModal block={{ id: b.id, date: b.date, time_of_day: b.timeOfDay as ExistingBlock["time_of_day"], reason: b.reason }} className="flex h-8 w-8 items-center justify-center rounded-full bg-paper text-slate hover:text-ink" />
               {b.createdByMe && (
                 <button type="button" onClick={() => onDelete("availability", b.id)} aria-label="Supprimer l'indisponibilité" className="flex h-8 w-8 items-center justify-center rounded-full bg-paper text-slate">×</button>
               )}
@@ -1388,6 +1392,31 @@ function EntryPanel({
             </button>
           )}
           {/* Les autres actions sont regroupées dans le menu « ⋯ ». */}
+          {/* Activité hors programme : modifiable par le coach (saisie par lui
+              ou par l'athlète). */}
+          {!isWorkout && (
+            <EditImportedActivityModal
+              className={pill}
+              activity={{
+                id: e.id,
+                activity_date: e.date,
+                activity_time: e.timeLabel,
+                sport: e.sport,
+                discipline: e.discipline,
+                duration_minutes: e.realMin,
+                elapsed_minutes: e.totalMin,
+                distance_km: e.distanceKm,
+                avg_hr: e.avgHr,
+                elevation_gain_m: e.elevation,
+                avg_power_w: e.power,
+                rpe: e.rpe,
+                notes: e.description,
+                route_url: e.routeUrl,
+              }}
+            >
+              Modifier
+            </EditImportedActivityModal>
+          )}
           {(isWorkout || e.createdByMe) && (
             <MoreMenu label="Actions sur la séance">
               {isWorkout && <Link href={`/workouts/${e.id}?apercu=athlete`} className={menuItem}>Voir comme l&apos;athlète</Link>}
@@ -1559,7 +1588,7 @@ function EntryPanel({
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold" style={{ background: c.mine ? "#e3eeed" : "#fbe6dd", color: c.mine ? "#0f3336" : "#8a3a1f" }}>{c.init}</div>
                   <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="text-[12.5px]"><b className="text-ink">{c.who}</b> <span className="text-[#7a8480]">· {c.when}</span></span>
-                    <span className="whitespace-pre-line text-sm leading-relaxed text-ink-soft">{c.body}</span>
+                    <CommentBody id={c.id} body={c.body} mine={c.mine} className="whitespace-pre-line text-sm leading-relaxed text-ink-soft" />
                   </div>
                 </div>
               ))}

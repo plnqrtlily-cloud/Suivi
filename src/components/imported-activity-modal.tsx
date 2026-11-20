@@ -1,5 +1,7 @@
 "use client";
 
+import { createPortal } from "react-dom";
+
 import { ElapsedTimeField, RouteUrlField } from "@/components/activity-extra-fields";
 import { OUTDOOR_SPORTS } from "@/lib/route-url";
 import { SessionDurationInput } from "@/components/session-duration-input";
@@ -27,8 +29,10 @@ export interface EditableActivity {
 }
 
 function Modal({ title, subtitle, onClose, children }: { title: string; subtitle: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/25 backdrop-blur-[2px] sm:items-center sm:p-6">
+  // Rendue dans <body> : ouverte depuis un panneau ou une carte, elle ne
+  // doit pas être rognée ni passer sous la barre de navigation.
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-ink/25 backdrop-blur-[2px] sm:items-center sm:p-6">
       <button aria-label="Fermer" className="absolute inset-0 cursor-default" onClick={onClose} />
       <div className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-[26px] bg-white p-6 pb-5 shadow-2xl sm:max-w-md sm:rounded-[26px]">
         <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-line sm:hidden" />
@@ -36,14 +40,15 @@ function Modal({ title, subtitle, onClose, children }: { title: string; subtitle
         <p className="mb-4 text-[13px] text-slate">{subtitle}</p>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
 // Reprend exactement les champs/logique conditionnelle du formulaire d'import
 // manuel (sync-panel.tsx) — même sports, mêmes champs affichés selon le
 // sport — pour que la modification ne surprenne pas après l'ajout.
-export function EditImportedActivityModal({ activity, className }: { activity: EditableActivity; className?: string }) {
+export function EditImportedActivityModal({ activity, className, children }: { activity: EditableActivity; className?: string; /** Contenu du bouton (sinon : crayon). */ children?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   // Un VTT s'édite comme « VTT » + son type (enregistré en vélo, cf. mtb.ts).
@@ -75,13 +80,15 @@ export function EditImportedActivityModal({ activity, className }: { activity: E
           e.stopPropagation();
           setOpen(true);
         }}
-        aria-label="Modifier la séance"
+        aria-label={children ? undefined : "Modifier la séance"}
         title="Modifier"
-        className={`-m-1.5 p-1.5 ${className || ""}`}
+        className={children ? className : `-m-1.5 p-1.5 ${className || ""}`}
       >
-        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M13.5 3.5l3 3L7 16l-4 1 1-4z" />
-        </svg>
+        {children ?? (
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M13.5 3.5l3 3L7 16l-4 1 1-4z" />
+          </svg>
+        )}
       </button>
       {open && (
         <Modal title="Modifier la séance" subtitle="Corrigez les données de cette séance faite." onClose={() => setOpen(false)}>

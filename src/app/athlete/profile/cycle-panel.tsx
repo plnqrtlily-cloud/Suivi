@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updateCycleSharingAction, addCycleEntryAction } from "@/lib/actions";
+import { updateCycleSharingAction, addCycleEntryAction, deleteCycleEntryAction } from "@/lib/actions";
 import { Button, Field, SelectField } from "@/components/ui";
 import { CycleEstimate, CycleSettings } from "@/lib/cycle-types";
 import { CycleWheel } from "./cycle-wheel";
@@ -105,6 +105,15 @@ export function CyclePanel({
                 {e.entry_date} —{" "}
                 {e.entry_type === "period_start" ? "début des règles" : e.entry_type === "period_end" ? "fin des règles" : "note"}
                 {e.notes ? ` : ${e.notes}` : ""}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (confirm("Supprimer cette entrée ?")) await deleteCycleEntryAction(e.id);
+                  }}
+                  className="ml-2 text-xs font-semibold text-slate underline-offset-2 hover:text-[#a4492a] hover:underline"
+                >
+                  Supprimer
+                </button>
               </li>
             ))}
           </ul>

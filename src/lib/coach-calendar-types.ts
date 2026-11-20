@@ -63,6 +63,8 @@ export interface CalEntry {
 
 export interface CalBlock {
   id: string;
+  date: string;
+  timeOfDay: string;
   label: string;
   reason: string | null;
   createdByMe: boolean;

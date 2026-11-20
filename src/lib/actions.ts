@@ -38,6 +38,7 @@ import { saveUploadedFile, uploadFromForm, deleteUploadedFile, ALLOWED_MIME_TYPE
 import { EXERCISE_ANIMATIONS, EXERCISE_ANIMATIONS_SPORT, bundledPath } from "./exercise-animations";
 import { upgradeOutdatedAnimations } from "./animation-upgrade";
 import { parseDiscipline } from "./mtb";
+import { canManageAthleteCalendar } from "./calendar-events";
 import { parseGpx, simplifyRoute } from "./gpx";
 import { getResourceById, getBlocksForWorkout, getCoachPlanStatus, getTeamWithMembers } from "./queries";
 import { ADMIN_EMAIL, trialEndDate } from "./billing";
@@ -1007,6 +1008,35 @@ export async function cancelWorkoutAction(workoutId: string) {
 // Une vidéo (exécution d'un mouvement côté athlète, correction côté coach)
 // peut accompagner ou remplacer le texte — mêmes contraintes de format/
 // taille que la bibliothèque de ressources, même stockage (cf. storage.ts).
+/** Modifier son propre commentaire (texte ; la vidéo jointe reste). */
+export async function updateWorkoutCommentAction(commentId: string, body: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Non autorisé.");
+  const c = await dbGet<{ workout_id: string; author_id: string; video_path: string | null }>(`SELECT workout_id, author_id, video_path FROM workout_comments WHERE id = ?`, [commentId]);
+  if (!c || c.author_id !== user.id) throw new Error("Non autorisé.");
+  const text = body.trim().slice(0, 5000) || (c.video_path ? "Vidéo jointe" : "");
+  if (!text) throw new Error("Le commentaire est vide.");
+  await dbRun(`UPDATE workout_comments SET body = ? WHERE id = ?`, [text, commentId]);
+  await revalidateWorkoutViews(c.workout_id);
+}
+
+/** Supprimer son propre commentaire (et sa vidéo). */
+export async function deleteWorkoutCommentAction(commentId: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Non autorisé.");
+  const c = await dbGet<{ workout_id: string; author_id: string; video_path: string | null }>(`SELECT workout_id, author_id, video_path FROM workout_comments WHERE id = ?`, [commentId]);
+  if (!c || c.author_id !== user.id) throw new Error("Non autorisé.");
+  await dbRun(`DELETE FROM workout_comments WHERE id = ?`, [commentId]);
+  if (c.video_path) await deleteUploadedFile(c.video_path).catch(() => {});
+  await revalidateWorkoutViews(c.workout_id);
+}
+
+async function revalidateWorkoutViews(workoutId: string) {
+  const w = await dbGet<{ athlete_id: string; date: string }>(`SELECT athlete_id, date FROM workouts WHERE id = ?`, [workoutId]);
+  revalidatePath(`/workouts/${workoutId}`);
+  if (w) revalidateAthleteDays(w.athlete_id, [w.date]);
+}
+
 export async function addWorkoutCommentAction(workoutId: string, formData: FormData) {
   const user = await getCurrentUser();
   if (!user) throw new Error("Non autorisé.");
@@ -1808,10 +1838,11 @@ export async function addImportedActivityAction(formData: FormData) {
 
 export async function updateImportedActivityAction(id: string, formData: FormData) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+  if (!user) throw new Error("Non autorisé.");
 
+  // L'athlète, ou un de ses coachs (activité saisie par l'un ou l'autre).
   const existing = await dbGet<any>(`SELECT athlete_id, activity_date, route_points FROM imported_activities WHERE id = ?`, [id]);
-  if (!existing || existing.athlete_id !== user.id) throw new Error("Non autorisé.");
+  if (!existing || !(await canManageAthleteCalendar(user, existing.athlete_id))) throw new Error("Non autorisé.");
 
   const activityDate = String(formData.get("activityDate") || "");
   const activityTime = String(formData.get("activityTime") || "").trim();
@@ -1834,10 +1865,7 @@ export async function updateImportedActivityAction(id: string, formData: FormDat
     [activityDate, activityTime || null, sport, discipline, durationMinutes, distanceKm, avgHr, elevationGainM, avgPowerW, rpe, notes || null, routePoints, elapsedOf(formData), cleanRouteUrl(formData.get("routeUrl")), id]
   );
 
-  revalidatePath("/athlete/profile");
-  revalidatePath("/athlete");
-  revalidatePath(`/athlete/day/${activityDate}`);
-  if (activityDate !== existing.activity_date) revalidatePath(`/athlete/day/${existing.activity_date}`);
+  revalidateAthleteDays(existing.athlete_id, [activityDate, existing.activity_date]);
 }
 
 export async function deleteImportedActivityAction(id: string) {
@@ -1895,7 +1923,7 @@ export async function updateAvailabilityBlockAction(id: string, formData: FormDa
   if (!user) throw new Error("Non autorisé.");
 
   const existing = await dbGet<any>(`SELECT athlete_id, date FROM availability_blocks WHERE id = ?`, [id]);
-  if (!existing || existing.athlete_id !== user.id) throw new Error("Non autorisé.");
+  if (!existing || !(await canManageAthleteCalendar(user, existing.athlete_id))) throw new Error("Non autorisé.");
 
   const date = String(formData.get("date") || "");
   const timeOfDay = String(formData.get("timeOfDay") || "");
@@ -1909,10 +1937,7 @@ export async function updateAvailabilityBlockAction(id: string, formData: FormDa
     id,
   ]);
 
-  revalidatePath("/athlete/programmation");
-  revalidatePath("/athlete");
-  revalidatePath(`/athlete/day/${date}`);
-  if (date !== existing.date) revalidatePath(`/athlete/day/${existing.date}`);
+  revalidateAthleteDays(existing.athlete_id, [date, existing.date]);
 }
 
 export async function deleteAvailabilityBlockAction(id: string) {
@@ -2628,6 +2653,46 @@ export async function sendBroadcastMessageAction(body: string) {
     })
   );
 
+  revalidatePath("/coach");
+}
+
+async function ownMessage(id: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Non autorisé.");
+  const m = await dbGet<{ sender_id: string; coach_id: string; athlete_id: string; media_path: string | null }>(`SELECT sender_id, coach_id, athlete_id, media_path FROM messages WHERE id = ?`, [id]);
+  if (!m || m.sender_id !== user.id) throw new Error("Vous ne pouvez modifier que vos propres messages.");
+  return { user, m };
+}
+
+function revalidateConversation(m: { coach_id: string; athlete_id: string }) {
+  revalidatePath(`/coach/athletes/${m.athlete_id}/messages`);
+  revalidatePath(`/athlete/messages/${m.coach_id}`);
+}
+
+/** Modifier le texte d'un message qu'on a envoyé. */
+export async function updateMessageAction(id: string, body: string) {
+  const { m } = await ownMessage(id);
+  const text = body.trim().slice(0, 5000);
+  if (!text && !m.media_path) throw new Error("Le message est vide.");
+  await dbRun(`UPDATE messages SET body = ? WHERE id = ?`, [text, id]);
+  revalidateConversation(m);
+}
+
+/** Supprimer un message qu'on a envoyé (et sa pièce jointe). */
+export async function deleteMessageAction(id: string) {
+  const { m } = await ownMessage(id);
+  await dbRun(`DELETE FROM messages WHERE id = ?`, [id]);
+  if (m.media_path) await deleteUploadedFile(m.media_path).catch(() => {});
+  revalidateConversation(m);
+}
+
+/** Supprimer une entrée de cycle (saisie par erreur). */
+export async function deleteCycleEntryAction(id: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Non autorisé.");
+  await dbRun(`DELETE FROM cycle_entries WHERE id = ? AND athlete_id = ?`, [id, user.id]);
+  revalidatePath("/athlete/profile");
+  revalidatePath("/athlete");
   revalidatePath("/coach");
 }
 

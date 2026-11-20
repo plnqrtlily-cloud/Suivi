@@ -16,6 +16,7 @@ import { MoreMenu, MenuSeparator, menuItem } from "@/components/more-menu";
 import { parsePlan } from "@/lib/discipline";
 import { formatDuration } from "@/lib/duration";
 import { StatusForm } from "./status-form";
+import { CommentBody } from "@/components/comment-body";
 import { CommentForm } from "./comment-form";
 import { CancelWorkoutButton } from "./cancel-button";
 import { CopyWorkoutButton, SendToAthletesButton } from "@/components/workout-clipboard";
@@ -604,7 +605,7 @@ export default async function WorkoutDetailPage({
           <div className="mb-4 flex flex-col gap-3">
             {comments.map((c) => (
               <div key={c.id} className="rounded-md bg-paper-dim p-2 text-sm">
-                <p className="whitespace-pre-line text-ink"><Linkify text={c.body} /></p>
+                <CommentBody id={c.id} body={c.body} mine={!preview && c.author_id === user.id} />
                 {c.video_path && (
                   // eslint-disable-next-line jsx-a11y/media-has-caption
                   <video controls className="mt-2 max-w-xs rounded-md bg-ink" src={`/api/workout-comments/${c.id}/video`} />

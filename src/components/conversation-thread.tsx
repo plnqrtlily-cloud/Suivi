@@ -5,7 +5,7 @@ import { Linkify } from "@/components/linkify";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { sendMessageAction } from "@/lib/actions";
+import { sendMessageAction, updateMessageAction, deleteMessageAction } from "@/lib/actions";
 import { Avatar } from "@/components/avatar";
 
 export interface MessageItem {
@@ -70,6 +70,28 @@ export function ConversationThread({
   const [text, setText] = useState("");
   const [files, setFiles] = useState<{ file: File; preview: string | null }[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Ses propres messages : un clic sur la bulle propose Modifier / Supprimer.
+  const [actionsFor, setActionsFor] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ id: string; body: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [busy, setBusy] = useState(false);
+  async function act(fn: () => Promise<void>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+      setEditing(null);
+      setActionsFor(null);
+      setConfirmDelete(false);
+      // Les envois déjà confirmés sont dans la liste du serveur : on vide la
+      // copie locale pour qu'un message modifié ou supprimé ne réapparaisse pas.
+      setSent([]);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Une erreur est survenue.");
+    }
+    setBusy(false);
+  }
   const textRef = useRef<HTMLTextAreaElement>(null);
   const shown = [...messages, ...sent.filter((t) => !messages.some((m) => m.sender_id === t.sender_id && m.body === t.body && m.created_at >= t.created_at.slice(0, 16)))];
 
@@ -199,9 +221,28 @@ export function ConversationThread({
                   ) : media && !m.body ? (
                     <MediaBlock m={m} className="w-64 max-w-[70%] rounded-[18px]" />
                   ) : (
+                    editing?.id === m.id ? (
+                      <div className="flex w-full max-w-[80%] flex-col gap-1.5">
+                        <textarea
+                          autoFocus
+                          rows={Math.min(8, Math.max(2, editing.body.split("\n").length))}
+                          value={editing.body}
+                          onChange={(ev) => setEditing({ id: m.id, body: ev.target.value })}
+                          className="w-full resize-y rounded-[14px] border border-[#d1d1d6] bg-white px-3 py-2 text-[15px] text-ink outline-none focus:border-[#0a84ff]"
+                        />
+                        <div className="flex justify-end gap-3 text-[13px] font-semibold">
+                          <button type="button" onClick={() => setEditing(null)} className="text-slate">Annuler</button>
+                          <button type="button" disabled={busy || (!editing.body.trim() && !m.media_path)} onClick={() => act(() => updateMessageAction(m.id, editing.body))} className="text-[#0a84ff] disabled:opacity-50">
+                            {busy ? "Enregistrement…" : "Enregistrer"}
+                          </button>
+                        </div>
+                      </div>
+                    ) :
                     <div
                       title={m.created_at.slice(11, 16)}
-                      className={`imsg ${isMine ? "imsg-me" : "imsg-them"} ${tail && !media ? "imsg-tail" : ""} ${tmp ? "opacity-80" : ""}`}
+                      role={isMine && !tmp ? "button" : undefined}
+                      onClick={isMine && !tmp ? (ev) => { if ((ev.target as HTMLElement).closest("a,video,button")) return; setConfirmDelete(false); setActionsFor(actionsFor === m.id ? null : m.id); } : undefined}
+                      className={`${isMine && !tmp ? "cursor-pointer " : ""}imsg ${isMine ? "imsg-me" : "imsg-them"} ${tail && !media ? "imsg-tail" : ""} ${tmp ? "opacity-80" : ""}`}
                     >
                       {media && <MediaBlock m={m} className="-mx-3 -mt-[7px] mb-1.5 rounded-t-[18px]" />}
                       {m.media_path && m.media_type === "document" && (
@@ -227,6 +268,22 @@ export function ConversationThread({
                     </div>
                   )}
                 </div>
+                {actionsFor === m.id && !editing && (
+                  <div className="mt-1 flex justify-end gap-3 pr-1.5 text-[12.5px] font-semibold">
+                    {confirmDelete ? (
+                      <>
+                        <span className="font-normal text-slate">Supprimer ce message ?</span>
+                        <button type="button" disabled={busy} onClick={() => act(() => deleteMessageAction(m.id))} className="text-[#d70015]">Supprimer</button>
+                        <button type="button" onClick={() => setConfirmDelete(false)} className="text-slate">Non</button>
+                      </>
+                    ) : (
+                      <>
+                        {(m.body || !m.media_path) && <button type="button" onClick={() => setEditing({ id: m.id, body: m.body })} className="text-[#0a84ff]">Modifier</button>}
+                        <button type="button" onClick={() => setConfirmDelete(true)} className="text-[#d70015]">Supprimer</button>
+                      </>
+                    )}
+                  </div>
+                )}
                 {isMine && lastMine?.id === m.id && (
                   <p className="mt-1 pr-1.5 text-right text-[11px] text-slate">
                     {tmp ? "Envoi…" : m.read_at ? <><span className="font-semibold">Lu</span> {readLabel(m.read_at)}</> : <span className="font-semibold">Distribué</span>}

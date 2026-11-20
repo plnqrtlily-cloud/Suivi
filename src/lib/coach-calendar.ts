@@ -300,6 +300,8 @@ export async function loadCalendarWeeks(params: {
         .filter((b) => b.date === date)
         .map((b) => ({
           id: b.id,
+          date: b.date,
+          timeOfDay: b.time_of_day,
           label: b.time_of_day === "full_day" ? "Indisponible" : `${AVAILABILITY_SLOT_LABELS[b.time_of_day]} indispo`,
           reason: b.reason,
           createdByMe: b.created_by === coachId,

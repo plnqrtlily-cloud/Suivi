@@ -1,12 +1,14 @@
 "use client";
 
+import { createPortal } from "react-dom";
+
 import { useState } from "react";
 import { addAvailabilityBlockAction, updateAvailabilityBlockAction } from "@/lib/actions";
 import { Button, SelectField, Field, TextAreaField, ErrorText } from "@/components/ui";
 import { AVAILABILITY_SLOT_LABELS, AVAILABILITY_SLOT_ORDER, type AvailabilitySlot } from "@/lib/time-of-day";
 import { DaysPicker } from "@/components/days-picker";
 
-interface ExistingBlock {
+export interface ExistingBlock {
   id: string;
   date: string;
   time_of_day: AvailabilitySlot;
@@ -103,8 +105,10 @@ function EditAvailabilityForm({ existing, onDone }: { existing: ExistingBlock; o
 }
 
 function Modal({ title, subtitle, onClose, children }: { title: string; subtitle: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/25 backdrop-blur-[2px] sm:items-center sm:p-6">
+  // Rendue dans <body> : ouverte depuis un panneau ou une carte, elle ne
+  // doit pas être rognée ni passer sous la barre de navigation.
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-ink/25 backdrop-blur-[2px] sm:items-center sm:p-6">
       <button aria-label="Fermer" className="absolute inset-0 cursor-default" onClick={onClose} />
       <div className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-[26px] bg-white p-6 pb-5 shadow-2xl sm:max-w-sm sm:rounded-[26px]">
         <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-line sm:hidden" />
@@ -112,7 +116,8 @@ function Modal({ title, subtitle, onClose, children }: { title: string; subtitle
         <p className="mb-4 text-[13px] text-slate">{subtitle}</p>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -150,7 +155,7 @@ export function AddAvailabilityModal({ defaultDate }: { defaultDate: string }) {
 
 // Icône crayon posée sur une brique existante pour la modifier (date, créneau,
 // motif) sans avoir à la supprimer puis en recréer une.
-export function EditAvailabilityModal({ block, className }: { block: ExistingBlock; className?: string }) {
+export function EditAvailabilityModal({ block, className, children }: { block: ExistingBlock; className?: string; children?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -161,13 +166,15 @@ export function EditAvailabilityModal({ block, className }: { block: ExistingBlo
           e.stopPropagation();
           setOpen(true);
         }}
-        aria-label="Modifier l'indisponibilité"
+        aria-label={children ? undefined : "Modifier l'indisponibilité"}
         title="Modifier"
-        className={`-m-1.5 p-1.5 ${className || ""}`}
+        className={children ? className : `-m-1.5 p-1.5 ${className || ""}`}
       >
-        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M13.5 3.5l3 3L7 16l-4 1 1-4z" />
-        </svg>
+        {children ?? (
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M13.5 3.5l3 3L7 16l-4 1 1-4z" />
+          </svg>
+        )}
       </button>
 
       {open && (

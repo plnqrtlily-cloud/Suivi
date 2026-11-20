@@ -54,6 +54,8 @@ export function StatusForm({
   const [status, setStatus] = useState(currentStatus === "planned" || currentStatus === "partial" ? "done" : currentStatus);
   const [rpe, setRpe] = useState(initial?.rpe ?? 5);
   const [pending, setPending] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const showDone = status === "done";
   const isPostponed = status === "postponed";
   const outdoor = OUTDOOR_SPORTS.includes(sport) || !!discipline;
@@ -62,7 +64,10 @@ export function StatusForm({
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setPending(true);
+    setSaved(false);
+    setError(null);
     const formData = new FormData(e.currentTarget);
+    try {
     await updateWorkoutStatusAction({
       workoutId,
       status: status as any,
@@ -77,6 +82,11 @@ export function StatusForm({
       routeUrl: String(formData.get("routeUrl") || "") || undefined,
       postponedToDate: isPostponed ? String(formData.get("postponedToDate") || "") : undefined,
     });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "L'enregistrement n'a pas abouti. Réessayez.");
+      setPending(false);
+      return;
+    }
     // Photo de validation envoyée séparément : elle n'a de sens que sur une
     // séance effectivement faite, et transite en FormData (fichier).
     const photo = formData.get("completionPhoto") as File | null;
@@ -91,6 +101,8 @@ export function StatusForm({
       }
     }
     setPending(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 4000);
     onDone?.();
   }
 
@@ -166,10 +178,12 @@ export function StatusForm({
         </>
       )}
 
-      <div>
+      <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={pending}>
           {pending ? "Enregistrement…" : isPostponed ? "Reporter la séance" : "Enregistrer"}
         </Button>
+        {saved && <span className="text-sm font-semibold text-moss-dark">✓ Enregistré</span>}
+        {error && <span className="text-sm text-[#a4492a]">{error}</span>}
       </div>
     </form>
   );
