@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { placeFlexWorkoutAction } from "@/lib/actions";
 import { sportTone } from "@/lib/palette";
 import { sportIconPath } from "@/lib/sport-icons";
@@ -51,6 +52,7 @@ export function PlaceTray({
   items: initial,
   days,
   you = "toi",
+  dayExtras,
 }: {
   dates: string[];
   today: string;
@@ -58,7 +60,10 @@ export function PlaceTray({
   days: Record<string, DayInfo>;
   /** Registre : l'athlète (« toi ») ou le coach qui place pour lui (« vous »). */
   you?: "toi" | "vous";
+  /** Le reste de chaque journée (autres séances, activités, événements), en version compacte. */
+  dayExtras?: Record<string, React.ReactNode>;
 }) {
+  const router = useRouter();
   // Placement optimiste : la case se remplit tout de suite, la base suit.
   const [items, setItems] = useState(initial);
   const [synced, setSynced] = useState(initial);
@@ -74,9 +79,14 @@ export function PlaceTray({
   const [, startTransition] = useTransition();
   const dragRef = useRef<Drag | null>(null);
   const suppressClick = useRef(false);
+  // Appui en cours : un appui long (≈0,4 s) prend la séance pour la déplacer ;
+  // un simple toucher ouvre son détail.
+  const press = useRef<{ id: string; sx: number; sy: number; dx: number; dy: number; w: number; timer: ReturnType<typeof setTimeout> } | null>(null);
   const root = useRef<HTMLDivElement>(null);
 
   const waiting = items.filter((i) => !i.date);
+  // Tout est placé : les jours prennent toute la largeur.
+  const allPlaced = waiting.length === 0;
   const placedCount = items.length - waiting.length;
   const sel = items.find((i) => i.id === selected) ?? null;
   const vous = you === "vous";
@@ -111,11 +121,12 @@ export function PlaceTray({
   useEffect(() => {
     if (!drag) return;
     let raf = 0;
+    const noScroll = (e: TouchEvent) => e.preventDefault();
+    document.addEventListener("touchmove", noScroll, { passive: false });
     const move = (e: PointerEvent) => {
       const d = dragRef.current;
       if (!d) return;
-      const started = d.started || Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 6;
-      if (started && !d.started) navigator.vibrate?.(8);
+      const started = true;
       const next = { ...d, x: e.clientX, y: e.clientY, started };
       dragRef.current = next;
       setDrag(next);
@@ -151,12 +162,16 @@ export function PlaceTray({
     window.addEventListener("pointercancel", up);
     return () => {
       cancelAnimationFrame(raf);
+      document.removeEventListener("touchmove", noScroll);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drag?.id]);
+
+  // Le jour a-t-il d'autres éléments affichés (version compacte) ?
+  const hasExtra = (date: string) => !!dayExtras && (days[date]?.busy > 0 || days[date]?.unavailable);
 
   const dragging = drag?.started ? items.find((i) => i.id === drag.id) ?? null : null;
 
@@ -169,19 +184,53 @@ export function PlaceTray({
         type="button"
         tabIndex={floating ? -1 : undefined}
         onPointerDown={(e) => {
-          if (!i.movable || e.button !== 0) return;
+          if (e.button !== 0 || floating) return;
           const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-          const d = { id: i.id, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, w: r.width, started: false };
-          dragRef.current = d;
-          setDrag(d);
+          const base = { id: i.id, sx: e.clientX, sy: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, w: r.width };
+          if (press.current) clearTimeout(press.current.timer);
+          press.current = {
+            ...base,
+            timer: setTimeout(() => {
+              const p = press.current;
+              press.current = null;
+              if (!p || !i.movable) return;
+              navigator.vibrate?.(15);
+              const d = { id: p.id, x: p.sx, y: p.sy, sx: p.sx, sy: p.sy, dx: p.dx, dy: p.dy, w: p.w, started: true };
+              dragRef.current = d;
+              setDrag(d);
+            }, 400),
+          };
         }}
+        onPointerMove={(e) => {
+          const p = press.current;
+          // Le doigt bouge avant l'appui long : c'est un défilement, pas une prise.
+          if (p && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > 8) {
+            clearTimeout(p.timer);
+            press.current = null;
+          }
+        }}
+        onPointerUp={() => {
+          const p = press.current;
+          if (!p) return;
+          clearTimeout(p.timer);
+          press.current = null;
+          suppressClick.current = true;
+          setTimeout(() => (suppressClick.current = false), 50);
+          router.push(`/workouts/${i.id}`);
+        }}
+        onPointerCancel={() => {
+          if (press.current) clearTimeout(press.current.timer);
+          press.current = null;
+        }}
+        onContextMenu={(e) => e.preventDefault()}
         onClick={(e) => {
           e.stopPropagation();
-          if (suppressClick.current || !i.movable) return;
-          setSelected((s) => (s === i.id ? null : i.id));
+          if (suppressClick.current) return;
+          // Clavier : Entrée ouvre le détail.
+          router.push(`/workouts/${i.id}`);
         }}
-        title={i.movable ? (vous ? "Glissez sur un jour, ou touchez puis choisissez le jour" : "Glisse sur un jour, ou touche puis choisis le jour") : "Séance déjà renseignée"}
-        style={{ touchAction: i.movable ? "none" : undefined }}
+        title={i.movable ? (vous ? "Touchez pour le détail, appui long pour la déplacer" : "Touche pour le détail, appui long pour la déplacer") : "Séance déjà renseignée"}
+        style={{ touchAction: "pan-y", WebkitTouchCallout: "none" }}
         className={`flex w-full min-w-0 select-none items-center gap-2 rounded-xl border bg-white text-left transition-[box-shadow,opacity,transform] ${compact ? "px-1.5 py-1.5" : "px-2 py-2.5"} ${
           selected === i.id ? "border-[#1b4b4f] shadow-[0_0_0_3px_#1b4b4f26]" : "border-line shadow-sm"
         } ${floating ? "" : i.movable ? "cursor-grab active:cursor-grabbing" : "cursor-default opacity-70"} ${ghost ? "opacity-30" : ""} ${landed === i.id ? "animate-place-pop" : ""}`}
@@ -211,7 +260,7 @@ export function PlaceTray({
         ? vous ? "Touchez un autre jour, ou le bac pour la retirer" : "Touche un autre jour, ou le bac pour la retirer"
         : vous ? "Touchez le jour choisi" : "Touche le jour choisi"
       : waiting.length
-        ? vous ? "Faites glisser chaque séance sur un jour" : "Fais glisser chaque séance sur le jour de ton choix"
+        ? vous ? "Appui long sur une séance, puis glissez-la sur un jour" : "Appui long sur une séance, puis glisse-la sur le jour de ton choix"
         : "";
 
   return (
@@ -220,7 +269,7 @@ export function PlaceTray({
       <div className="mb-2.5 flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <b className="block text-[15px] text-ink">{waiting.length ? (vous ? "Séances à placer" : "Organise ta semaine") : vous ? "Séances placées" : "Semaine organisée ✓"}</b>
-          <span className="block text-[12.5px] text-slate">{hint || (vous ? "Tout est placé. Glissez une séance pour la changer de jour." : "Bien joué ! Glisse une séance pour la changer de jour.")}</span>
+          <span className="block text-[12.5px] text-slate">{hint || (vous ? "Tout est placé. Appui long sur une séance pour la changer de jour." : "Bien joué ! Appui long sur une séance pour la changer de jour.")}</span>
         </div>
         <span className="flex-shrink-0 text-[13px] font-bold text-moss-dark">
           {placedCount}/{items.length}
@@ -232,7 +281,13 @@ export function PlaceTray({
 
       {/* Étiquettes à gauche, jours de la semaine en colonne à droite : on
           fait glisser chaque étiquette dans le jour choisi. */}
-      <div className="grid grid-cols-[minmax(0,5fr)_minmax(0,7fr)] items-start gap-2.5 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] sm:gap-4">
+      <div
+        className={
+          allPlaced
+            ? "flex flex-col gap-2"
+            : "grid grid-cols-[minmax(0,5fr)_minmax(0,7fr)] items-start gap-2.5 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] sm:gap-4"
+        }
+      >
         {/* Bac des étiquettes (et zone où en remettre une). */}
         <div
           data-drop={TRAY}
@@ -240,11 +295,11 @@ export function PlaceTray({
             e.stopPropagation();
             if (sel?.date) place(sel.id, null);
           }}
-          className={`flex min-h-full flex-col gap-2 self-stretch rounded-2xl border-2 border-dashed p-1.5 transition-colors ${
+          className={`${allPlaced && !dragging && !sel ? "hidden" : "flex"} min-h-full flex-col gap-2 self-stretch rounded-2xl border-2 border-dashed p-1.5 transition-colors ${
             over === TRAY ? "border-[#1b4b4f] bg-[#e3eeed]" : dragging?.date || sel?.date ? "border-[#1b4b4f]/40 bg-white/60" : "border-[#1b4b4f]/15"
           }`}
         >
-          <span className="px-1 text-[11px] font-bold uppercase tracking-wide text-slate">Séances</span>
+          {!allPlaced && <span className="px-1 text-[11px] font-bold uppercase tracking-wide text-slate">Séances</span>}
           {waiting.map((i) => card(i))}
           {waiting.length === 0 && (
             <p className="m-auto px-1 py-3 text-center text-[12px] leading-snug text-slate">
@@ -263,7 +318,9 @@ export function PlaceTray({
             return (
               <div
                 key={date}
+                id={dayExtras ? `day-${date}` : undefined}
                 data-drop={date}
+                data-move-date={dayExtras ? date : undefined}
                 role="button"
                 tabIndex={0}
                 aria-label={`Placer le ${date}`}
@@ -285,13 +342,14 @@ export function PlaceTray({
                 </span>
                 <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
                   {placed.map((i) => card(i, true))}
-                  {placed.length === 0 && (
+                  {dayExtras?.[date]}
+                  {placed.length === 0 && !hasExtra(date) && (
                     <span className={`text-[11.5px] ${isOver ? "font-semibold text-moss-dark" : "text-[#9aa39c]"}`}>
                       {isOver ? (vous ? "Déposez ici" : "Dépose ici") : info.unavailable ? "Indispo" : info.busy ? `${info.busy} autre${info.busy > 1 ? "s" : ""} séance${info.busy > 1 ? "s" : ""}` : active ? "+" : "Libre"}
                     </span>
                   )}
                 </div>
-                {placed.length > 0 && (info.busy > 0 || info.unavailable) && (
+                {!dayExtras && placed.length > 0 && (info.busy > 0 || info.unavailable) && (
                   <span className="flex-shrink-0 text-[10px] text-slate">{info.unavailable ? "Indispo" : `+${info.busy}`}</span>
                 )}
               </div>

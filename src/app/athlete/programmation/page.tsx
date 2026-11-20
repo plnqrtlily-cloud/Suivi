@@ -203,6 +203,72 @@ function DayItems({
   );
 }
 
+// Version compacte d'une journée, dans le cadre « Organise ta semaine » :
+// toucher ouvre le détail, un appui long prend l'élément pour le déplacer.
+function CompactDayItems({
+  date,
+  today,
+  workouts,
+  imports,
+  blocks,
+  events,
+}: {
+  date: string;
+  today: string;
+  workouts: Workout[];
+  imports: ImportedActivity[];
+  blocks: AvailabilityBlock[];
+  events: CalendarEventView[];
+}) {
+  const row = (key: string, href: string, color: string, tint: string, icon: React.ReactNode, title: string, sub: string | null, chip?: React.ReactNode) => (
+    <Link key={key} href={href} className="flex min-w-0 items-center gap-1.5 rounded-lg border border-line bg-white px-1.5 py-1">
+      <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md" style={{ background: tint, color }}>
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[12px] font-semibold leading-tight text-ink">{title}</span>
+        {sub && <span className="block truncate text-[10.5px] text-slate">{sub}</span>}
+      </span>
+      {chip}
+    </Link>
+  );
+  const ws = sortByTime(workouts.filter((w) => w.date === date), (w) => w.time);
+  return (
+    <>
+      {eventsOn(events, date).map((e) => (
+        <LongPressMove key={e.id} item={{ kind: "event", id: e.id, title: e.title, date: e.startDate }}>
+          <EventRow event={e} you="toi" compact />
+        </LongPressMove>
+      ))}
+      {blocks
+        .filter((b) => b.date === date)
+        .map((b) => (
+          <LongPressMove key={b.id} item={{ kind: "availability", id: b.id, title: "Indisponible", date: b.date }}>
+            <span className="block rounded-lg bg-ink px-2 py-1 text-[11.5px] font-semibold text-white">Indispo · {AVAILABILITY_SLOT_LABELS[b.time_of_day].toLowerCase()}</span>
+          </LongPressMove>
+        ))}
+      {ws.map((w) => {
+        const t = isGoal(w) ? { color: "#a8751c", tint: "#f8f0de" } : sportTone(w.sport, parsePlan(w.plan_json)?.discipline);
+        return (
+          <LongPressMove key={w.id} item={{ kind: "workout", id: w.id, title: w.title, date: w.date }}>
+            {row(w.id, `/workouts/${w.id}`, t.color, t.tint, <SportIcon sport={w.sport} size={13} />, w.title, durationLabel(w.duration_minutes), isGoal(w) ? undefined : <Chip k={statusKey(w, today)} />)}
+          </LongPressMove>
+        );
+      })}
+      {imports
+        .filter((a) => a.activity_date === date)
+        .map((a) => {
+          const t = sportTone(a.sport, a.discipline);
+          return (
+            <LongPressMove key={a.id} item={{ kind: "activity", id: a.id, title: mtbLabel(a.discipline) ?? sportLabel(a.sport), date: a.activity_date }}>
+              {row(a.id, `/athlete/day/${date}`, t.color, t.tint, <SportIcon sport={a.sport} size={13} />, mtbLabel(a.discipline) ?? sportLabel(a.sport), durationLabel(a.duration_minutes), <Chip k="hors" />)}
+            </LongPressMove>
+          );
+        })}
+    </>
+  );
+}
+
 function dayMinutes(date: string, workouts: Workout[], imports: ImportedActivity[]) {
   const w = workouts.filter((x) => x.date === date && !isGoal(x)).reduce((s, x) => s + (x.duration_minutes || 0), 0);
   const i = imports.filter((x) => x.activity_date === date).reduce((s, x) => s + (x.duration_minutes || 0), 0);
@@ -300,7 +366,7 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
       dates.map((d) => [
         d,
         {
-          busy: workouts.filter((w) => w.date === d && !w.flex_week).length + imports.filter((a) => a.activity_date === d).length,
+          busy: workouts.filter((w) => w.date === d && !w.flex_week).length + imports.filter((a) => a.activity_date === d).length + eventsOn(events, d).length,
           unavailable: blocks.some((b) => b.date === d),
         },
       ])
@@ -330,8 +396,19 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
               <b className="text-[15px] text-ink">{frRange(dates[0], dates[6])}</b>
               {summary && <span className="text-[12.5px] text-slate">{summary}</span>}
             </div>
-            {flexByWeek(dates[0]).length > 0 && <PlaceTray dates={dates} today={today} items={flexByWeek(dates[0])} days={dayInfo(dates)} />}
-            {dates.map((date, idx) => {
+            {/* Semaine avec des séances à placer : le cadre « Organise ta
+                semaine » tient lieu de vue de la semaine (pas de doublon). */}
+            {flexByWeek(dates[0]).length > 0 ? (
+              <PlaceTray
+                dates={dates}
+                today={today}
+                items={flexByWeek(dates[0])}
+                days={dayInfo(dates)}
+                dayExtras={Object.fromEntries(
+                  dates.map((d) => [d, <CompactDayItems key={d} date={d} today={today} workouts={workouts.filter((w) => !w.flex_week || w.flex_week !== dates[0])} imports={imports} blocks={blocks} events={events} />])
+                )}
+              />
+            ) : dates.map((date, idx) => {
               const isToday = date === today;
               const total = dayMinutes(date, workouts, imports);
               const has =
