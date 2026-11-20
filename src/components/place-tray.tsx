@@ -299,8 +299,11 @@ export function PlaceTray({
             over === TRAY ? "border-[#1b4b4f] bg-[#e3eeed]" : dragging?.date || sel?.date ? "border-[#1b4b4f]/40 bg-white/60" : "border-[#1b4b4f]/15"
           }`}
         >
-          {!allPlaced && <span className="px-1 text-[11px] font-bold uppercase tracking-wide text-slate">Séances</span>}
-          {waiting.map((i) => card(i))}
+          {/* Les étiquettes restent visibles quand on descend vers la fin de semaine. */}
+          <div className="sticky top-[200px] flex flex-col gap-2">
+            {!allPlaced && <span className="px-1 text-[11px] font-bold uppercase tracking-wide text-slate">Séances</span>}
+            {waiting.map((i) => card(i))}
+          </div>
           {waiting.length === 0 && (
             <p className="m-auto px-1 py-3 text-center text-[12px] leading-snug text-slate">
               {dragging?.date || sel?.date ? `↩ ${vous ? "Déposez ici pour la remettre à placer" : "Dépose ici pour la remettre à placer"}` : "Tout est placé ✓"}

@@ -332,8 +332,11 @@ export default async function ProgrammationPage({
 // la plage (from/to, en semaines par rapport à aujourd'hui) s'étend toute seule
 // en approchant du haut ou du bas.
 async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athleteId: string; offset: number; fromParam?: string; toParam?: string; today: string }) {
-  const lo = Number.isFinite(Number(fromParam)) && fromParam ? Math.min(Number(fromParam), offset) : offset - 2;
-  const hi = Number.isFinite(Number(toParam)) && toParam ? Math.max(Number(toParam), offset + 1) : offset + 5;
+  // Une seule semaine à la fois (focus), avec flèches pour changer de semaine.
+  void fromParam;
+  void toParam;
+  const lo = offset;
+  const hi = offset;
   const weeks = Array.from({ length: hi - lo + 1 }, (_, i) => getWeekDates(lo + i));
   const from = weeks[0][0];
   const to = weeks[weeks.length - 1][6];
@@ -372,10 +375,11 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
       ])
     );
 
-  const range = (a: number, b: number) => `/athlete/programmation?view=week&week=${offset}&from=${a}&to=${b}`;
+  const weekHref = (n: number) => `/athlete/programmation?view=week&week=${n}`;
+  const arrow = "flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white text-lg text-ink hover:border-moss";
   return (
     <div className="flex flex-col gap-2 px-4">
-      <ContinuousScroll anchorId={getWeekDates(offset).includes(today) ? `day-${today}` : `w-${getWeekDates(offset)[0]}`} prevHref={range(lo - 6, hi)} nextHref={range(lo, hi + 6)} rangeKey={`${lo}:${hi}`}>
+      <div>
       {weeks.map((dates) => {
         const planned = workouts.filter((w) => dates.includes(w.date) && !isGoal(w)).reduce((s, w) => s + (w.duration_minutes || 0), 0);
         const done =
@@ -392,9 +396,18 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
           .join(" · ");
         return (
           <section key={dates[0]} id={`w-${dates[0]}`} data-page className="flex flex-col gap-2.5 pb-3">
-            <div className="flex flex-wrap items-baseline gap-x-2 px-1 pt-2">
-              <b className="text-[15px] text-ink">{frRange(dates[0], dates[6])}</b>
-              {summary && <span className="text-[12.5px] text-slate">{summary}</span>}
+            <div className="flex items-center gap-2 px-1 pt-1">
+              <Link href={weekHref(offset - 1)} aria-label="Semaine précédente" className={arrow}>‹</Link>
+              <div className="min-w-0 flex-1 text-center">
+                <b className="block text-[16px] text-ink">{frRange(dates[0], dates[6])}</b>
+                {summary && <span className="block text-[12.5px] text-slate">{summary}</span>}
+                {offset !== 0 && (
+                  <Link href={weekHref(0)} className="text-[12.5px] font-semibold text-moss-dark underline-offset-2 hover:underline">
+                    Revenir à cette semaine
+                  </Link>
+                )}
+              </div>
+              <Link href={weekHref(offset + 1)} aria-label="Semaine suivante" className={arrow}>›</Link>
             </div>
             {/* Semaine avec des séances à placer : le cadre « Organise ta
                 semaine » tient lieu de vue de la semaine (pas de doublon). */}
@@ -440,7 +453,7 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
           </section>
         );
       })}
-      </ContinuousScroll>
+      </div>
     </div>
   );
 }
