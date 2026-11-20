@@ -640,13 +640,22 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
 
       {/* Séances « à placer » de la semaine affichée : l'athlète choisit ses
           jours ; le coach voit où il en est et peut aussi les placer. */}
+      {view === "week" && head.week && (
+        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[13px] text-slate">
+            {head.week.toPlace.length === 0
+              ? `Préparez des séances que ${data.athleteName} placera lui-même dans sa semaine.`
+              : head.week.toPlace.filter((x) => !x.date).length
+                ? `${data.athleteName} n'a pas encore placé ${head.week.toPlace.filter((x) => !x.date).length} séance${head.week.toPlace.filter((x) => !x.date).length > 1 ? "s" : ""} de cette semaine.`
+                : `${data.athleteName} a placé les séances proposées pour cette semaine.`}
+          </p>
+          <Link href={`${base}/new-workout?placer=${head.week.weekStart}`} className="rounded-full border border-[#1b4b4f]/30 bg-white px-3.5 py-1.5 text-[13px] font-semibold text-moss-dark hover:border-[#1b4b4f]">
+            + Séance à placer
+          </Link>
+        </div>
+      )}
       {view === "week" && head.week && head.week.toPlace.length > 0 && (
         <div>
-          <p className="mb-1.5 text-[13px] text-slate">
-            {head.week.toPlace.filter((x) => !x.date).length
-              ? `${data.athleteName} n'a pas encore placé ${head.week.toPlace.filter((x) => !x.date).length} séance${head.week.toPlace.filter((x) => !x.date).length > 1 ? "s" : ""} de cette semaine.`
-              : `${data.athleteName} a placé les séances proposées pour cette semaine.`}
-          </p>
           <PlaceTray
             key={head.week.weekStart}
             dates={head.week.days.map((d) => d.date)}

@@ -242,6 +242,8 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
     id: w.id,
     title: w.title,
     sportLabel: sportLabelPlain(w.sport),
+    sport: w.sport,
+    discipline: parsePlan(w.plan_json)?.discipline ?? null,
     durationMinutes: w.duration_minutes ?? null,
     color: w.color || "#1b4b4f",
     date: w.flex_placed ? w.date : null,

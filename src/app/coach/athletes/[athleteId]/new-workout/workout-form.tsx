@@ -106,6 +106,7 @@ export function WorkoutForm({
   otherAthletes,
   initial,
   defaultDate,
+  placeWeek,
   zones,
 }: {
   athleteId: string;
@@ -116,6 +117,8 @@ export function WorkoutForm({
   otherAthletes?: OtherAthleteOption[];
   initial?: WorkoutFormInitial;
   defaultDate?: string;
+  /** Semaine (lundi) d'une séance « à placer par l'athlète », ouverte en ce mode. */
+  placeWeek?: string;
   zones?: ZoneLabels;
 }) {
   const router = useRouter();
@@ -154,7 +157,7 @@ export function WorkoutForm({
   const [weekdayFilter, setWeekdayFilter] = useState<number[]>([]);
   // « À placer » : la séance est proposée pour une ou plusieurs semaines et
   // l'athlète choisit lui-même le jour (cf. placeFlexWorkoutAction).
-  const [placeMode, setPlaceMode] = useState(false);
+  const [placeMode, setPlaceMode] = useState(!!placeWeek);
   const [weeks, setWeeks] = useState<string[]>(() => [mondayISO(defaultDate ?? todayISO())]);
   const [alsoSendTo, setAlsoSendTo] = useState<string[]>([]);
   const [error, setError] = useState<string | undefined>();

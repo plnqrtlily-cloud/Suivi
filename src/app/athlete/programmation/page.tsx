@@ -288,6 +288,8 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
         id: w.id,
         title: w.title,
         sportLabel: sportLabelPlain(w.sport),
+        sport: w.sport,
+        discipline: parsePlan(w.plan_json)?.discipline ?? null,
         durationMinutes: w.duration_minutes ?? null,
         color: w.color || PET,
         date: w.flex_placed ? w.date : null,

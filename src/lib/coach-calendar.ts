@@ -364,6 +364,8 @@ export async function loadCalendarWeeks(params: {
           id: w.id,
           title: w.title,
           sportLabel: SPORT_LABELS[w.sport] || w.sport,
+          sport: w.sport,
+          discipline: parsePlan(w.plan_json)?.discipline ?? null,
           durationMinutes: w.duration_minutes ?? null,
           color: w.color || "#1b4b4f",
           date: w.flex_placed ? w.date : null,

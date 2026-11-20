@@ -17,7 +17,7 @@ export default async function NewWorkoutPage({
   searchParams,
 }: {
   params: Promise<{ athleteId: string }>;
-  searchParams: Promise<{ date?: string }>;
+  searchParams: Promise<{ date?: string; placer?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -26,8 +26,10 @@ export default async function NewWorkoutPage({
   const { athleteId } = await params;
   // Date pré-sélectionnée quand on arrive depuis le calendrier (bouton
   // « Ajouter » → « Séance à faire » sur un jour précis).
-  const { date: rawDate } = await searchParams;
-  const defaultDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : undefined;
+  // « placer » : semaine (lundi) d'une séance à placer par l'athlète.
+  const { date: rawDate, placer } = await searchParams;
+  const placeWeek = placer && /^\d{4}-\d{2}-\d{2}$/.test(placer) ? placer : undefined;
+  const defaultDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : placeWeek;
   if (!(await isCoachLinkedToAthlete(user.id, athleteId))) notFound();
   const athlete = await findUserById(athleteId);
   if (!athlete) notFound();
@@ -77,6 +79,7 @@ export default async function NewWorkoutPage({
           templates={templates}
           otherAthletes={otherAthletes}
           defaultDate={defaultDate}
+          placeWeek={placeWeek}
           zones={zoneLabelsFor(latest)}
         />
       </main>
