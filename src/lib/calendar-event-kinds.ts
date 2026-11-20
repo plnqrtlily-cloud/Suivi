@@ -58,8 +58,7 @@ export function eventDateLabel(start: string, end: string) {
 export const ELEVATION_SPORTS = ["mtb", "cycling", "running", "hiking", "trail"];
 
 export const TRAINING_SPORTS = [
-  { value: "mtb", label: "VTT" },
-  { value: "cycling", label: "Vélo route" },
+  { value: "mtb", label: "Cyclisme" },
   { value: "running", label: "Course à pied" },
   { value: "strength", label: "Musculation" },
   { value: "hiking", label: "Randonnée" },
@@ -79,7 +78,7 @@ function minutesLabel(m: number) {
 const SPORT_WORDS: [RegExp, string][] = [
   [/muscu|renfo|gainage|force|squat|souleve|developpe|halt|fonte|crossfit|circuit|pliom|plyo|gym|core/, "strength"],
   [/course|footing|trail|fractionne|vma|jogging|\brun/, "running"],
-  [/vtt|enduro|descente|\bdh\b|dirt|vttae|e-?bike|pump ?track|bike ?park/, "mtb"],
+  [/vtt|enduro|descente|\bdh\b|dirt|bmx|vttae|e-?bike|pump ?track|bike ?park/, "mtb"],
   [/velo|route|home ?trainer|bike|gravel|sortie/, "cycling"],
   [/nata|piscine|nage|swim/, "swimming"],
   [/rando|marche|hike/, "hiking"],
@@ -92,6 +91,9 @@ export function guessMtbFromTitle(title: string): string | null {
   if (/vttae|electrique|e-?bike|\bvae\b/.test(t)) return "vttae";
   if (/descente|\bdh\b|bike ?park/.test(t)) return "dh";
   if (/dirt|pump ?track/.test(t)) return "dirt";
+  if (/bmx/.test(t)) return "bmx";
+  if (/home ?trainer|zwift|rouleau|\bht\b/.test(t)) return "home_trainer";
+  if (/route|gravel/.test(t)) return "route";
   return null;
 }
 

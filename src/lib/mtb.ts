@@ -3,12 +3,20 @@
 // « cycling » (charge, zones, stats vélo) ; le type est rangé à côté
 // (colonne discipline, ou plan_json.discipline pour une séance). Sans
 // dépendance serveur.
+// « Cyclisme » : une seule catégorie, à préciser (route, enduro, DH, dirt,
+// BMX, home trainer, VTT électrique).
 export const MTB_DISCIPLINES = [
+  { value: "route", label: "Route", long: "Vélo route" },
   { value: "enduro", label: "Enduro", long: "VTT enduro" },
-  { value: "vttae", label: "Électrique", long: "VTT électrique" },
   { value: "dh", label: "DH", long: "VTT DH" },
-  { value: "dirt", label: "Dirt", long: "VTT dirt" },
+  { value: "dirt", label: "Dirt", long: "Dirt" },
+  { value: "bmx", label: "BMX", long: "BMX" },
+  { value: "home_trainer", label: "Home trainer", long: "Home trainer" },
+  { value: "vttae", label: "Électrique", long: "VTT électrique" },
 ] as const;
+
+/** Types de cyclisme sans parcours ni dénivelé (sur place). */
+export const INDOOR_CYCLING = ["home_trainer"];
 
 export type MtbDiscipline = (typeof MTB_DISCIPLINES)[number]["value"];
 

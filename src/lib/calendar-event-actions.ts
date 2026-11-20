@@ -64,7 +64,7 @@ function clean(input: CalendarEventInput) {
     notes: input.notes?.trim().slice(0, 2000) || null,
     // « VTT » : enregistré en vélo, avec son type à côté.
     sport: kind === "entrainement" && input.sport ? (input.sport === "mtb" ? "cycling" : input.sport.slice(0, 30)) : null,
-    discipline: kind === "entrainement" && input.sport === "mtb" ? (parseDiscipline(input.discipline) ?? "mtb") : null,
+    discipline: kind === "entrainement" && input.sport === "mtb" ? parseDiscipline(input.discipline) : null,
     route_url: kind === "entrainement" ? cleanRouteUrl(input.routeUrl) : null,
     elevation_gain_m:
       kind === "entrainement" && ["mtb", "cycling", "running", "hiking", "trail"].includes(input.sport ?? "") && input.elevationGainM && input.elevationGainM > 0

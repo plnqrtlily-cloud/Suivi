@@ -1781,7 +1781,7 @@ async function extractRoutePoints(formData: FormData): Promise<string | null> {
 // avec son type à côté (enduro, électrique, DH, dirt ; cf. src/lib/mtb.ts).
 function sportAndDiscipline(formData: FormData): { sport: string; discipline: string | null } {
   const raw = String(formData.get("sport") || "");
-  if (raw === "mtb") return { sport: "cycling", discipline: parseDiscipline(formData.get("discipline")) ?? "mtb" };
+  if (raw === "mtb") return { sport: "cycling", discipline: parseDiscipline(formData.get("discipline")) };
   return { sport: raw, discipline: null };
 }
 

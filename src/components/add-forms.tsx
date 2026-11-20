@@ -20,8 +20,7 @@ import type { HealthCategory, TrainingImpact } from "@/lib/health";
 
 export const DONE_SPORTS = [
   { value: "running", label: "Course à pied" },
-  { value: "cycling", label: "Vélo route" },
-  { value: "mtb", label: "VTT" },
+  { value: "mtb", label: "Cyclisme" },
   { value: "hiking", label: "Randonnée" },
   { value: "swimming", label: "Natation" },
   { value: "climbing", label: "Escalade" },
@@ -77,7 +76,7 @@ export function DoneActivityForm({ defaultDate, onDone, onCancel }: { defaultDat
         if (!dates.length) return setError("Choisissez au moins un jour.");
         const formData = new FormData(e.currentTarget);
         formData.set("sport", sport);
-        if (sport === "mtb") formData.set("discipline", discipline ?? "mtb");
+        if (sport === "mtb") formData.set("discipline", discipline ?? "");
         // Une activité par jour choisi : chacune reste modifiable seule.
         run(() =>
           Promise.all(

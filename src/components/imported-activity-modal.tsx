@@ -52,7 +52,7 @@ export function EditImportedActivityModal({ activity, className, children }: { a
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   // Un VTT s'édite comme « VTT » + son type (enregistré en vélo, cf. mtb.ts).
-  const [sport, setSport] = useState(activity.discipline ? "mtb" : activity.sport);
+  const [sport, setSport] = useState(activity.discipline || activity.sport === "cycling" ? "mtb" : activity.sport);
   const [discipline, setDiscipline] = useState<string | null>(activity.discipline && activity.discipline !== "mtb" ? activity.discipline : null);
   const bike = sport === "cycling" || sport === "mtb";
   const [error, setError] = useState<string | undefined>();
@@ -97,8 +97,7 @@ export function EditImportedActivityModal({ activity, className, children }: { a
             <Field label="Heure (facultatif)" type="time" name="activityTime" defaultValue={activity.activity_time || ""} />
             <SelectField label="Sport" name="sport" value={sport} onChange={(e) => setSport(e.target.value)}>
               <option value="running">Course à pied</option>
-              <option value="cycling">Vélo route</option>
-              <option value="mtb">VTT</option>
+              <option value="mtb">Cyclisme</option>
               <option value="hiking">Randonnée</option>
               <option value="swimming">Natation</option>
               <option value="climbing">Escalade</option>

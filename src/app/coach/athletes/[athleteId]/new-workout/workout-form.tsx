@@ -36,6 +36,9 @@ interface TemplateBlockInput {
   sets?: { reps?: string; load?: string; restSeconds?: number; rpe?: number; rir?: number }[];
 }
 
+
+/** Activités regroupées sous « Cyclisme ». */
+const CYCLING_IDS = ["mtb", "road", "trainer"];
 export interface WorkoutTemplateOption {
   id: string;
   name: string;
@@ -123,6 +126,10 @@ export function WorkoutForm({
   const sport = activity.sport;
   const [planValues, setPlanValues] = useState<Partial<Record<PlanKey, string>>>(initialPlan?.values ?? {});
   const [mtbType, setMtbType] = useState<string | null>(initialPlan?.discipline ?? null);
+  const pickActivity = (id: string) => {
+    setActivityId(id);
+    setStructure((st) => adaptStructure(st, activityById(id)));
+  };
   const [plannedRpe, setPlannedRpe] = useState(initial?.plannedRpe ? String(initial.plannedRpe) : "");
   const [duration, setDuration] = useState(initial?.durationMinutes ? String(initial.durationMinutes) : "");
   const [structure, setStructure] = useState<BlocItem[]>(() => {
@@ -406,9 +413,11 @@ export function WorkoutForm({
         <div className="grid gap-3 sm:grid-cols-[1fr_2fr_1fr]">
           <label className={label}>
             Activité
-            <select value={activityId} onChange={(e) => { setActivityId(e.target.value); setStructure((st) => adaptStructure(st, activityById(e.target.value))); }} className={input}>
-              {ACTIVITIES.map((a) => (
-                <option key={a.id} value={a.id}>{a.label}</option>
+            {/* Route et home trainer se choisissent sous « Cyclisme » avec les
+                types de VTT ; ils gardent leurs propres objectifs (puissance…). */}
+            <select value={CYCLING_IDS.includes(activityId) ? "mtb" : activityId} onChange={(e) => pickActivity(e.target.value)} className={input}>
+              {ACTIVITIES.filter((a) => a.id !== "road" && a.id !== "trainer").map((a) => (
+                <option key={a.id} value={a.id}>{a.id === "mtb" ? "Cyclisme" : a.label}</option>
               ))}
             </select>
           </label>
@@ -426,7 +435,16 @@ export function WorkoutForm({
           </label>
         </div>
 
-        {activityId === "mtb" && <MtbPicker value={mtbType} onChange={setMtbType} />}
+        {CYCLING_IDS.includes(activityId) && (
+          <MtbPicker
+            value={activityId === "road" ? "route" : activityId === "trainer" ? "home_trainer" : mtbType}
+            onChange={(v) => {
+              const id = v === "route" ? "road" : v === "home_trainer" ? "trainer" : "mtb";
+              if (id !== activityId) pickActivity(id);
+              setMtbType(id === "mtb" ? v : null);
+            }}
+          />
+        )}
 
         {(category === "objectif" || category === "evenement") && (
           <label className={label}>

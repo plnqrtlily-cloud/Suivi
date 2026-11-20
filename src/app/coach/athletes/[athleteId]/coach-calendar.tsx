@@ -73,8 +73,7 @@ const STATUS_COLOR = Object.fromEntries((Object.keys(TONE_OF) as EntryStatus[]).
 const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 const DOW_LONG = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const SPORTS = [
-  { value: "mtb", label: "VTT" },
-  { value: "cycling", label: "Vélo route" },
+  { value: "mtb", label: "Cyclisme" },
   { value: "running", label: "Course à pied" },
   { value: "swimming", label: "Natation" },
   { value: "hiking", label: "Randonnée" },

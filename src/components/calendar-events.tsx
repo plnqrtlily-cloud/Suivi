@@ -50,7 +50,7 @@ export function CalendarEventForm({
   const singleDay = dates.length === 1;
   // Entraînement : le sport suit le titre (« Muscu… » → Musculation) tant
   // qu'il n'a pas été choisi à la main.
-  const [sport, setSport] = useState<string>(event?.discipline ? "mtb" : (event?.sport ?? "mtb"));
+  const [sport, setSport] = useState<string>(event?.discipline || event?.sport === "cycling" ? "mtb" : (event?.sport ?? "mtb"));
   const [sportTouched, setSportTouched] = useState(!!event?.sport);
   const [mtb, setMtb] = useState<string | null>(event?.discipline && event.discipline !== "mtb" ? event.discipline : null);
   const [mtbTouched, setMtbTouched] = useState(!!event?.discipline);
@@ -117,7 +117,7 @@ export function CalendarEventForm({
         defaultValue={event?.title}
         onChange={(e) => {
           const g = guessSportFromTitle(e.target.value);
-          if (!sportTouched && g) setSport(g);
+          if (!sportTouched && g) setSport(g === "cycling" ? "mtb" : g);
           const m = guessMtbFromTitle(e.target.value);
           if (!mtbTouched && m) setMtb(m);
         }} placeholder={kind === "entrainement" ? "Sortie club, séance piste…" : kind === "competition" ? "Coupe de France, manche 2" : kind === "rdv" ? "Kiné" : "Titre de l'événement"} />

@@ -2,13 +2,14 @@
 
 import { MTB_DISCIPLINES } from "@/lib/mtb";
 
-// Choix du type de VTT : Enduro, Électrique, DH, Dirt. Sans choix, la sortie
-// reste un « VTT » simple. `name` ajoute un champ caché pour les formulaires.
+// Cyclisme, à préciser : Route, Enduro, DH, Dirt, BMX, Home trainer,
+// Électrique. Sans choix, la sortie reste du « cyclisme » simple. `name`
+// ajoute un champ caché pour les formulaires.
 export function MtbPicker({
   value,
   onChange,
   name,
-  label = "Type de VTT",
+  label = "Type de cyclisme",
 }: {
   value: string | null;
   onChange: (v: string | null) => void;
@@ -37,7 +38,7 @@ export function MtbPicker({
           );
         })}
       </div>
-      {name && <input type="hidden" name={name} value={value ?? "mtb"} />}
+      {name && <input type="hidden" name={name} value={value ?? ""} />}
     </div>
   );
 }
