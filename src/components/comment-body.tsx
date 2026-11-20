@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Linkify } from "@/components/linkify";
+import { MoreMenu, MenuSeparator, menuItem } from "@/components/more-menu";
 import { deleteWorkoutCommentAction, updateWorkoutCommentAction } from "@/lib/actions";
 
 // Texte d'un commentaire de séance. Son auteur peut le modifier ou le
@@ -46,24 +47,24 @@ export function CommentBody({ id, body, mine, className = "whitespace-pre-line t
 
   return (
     <div>
-      <p className={className}><Linkify text={body} /></p>
-      {mine && (
+      <div className="flex items-start gap-2">
+        <p className={`min-w-0 flex-1 ${className}`}><Linkify text={body} /></p>
+        {mine && (
+          <MoreMenu small label="Actions sur le commentaire">
+            <button type="button" onClick={() => setEditing(true)} className={menuItem}>Modifier</button>
+            <MenuSeparator />
+            <button type="button" onClick={() => setConfirm(true)} className={`${menuItem} !text-[#a4492a]`}>Supprimer</button>
+          </MoreMenu>
+        )}
+      </div>
+      {mine && confirm && (
         <div className="mt-0.5 flex items-center gap-3 text-[12px] font-semibold text-slate">
-          {confirm ? (
-            <>
-              <span className="font-normal">Supprimer ce commentaire ?</span>
-              <button type="button" disabled={pending} onClick={() => run(() => deleteWorkoutCommentAction(id))} className="text-[#a4492a]">Oui, supprimer</button>
-              <button type="button" onClick={() => setConfirm(false)}>Non</button>
-            </>
-          ) : (
-            <>
-              <button type="button" onClick={() => setEditing(true)} className="hover:text-ink">Modifier</button>
-              <button type="button" onClick={() => setConfirm(true)} className="hover:text-[#a4492a]">Supprimer</button>
-            </>
-          )}
-          {error && <span className="font-normal text-[#a4492a]">{error}</span>}
+          <span className="font-normal">Supprimer ce commentaire ?</span>
+          <button type="button" disabled={pending} onClick={() => run(() => deleteWorkoutCommentAction(id))} className="text-[#a4492a]">Oui, supprimer</button>
+          <button type="button" onClick={() => setConfirm(false)}>Non</button>
         </div>
       )}
+      {error && <p className="mt-0.5 text-[12px] text-[#a4492a]">{error}</p>}
     </div>
   );
 }

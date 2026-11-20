@@ -1,4 +1,5 @@
 import { redirect, notFound } from "next/navigation";
+import { ActivityMenu, AvailabilityMenu } from "@/components/entry-menus";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getWorkoutsForAthlete, getCheckinForDate, getImportedActivitiesForRange, getAvailabilityBlocksForRange, getLatestMeasurements } from "@/lib/queries";
@@ -10,12 +11,9 @@ import { DailyCheckin } from "../../daily-checkin";
 import { TIME_OF_DAY_ORDER, TIME_OF_DAY_LABELS, TIME_OF_DAY_HINTS, groupByTimeOfDay, formatPreciseTime } from "@/lib/time-of-day";
 import { todayISO } from "@/lib/dates";
 import { classifyHr } from "@/lib/hr-zones";
-import { DeleteAvailabilityButton } from "@/components/delete-availability-button";
 import { AddEventButton, EventRow } from "@/components/calendar-events";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { getCalendarEvents } from "@/lib/calendar-events";
-import { EditAvailabilityModal } from "@/components/availability-modal";
-import { EditImportedActivityModal, DeleteImportedActivityButton } from "@/components/imported-activity-modal";
 import { RouteMap } from "@/components/route-map";
 import type { ImportedActivity } from "@/lib/queries";
 
@@ -107,8 +105,7 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
           </span>
         </span>
         <span className="flex flex-shrink-0 items-center gap-3">
-          <EditAvailabilityModal block={b} className="text-white/50 hover:text-white" />
-          <DeleteAvailabilityButton id={b.id} className="text-white/50 hover:text-white" />
+          <AvailabilityMenu block={b} />
         </span>
       </div>
     );
@@ -133,8 +130,7 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
             {e.status && <StatusBadge status={e.status} validated={e.validated} date={e.date} today={todayISO()} />}
             {e.activity && (
               <span className="flex items-center gap-3 text-slate">
-                <EditImportedActivityModal activity={e.activity} className="hover:text-ink" />
-                <DeleteImportedActivityButton id={e.activity.id} className="hover:text-clay" />
+                <ActivityMenu activity={e.activity} />
               </span>
             )}
           </span>

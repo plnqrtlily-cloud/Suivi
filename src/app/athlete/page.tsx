@@ -1,4 +1,5 @@
 import { formatDuration } from "@/lib/duration";
+import { ActivityMenu, AvailabilityMenu } from "@/components/entry-menus";
 import { mtbLabel } from "@/lib/mtb";
 import { PlaceTray, type DayInfo, type FlexItem } from "@/components/place-tray";
 import { sportLabelPlain } from "@/lib/sport-labels";
@@ -21,9 +22,6 @@ import {
 } from "@/lib/queries";
 import { getOngoingHealthReports, getUnreadHealthCounts, getPainHistory, HEALTH_CATEGORY_LABEL, TRAINING_IMPACT_LABEL } from "@/lib/health";
 import { AVAILABILITY_SLOT_LABELS, resolveTimeForSort, formatWorkoutTime } from "@/lib/time-of-day";
-import { EditImportedActivityModal, DeleteImportedActivityButton } from "@/components/imported-activity-modal";
-import { EditAvailabilityModal } from "@/components/availability-modal";
-import { DeleteAvailabilityButton } from "@/components/delete-availability-button";
 import { estimateCyclePhase } from "@/lib/cycle";
 import { getWeekDates, todayISO, daysUntil } from "@/lib/dates";
 import { Nav } from "@/components/nav";
@@ -388,8 +386,7 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
               href={`/athlete/day/${selectedDate}`}
               actions={
                 <span className="flex flex-shrink-0 items-center gap-3.5 text-slate">
-                  <EditImportedActivityModal activity={a} className="hover:text-ink" />
-                  <DeleteImportedActivityButton id={a.id} className="hover:text-clay" />
+                  <ActivityMenu activity={a} />
                 </span>
               }
             />
@@ -407,8 +404,7 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
                 <span className="text-white/50"> · {b.created_by ? "par ton coach" : "par toi"}</span>
               </span>
               <span className="flex flex-shrink-0 items-center gap-3.5">
-                <EditAvailabilityModal block={b} className="text-white/60 hover:text-white" />
-                <DeleteAvailabilityButton id={b.id} className="text-white/60 hover:text-white" />
+                <AvailabilityMenu block={b} />
               </span>
             </div>
           ))}

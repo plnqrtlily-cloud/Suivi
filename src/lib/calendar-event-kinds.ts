@@ -2,12 +2,14 @@ import { mtbLabel } from "./mtb";
 // Types d'événements du calendrier partagé — fichier sans import serveur,
 // utilisable par les composants client.
 
+// Chaque type a sa couleur (bien distinctes) et son icône (EventFlag).
 export const EVENT_KINDS = [
-  { value: "entrainement", label: "Entraînement", color: "#3f6f6c" },
-  { value: "competition", label: "Compétition", color: "#a4492a" },
-  { value: "stage", label: "Stage", color: "#1b4b4f" },
-  { value: "rdv", label: "Rendez-vous", color: "#e8896a" },
-  { value: "deplacement", label: "Déplacement", color: "#5b6660" },
+  { value: "entrainement", label: "Entraînement", color: "#2f7d5b" },
+  { value: "competition", label: "Compétition", color: "#c0392b" },
+  { value: "stage", label: "Stage", color: "#6a4cc0" },
+  { value: "rdv", label: "Rendez-vous", color: "#2b7fb0" },
+  { value: "deplacement", label: "Déplacement", color: "#b07d1a" },
+  { value: "note", label: "Note", color: "#6b6f76" },
   { value: "autre", label: "Autre", color: "#182220" },
 ] as const;
 

@@ -1,4 +1,5 @@
 import { mtbLabel } from "@/lib/mtb";
+import { ActivityMenu, AvailabilityMenu } from "@/components/entry-menus";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
@@ -16,9 +17,6 @@ import { getWeekDates, getMonthGrid, monthLabel, todayISO, toISODate } from "@/l
 import { AVAILABILITY_SLOT_LABELS, resolveTimeForSort, formatWorkoutTime } from "@/lib/time-of-day";
 import { Nav } from "@/components/nav";
 import { sportLabel } from "@/components/ui";
-import { DeleteAvailabilityButton } from "@/components/delete-availability-button";
-import { EditAvailabilityModal } from "@/components/availability-modal";
-import { EditImportedActivityModal, DeleteImportedActivityButton } from "@/components/imported-activity-modal";
 import { CalendarAddButton } from "./calendar-add-button";
 import { ContinuousScroll } from "@/components/continuous-scroll";
 import { EventRow } from "@/components/calendar-events";
@@ -134,8 +132,7 @@ function DayItems({
             <span className="text-white/50"> · {b.created_by ? "par ton coach" : "par toi"}</span>
           </span>
           <span className="flex flex-shrink-0 items-center gap-3.5">
-            <EditAvailabilityModal block={b} className="text-white/60 hover:text-white" />
-            <DeleteAvailabilityButton id={b.id} className="text-white/60 hover:text-white" />
+            <AvailabilityMenu block={b} />
           </span>
         </div>
       ))}
@@ -182,8 +179,7 @@ function DayItems({
           chip={<Chip k="hors" />}
           actions={
             <span className="flex flex-shrink-0 items-center gap-3.5 pl-1 text-slate">
-              <EditImportedActivityModal activity={a} className="hover:text-ink" />
-              <DeleteImportedActivityButton id={a.id} className="hover:text-clay" />
+              <ActivityMenu activity={a} />
             </span>
           }
         />

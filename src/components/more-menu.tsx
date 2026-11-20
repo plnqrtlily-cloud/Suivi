@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 export const menuItem =
   "flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-[14px] font-semibold text-ink hover:bg-[#eef3f2] disabled:opacity-50";
 
-export function MoreMenu({ children, label = "Plus d'actions" }: { children: React.ReactNode; label?: string }) {
+export function MoreMenu({ children, label = "Plus d'actions", small = false }: { children: React.ReactNode; label?: string; /** Petit bouton, pour une ligne de liste. */ small?: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -36,7 +36,7 @@ export function MoreMenu({ children, label = "Plus d'actions" }: { children: Rea
         aria-label={label}
         title={label}
         onClick={() => setOpen((o) => !o)}
-        className={`flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${
+        className={`flex ${small ? "h-7 w-7" : "h-9 w-9"} items-center justify-center rounded-full border transition-colors ${
           open ? "border-[#1b4b4f] bg-[#1b4b4f] text-white" : "border-line bg-white text-ink hover:border-[#1b4b4f]"
         }`}
       >

@@ -153,7 +153,7 @@ export function EditImportedActivityModal({ activity, className, children }: { a
   );
 }
 
-export function DeleteImportedActivityButton({ id, className }: { id: string; className?: string }) {
+export function DeleteImportedActivityButton({ id, className, children }: { id: string; className?: string; /** Texte du bouton (sinon : ✕). */ children?: React.ReactNode }) {
   const [pending, setPending] = useState(false);
   return (
     <button
@@ -170,11 +170,11 @@ export function DeleteImportedActivityButton({ id, className }: { id: string; cl
           setPending(false);
         }
       }}
-      aria-label="Supprimer la séance"
+      aria-label={children ? undefined : "Supprimer la séance"}
       title="Supprimer"
-      className={`-m-1.5 p-1.5 disabled:opacity-40 ${className || ""}`}
+      className={children ? className : `-m-1.5 p-1.5 disabled:opacity-40 ${className || ""}`}
     >
-      {pending ? "…" : "✕"}
+      {pending ? "…" : (children ?? "✕")}
     </button>
   );
 }

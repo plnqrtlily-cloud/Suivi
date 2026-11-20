@@ -17,11 +17,60 @@ import { EVENT_KINDS, ELEVATION_SPORTS, TRAINING_SPORTS, guessMtbFromTitle, gues
 // côtés ; `you` règle le registre (« toi » chez l'athlète, « vous » chez le coach).
 
 /** Petit drapeau coloré selon le type d'événement. */
-export function EventFlag({ kind, size = 16 }: { kind: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke={eventKind(kind).color} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0" aria-hidden>
+// Icône propre à chaque type d'événement, dans sa couleur.
+const EVENT_ICONS: Record<string, React.ReactNode> = {
+  // Entraînement : tracé d'effort
+  entrainement: <path d="M2.5 10.5h3.5l2-5 4 9 2-4h3.5" />,
+  // Compétition : coupe
+  competition: (
+    <>
+      <path d="M6 3.5h8v4a4 4 0 01-8 0z" />
+      <path d="M6 5H3.5v1a3 3 0 003 3M14 5h2.5v1a3 3 0 01-3 3M10 11.5v3M7 17h6M8 14.5h4v2.5H8z" />
+    </>
+  ),
+  // Stage : tente
+  stage: (
+    <>
+      <path d="M2.5 16.5L10 4l7.5 12.5z" />
+      <path d="M10 9.5l-2.5 7M10 9.5l2.5 7" />
+    </>
+  ),
+  // Rendez-vous : horloge
+  rdv: (
+    <>
+      <circle cx="10" cy="10" r="7" />
+      <path d="M10 6v4.2l2.8 1.8" />
+    </>
+  ),
+  // Déplacement : voiture
+  deplacement: (
+    <>
+      <path d="M3 13.5v-3l1.8-4.5h10.4L17 10.5v3z" />
+      <circle cx="6.5" cy="14.5" r="1.5" />
+      <circle cx="13.5" cy="14.5" r="1.5" />
+    </>
+  ),
+  // Note : feuille écrite
+  note: (
+    <>
+      <path d="M5 2.5h7l3.5 3.5v11.5H5z" />
+      <path d="M12 2.5V6h3.5M7.5 10h5M7.5 13h5" />
+    </>
+  ),
+  // Autre : drapeau
+  autre: (
+    <>
       <path d="M4.5 17.5V3" />
-      <path d="M4.5 3.5h10l-2.2 3.5 2.2 3.5h-10" fill={`${eventKind(kind).color}22`} />
+      <path d="M4.5 3.5h10l-2.2 3.5 2.2 3.5h-10" />
+    </>
+  ),
+};
+
+export function EventFlag({ kind, size = 16 }: { kind: string; size?: number }) {
+  const k = eventKind(kind);
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke={k.color} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0" aria-label={k.label} role="img">
+      {EVENT_ICONS[k.value] ?? EVENT_ICONS.autre}
     </svg>
   );
 }
@@ -120,7 +169,7 @@ export function CalendarEventForm({
           if (!sportTouched && g) setSport(g === "cycling" ? "mtb" : g);
           const m = guessMtbFromTitle(e.target.value);
           if (!mtbTouched && m) setMtb(m);
-        }} placeholder={kind === "entrainement" ? "Sortie club, séance piste…" : kind === "competition" ? "Coupe de France, manche 2" : kind === "rdv" ? "Kiné" : "Titre de l'événement"} />
+        }} placeholder={kind === "entrainement" ? "Sortie club, séance piste…" : kind === "competition" ? "Coupe de France, manche 2" : kind === "rdv" ? "Kiné" : kind === "note" ? "À retenir : changer les plaquettes" : "Titre de l'événement"} />
       {kind === "entrainement" && (
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1.5 text-sm font-medium text-ink-soft">

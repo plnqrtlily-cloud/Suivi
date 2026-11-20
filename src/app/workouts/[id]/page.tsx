@@ -17,6 +17,7 @@ import { parsePlan } from "@/lib/discipline";
 import { formatDuration } from "@/lib/duration";
 import { StatusForm } from "./status-form";
 import { CommentBody } from "@/components/comment-body";
+import { OpenDetailsButton } from "@/components/open-details-button";
 import { CommentForm } from "./comment-form";
 import { CancelWorkoutButton } from "./cancel-button";
 import { CopyWorkoutButton, SendToAthletesButton } from "@/components/workout-clipboard";
@@ -202,8 +203,11 @@ export default async function WorkoutDetailPage({
                     Voir comme l&apos;athlète
                   </Link>
                   <Link href={`/workouts/${workout.id}/edit`} className={menuItem}>
-                    Modifier
+                    Modifier la séance
                   </Link>
+                  <OpenDetailsButton target="modifier-retour" className={menuItem}>
+                    {workout.status === "planned" ? "Renseigner le retour" : "Modifier le retour"}
+                  </OpenDetailsButton>
                   <CopyWorkoutButton workout={{ id: workout.id, title: workout.title, athleteName: athleteFirstName }} className={menuItem} />
                   <SendToAthletesButton
                     workoutId={workout.id}
@@ -587,7 +591,7 @@ export default async function WorkoutDetailPage({
             la marche normale, et la saisie de l'athlète reste la référence. */}
         {role === "coach" && (
           <Card className="mb-6">
-            <details>
+            <details id="modifier-retour" className="scroll-mt-24">
               <summary className="cursor-pointer text-[11px] font-bold uppercase tracking-wider text-slate">
                 {workout.status === "planned" ? <>Renseigner la séance à la place de l&apos;athlète</> : "Modifier le retour de la séance"}
               </summary>

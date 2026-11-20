@@ -1379,7 +1379,7 @@ function EntryPanel({
         <div className="flex flex-wrap gap-2">
           {isWorkout && e.isDraft && e.createdByMe && <button type="button" disabled={pending} onClick={onPublish} className={pillMain}>Publier</button>}
           {isWorkout && e.status === "tovalidate" && <button type="button" disabled={pending} onClick={onValidate} className={pillMain}>Valider</button>}
-          {isWorkout && !e.isGoal && !e.isDraft && (
+          {isWorkout && !e.isGoal && !e.isDraft && (e.status === "todo" || e.status === "noreport" || reporting) && (
             <button
               type="button"
               disabled={pending}
@@ -1391,12 +1391,14 @@ function EntryPanel({
             </button>
           )}
           {/* Les autres actions sont regroupées dans le menu « ⋯ ». */}
-          {/* Activité hors programme : modifiable par le coach (saisie par lui
-              ou par l'athlète). */}
-          {!isWorkout && (
-            <EditImportedActivityModal
-              className={pill}
-              activity={{
+          <MoreMenu label="Actions sur la séance">
+              {isWorkout && !e.isGoal && !e.isDraft && !(e.status === "todo" || e.status === "noreport") && (
+                <button type="button" onClick={() => setReporting(true)} className={menuItem}>Modifier le retour</button>
+              )}
+              {/* Activité hors programme : modifiable par le coach (saisie par
+                  lui ou par l'athlète). */}
+              {!isWorkout && (
+                <EditImportedActivityModal className={menuItem} activity={{
                 id: e.id,
                 activity_date: e.date,
                 activity_time: e.timeLabel,
@@ -1411,15 +1413,10 @@ function EntryPanel({
                 rpe: e.rpe,
                 notes: e.description,
                 route_url: e.routeUrl,
-              }}
-            >
-              Modifier
-            </EditImportedActivityModal>
-          )}
-          {(isWorkout || e.createdByMe) && (
-            <MoreMenu label="Actions sur la séance">
+              }}>Modifier</EditImportedActivityModal>
+              )}
               {isWorkout && <Link href={`/workouts/${e.id}?apercu=athlete`} className={menuItem}>Voir comme l&apos;athlète</Link>}
-              {isWorkout && <Link href={`/workouts/${e.id}/edit`} className={menuItem}>Modifier</Link>}
+              {isWorkout && <Link href={`/workouts/${e.id}/edit`} className={menuItem}>Modifier la séance</Link>}
               {isWorkout && <CopyWorkoutButton workout={{ id: e.id, title: e.title, athleteName: data.athleteName }} className={menuItem} />}
               {isWorkout && <button type="button" disabled={pending} onClick={() => togglePicker("dup")} className={menuItem}>{e.status === "miss" ? "Reprogrammer…" : "Dupliquer…"}</button>}
               {isWorkout && (e.status === "todo" || e.status === "noreport") && <button type="button" disabled={pending} onClick={() => togglePicker("move")} className={menuItem}>Déplacer / reporter…</button>}
@@ -1431,7 +1428,6 @@ function EntryPanel({
                 </button>
               )}
             </MoreMenu>
-          )}
         </div>
       </PanelHead>
       {/* Même formulaire que l'athlète quand il renseigne sa séance, pré-rempli

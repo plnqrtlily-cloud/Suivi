@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { deleteAvailabilityBlockAction } from "@/lib/actions";
 
-export function DeleteAvailabilityButton({ id, className }: { id: string; className?: string }) {
+export function DeleteAvailabilityButton({ id, className, children }: { id: string; className?: string; /** Texte du bouton (sinon : ✕). */ children?: React.ReactNode }) {
   const [pending, setPending] = useState(false);
   return (
     <button
@@ -20,11 +20,11 @@ export function DeleteAvailabilityButton({ id, className }: { id: string; classN
           setPending(false);
         }
       }}
-      aria-label="Supprimer l'indisponibilité"
+      aria-label={children ? undefined : "Supprimer l'indisponibilité"}
       title="Supprimer"
-      className={`-m-1.5 p-1.5 disabled:opacity-40 ${className || ""}`}
+      className={children ? className : `-m-1.5 p-1.5 disabled:opacity-40 ${className || ""}`}
     >
-      {pending ? "…" : "✕"}
+      {pending ? "…" : (children ?? "✕")}
     </button>
   );
 }
