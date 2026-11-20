@@ -1,5 +1,6 @@
 "use client";
 
+import { sportTone } from "@/lib/palette";
 import { SessionDurationInput } from "@/components/session-duration-input";
 import { MtbPicker } from "@/components/mtb-picker";
 import { Linkify, safeUrl, shortUrl } from "@/components/linkify";
@@ -1021,7 +1022,10 @@ function DayCard({
             }}
           >
             <span className="block text-[13px] font-bold leading-snug text-ink">{!e.isGoal && <EntryIcon status={e.status} />}{e.title}{e.isDraft ? " · brouillon" : ""}</span>
-            <span className="mt-0.5 block text-xs leading-snug text-ink-soft">{entrySub(e)}</span>
+            <span className="mt-0.5 flex items-center gap-1.5 text-xs leading-snug text-ink-soft">
+              <span className="h-[7px] w-[7px] shrink-0 rounded-full" style={{ background: sportTone(e.sport, e.discipline).color }} />
+              <span className="min-w-0">{entrySub(e)}</span>
+            </span>
           </button>
           </LongPressMove>
         );

@@ -1,4 +1,6 @@
 import { mtbLabel } from "@/lib/mtb";
+import { parsePlan } from "@/lib/discipline";
+import { sportTone } from "@/lib/palette";
 import { LongPressMove, MoveProvider } from "@/components/long-press-move";
 import { ActivityMenu, AvailabilityMenu } from "@/components/entry-menus";
 import { redirect } from "next/navigation";
@@ -29,7 +31,6 @@ import { eventKind, eventsOn, type CalendarEventView } from "@/lib/calendar-even
 import { Chip, SportIcon, durationLabel, isGoal, statusKey } from "../athlete-ui";
 
 const DAY_SHORT = ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"];
-const DONE_COLOR = "#8a5a44";
 const PET = "#1b4b4f";
 
 function frRange(a: string, b: string) {
@@ -48,6 +49,7 @@ function sortByTime<T>(items: T[], time: (t: T) => string | null) {
 function CalItem({
   icon,
   iconColor,
+  iconBg,
   title,
   sub,
   chip,
@@ -57,6 +59,8 @@ function CalItem({
 }: {
   icon: React.ReactNode;
   iconColor: string;
+  /** Fond teinté de l'icône (couleur du sport). */
+  iconBg?: string;
   title: string;
   sub: string;
   chip?: React.ReactNode;
@@ -66,7 +70,7 @@ function CalItem({
 }) {
   const inner = (
     <>
-      <span className="flex flex-shrink-0" style={{ color: iconColor }}>
+      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[9px]" style={{ color: iconColor, background: iconBg ?? "#eceeed" }}>
         {icon}
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
@@ -146,8 +150,9 @@ function DayItems({
           <LongPressMove key={w.id} item={{ kind: "workout", id: w.id, title: w.title, date: w.date }}>
           <CalItem
             muted={muted}
-            icon={<SportIcon sport={w.sport} size={18} />}
-            iconColor="#c9a227"
+            icon={<SportIcon sport={w.sport} size={17} />}
+            iconColor="#a8751c"
+            iconBg="#f8f0de"
             title={w.title}
             sub={w.category === "evenement" ? "Événement" : "Objectif"}
             href={`/workouts/${w.id}`}
@@ -162,8 +167,9 @@ function DayItems({
           <LongPressMove key={w.id} item={{ kind: "workout", id: w.id, title: w.title, date: w.date }}>
           <CalItem
             muted={muted}
-            icon={<SportIcon sport={w.sport} size={18} />}
-            iconColor={w.color || PET}
+            icon={<SportIcon sport={w.sport} size={17} />}
+            iconColor={sportTone(w.sport, parsePlan(w.plan_json)?.discipline).color}
+            iconBg={sportTone(w.sport, parsePlan(w.plan_json)?.discipline).tint}
             title={w.title}
             sub={[formatWorkoutTime(w.time), durationLabel(w.duration_minutes), `par ${w.coach_first_name ?? "ton coach"}`].filter(Boolean).join(" · ")}
             href={`/workouts/${w.id}`}
@@ -176,8 +182,9 @@ function DayItems({
         <LongPressMove key={a.id} item={{ kind: "activity", id: a.id, title: mtbLabel(a.discipline) ?? sportLabel(a.sport), date: a.activity_date }}>
         <CalItem
           muted={muted}
-          icon={<SportIcon sport={a.sport} size={18} />}
-          iconColor={DONE_COLOR}
+          icon={<SportIcon sport={a.sport} size={17} />}
+          iconColor={sportTone(a.sport, a.discipline).color}
+          iconBg={sportTone(a.sport, a.discipline).tint}
           title={mtbLabel(a.discipline) ?? sportLabel(a.sport)}
           sub={[a.activity_time, durationLabel(a.duration_minutes), a.distance_km ? `${String(a.distance_km).replace(".", ",")} km` : null, a.elevation_gain_m ? `D+ ${a.elevation_gain_m} m` : null, a.created_by ? "par ton coach" : "par toi"]
             .filter(Boolean)

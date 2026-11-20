@@ -64,6 +64,7 @@ export function ItemCard({
   by,
   icon,
   iconColor,
+  iconBg,
   title,
   sub,
   href,
@@ -73,6 +74,8 @@ export function ItemCard({
   by: string;
   icon: React.ReactNode;
   iconColor: string;
+  /** Fond teinté de l'icône (couleur du sport). */
+  iconBg?: string;
   title: string;
   sub: string;
   href?: string;
@@ -80,7 +83,7 @@ export function ItemCard({
 }) {
   const body = (
     <>
-      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-paper-dim" style={{ color: iconColor }}>
+      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-paper-dim" style={{ color: iconColor, ...(iconBg ? { background: iconBg } : {}) }}>
         {icon}
       </span>
       <span className="flex min-w-0 flex-1 flex-col">

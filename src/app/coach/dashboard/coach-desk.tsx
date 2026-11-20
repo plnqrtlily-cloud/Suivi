@@ -365,6 +365,7 @@ export function CoachDesk({ tasks, notes, targets, today }: { tasks: DeskTask[];
       {/* Tâches */}
       <section className="flex flex-col rounded-[18px] border border-line bg-white px-3 pb-1 pt-2">
         <div className="flex items-center gap-2.5 px-0.5 pb-1.5">
+<span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "#fbe4da", color: "#9a4426" }}><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4.5 10.5l3.5 3.5 7.5-8" /></svg></span>
           <h2 className="flex-1 font-display text-[17px] font-semibold text-moss">Tâches</h2>
           <span title="Tâches faites sur le total" className="text-sm font-bold text-moss">
             {done}/{items.length}
@@ -449,6 +450,7 @@ export function CoachDesk({ tasks, notes, targets, today }: { tasks: DeskTask[];
       {/* Notes */}
       <section className="flex flex-col rounded-[18px] border border-line bg-white px-3 pb-1.5 pt-2">
         <div className="flex items-center gap-2.5 px-0.5 pb-1.5">
+<span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "#e1ecf8", color: "#2b5f8a" }}><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 2.5h7l3.5 3.5v11.5H5zM12 2.5V6h3.5M7.5 10h5M7.5 13h5" /></svg></span>
           <h2 className="flex-1 font-display text-[17px] font-semibold text-moss">Notes</h2>
           <span className="text-sm font-bold text-moss">{noteItems.length}</span>
           <PlusButton open={addingNote} label="Nouvelle note" onClick={() => setAddingNote(!addingNote)} />

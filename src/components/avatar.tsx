@@ -1,3 +1,5 @@
+import { personTone } from "@/lib/palette";
+
 const SIZES: Record<"sm" | "md" | "lg" | "list", string> = {
   sm: "h-8 w-8 text-xs",
   md: "h-12 w-12 text-base",
@@ -27,9 +29,12 @@ export function Avatar({
       />
     );
   }
+  // Sans photo : initiale sur un ton pastel propre à la personne.
+  const tone = personTone(userId);
   return (
     <div
-      className={`${SIZES[size]} flex shrink-0 items-center justify-center rounded-full bg-moss/15 font-display font-medium text-moss-dark`}
+      className={`${SIZES[size]} flex shrink-0 items-center justify-center rounded-full font-display font-medium`}
+      style={{ background: tone.tint, color: tone.color }}
     >
       {firstName.charAt(0).toUpperCase()}
     </div>

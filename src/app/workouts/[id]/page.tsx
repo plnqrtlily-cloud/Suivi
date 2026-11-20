@@ -1,4 +1,6 @@
 import { redirect, notFound } from "next/navigation";
+import { sportIconPath } from "@/lib/sport-icons";
+import { sportTone } from "@/lib/palette";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { upgradeOutdatedAnimations } from "@/lib/animation-upgrade";
@@ -165,10 +167,20 @@ export default async function WorkoutDetailPage({
             </Link>
           </div>
         )}
-        <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-sm text-slate">
-              {mtbLabel(parsePlan(workout.plan_json)?.discipline) ?? sportLabel(workout.sport)} ·{" "}
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate">
+              {/* Sport en pastille à sa couleur. */}
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12.5px] font-semibold"
+                style={{ background: sportTone(workout.sport, workoutDiscipline).tint, color: sportTone(workout.sport, workoutDiscipline).color }}
+              >
+                <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d={sportIconPath(workout.sport)} />
+                </svg>
+                {mtbLabel(workoutDiscipline) ?? sportLabel(workout.sport)}
+              </span>
+              <span>
               {workout.flex_week && !workout.flex_placed
                 ? `à placer dans la semaine du ${new Date(`${workout.flex_week}T00:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`
                 : new Date(`${workout.date}T00:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
@@ -177,13 +189,14 @@ export default async function WorkoutDetailPage({
                 : workout.time
                   ? ` à ${workout.time}`
                   : ""}
+              </span>
             </p>
             <h1 className="font-display text-3xl text-ink">{workout.title}</h1>
             <p className="mt-1 text-sm text-slate">
               Programmée par {workout.coach_first_name} {workout.coach_last_name}
             </p>
           </div>
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex shrink-0 flex-col items-end gap-2">
             <div className="flex items-center gap-2">
               {workout.priority && (
                 <span className="rounded-full bg-clay px-2 py-0.5 text-xs font-semibold text-white">
@@ -229,19 +242,9 @@ export default async function WorkoutDetailPage({
               <MoreMenu label="Actions sur la séance">
                 <a href="#renseigner" className={menuItem}>{workout.status === "planned" ? "Renseigner la séance" : "Modifier mon retour"}</a>
                 <MoveWorkoutItem workoutId={workout.id} date={workout.date} />
+                {/* Fichier .fit à copier dans le dossier NEWFILES d'une montre Garmin branchée en USB. */}
+                <a href={`/api/workouts/${workout.id}/fit`} className={menuItem}>Télécharger pour ma montre (.fit)</a>
               </MoreMenu>
-            )}
-            {role === "athlete" && (
-              <a
-                href={`/api/workouts/${workout.id}/fit`}
-                className="flex items-center gap-1.5 text-xs font-semibold text-slate hover:text-ink"
-                title="Fichier .fit à copier dans le dossier NEWFILES de votre montre Garmin connectée en USB"
-              >
-                <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M10 3v10m0 0l-3.5-3.5M10 13l3.5-3.5M3 15.5v1a2 2 0 002 2h10a2 2 0 002-2v-1" />
-                </svg>
-                Télécharger pour ma montre (.fit)
-              </a>
             )}
           </div>
         </div>

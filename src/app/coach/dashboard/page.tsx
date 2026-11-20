@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { personTone, sportTone } from "@/lib/palette";
 import { TEAMS_ENABLED } from "@/lib/features";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
@@ -71,6 +72,8 @@ function AthleteCard({
       className={`flex flex-col rounded-3xl border bg-white p-4 ${
         alerts.length > 0 ? "border-gold-light/50" : "border-line"
       }`}
+      // Un voile très léger de la couleur de l'athlète en haut de sa carte.
+      style={{ backgroundImage: `linear-gradient(180deg, ${personTone(athleteId).tint} 0px, #ffffff 110px)` }}
     >
       {/* En-tête : identité */}
       <div className="mb-3 flex items-center gap-2.5">
@@ -106,9 +109,11 @@ function AthleteCard({
           <dd className="min-w-0 text-right font-medium text-ink">
             {todayWorkouts.length > 0 ? (
               <Link href={`/coach/athletes/${athleteId}/day/${today}`} className="flex items-center justify-end gap-1.5 hover:underline">
-                <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke={todayWorkouts[0].color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-                  <path d={sportIconPath(todayWorkouts[0].sport)} />
-                </svg>
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md" style={{ background: sportTone(todayWorkouts[0].sport).tint, color: sportTone(todayWorkouts[0].sport).color }}>
+                  <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={sportIconPath(todayWorkouts[0].sport)} />
+                  </svg>
+                </span>
                 <span className="truncate">
                   {todayWorkouts[0].title}
                   {todayWorkouts.length > 1 && ` +${todayWorkouts.length - 1}`}

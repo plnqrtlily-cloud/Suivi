@@ -1,6 +1,7 @@
 // Chargement du calendrier coach (vue semaine ou mois) : toutes les requêtes
 // de la période en une fois, puis mise en forme dans CoachCalendarData.
 
+import { sportTone } from "./palette";
 import { mtbLabel } from "./mtb";
 import { getCalendarEvents } from "./calendar-events";
 import { eventsOn } from "./calendar-event-kinds";
@@ -45,15 +46,9 @@ const SPORT_LABELS: Record<string, string> = {
   strength: "Musculation",
   other: "Divers",
 };
-const SPORT_COLORS: Record<string, string> = {
-  running: "#e8896a",
-  cycling: "#1b4b4f",
-  hiking: "#7c5c46",
-  swimming: "#6f9fb8",
-  climbing: "#6b7a8a",
-  strength: "#b9a18f",
-  other: "#9aa39c",
-};
+const SPORT_COLORS: Record<string, string> = Object.fromEntries(
+  ["running", "cycling", "hiking", "swimming", "climbing", "strength", "other"].map((k) => [k, sportTone(k).color])
+);
 const DOW = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 

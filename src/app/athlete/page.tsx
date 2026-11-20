@@ -1,4 +1,6 @@
 import { formatDuration } from "@/lib/duration";
+import { parsePlan } from "@/lib/discipline";
+import { sportTone } from "@/lib/palette";
 import { ActivityMenu, AvailabilityMenu } from "@/components/entry-menus";
 import { mtbLabel } from "@/lib/mtb";
 import { PlaceTray, type DayInfo, type FlexItem } from "@/components/place-tray";
@@ -118,7 +120,11 @@ function SessionHero({ w, today }: { w: Workout; today: string }) {
   const consigne = (w.description || "").trim().split("\n").find((l) => l.trim()) || "";
   const done = k === "done";
   return (
-    <article className="flex flex-col gap-3 rounded-[22px] bg-[#1b4b4f] p-4 text-white">
+    <article
+      className="flex flex-col gap-3 rounded-[22px] bg-[#1b4b4f] p-4 text-white"
+      // Pétrole de la marque, avec une pointe de la couleur du sport dans l'angle.
+      style={{ background: `linear-gradient(135deg, #1b4b4f 0%, #1b4b4f 58%, ${isGoal(w) ? "#a8751c" : sportTone(w.sport, parsePlan(w.plan_json)?.discipline).color} 135%)` }}
+    >
       <div className="flex items-center gap-3">
         <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/15">
           <SportIcon sport={w.sport} size={22} />
@@ -363,7 +369,8 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
               chip={isGoal(w) ? <span className="rounded-full bg-[#fbf3dc] px-2.5 py-0.5 text-xs font-semibold text-[#8a6d12]">Objectif{w.priority ? ` ${w.priority}` : ""}</span> : <Chip k={statusKey(w, today)} />}
               by={`par ${w.coach_first_name ?? "ton coach"}`}
               icon={<SportIcon sport={w.sport} size={19} />}
-              iconColor={w.color || PET}
+              iconColor={isGoal(w) ? "#a8751c" : sportTone(w.sport, parsePlan(w.plan_json)?.discipline).color}
+              iconBg={isGoal(w) ? "#f8f0de" : sportTone(w.sport, parsePlan(w.plan_json)?.discipline).tint}
               title={w.title}
               sub={[formatWorkoutTime(w.time), durationLabel(w.duration_minutes)].filter(Boolean).join(" · ") || sportLabel(w.sport)}
               href={`/workouts/${w.id}`}
@@ -376,7 +383,8 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
               chip={<Chip k="hors" />}
               by={a.created_by ? "par ton coach" : a.source === "manual" ? "par toi" : a.source === "garmin" ? "Garmin" : "Strava"}
               icon={<SportIcon sport={a.sport} size={19} />}
-              iconColor="#8a5a44"
+              iconColor={sportTone(a.sport, a.discipline).color}
+              iconBg={sportTone(a.sport, a.discipline).tint}
               title={mtbLabel(a.discipline) ?? sportLabel(a.sport)}
               sub={
                 [a.activity_time, a.duration_minutes ? formatDuration(a.duration_minutes) : null, a.distance_km ? `${String(a.distance_km).replace(".", ",")} km` : null, a.elevation_gain_m ? `D+ ${a.elevation_gain_m} m` : null, a.rpe ? `RPE ${a.rpe}` : null]

@@ -74,7 +74,7 @@ export function Icon({ d, size = 19 }: { d: string; size?: number }) {
 export function MoiRow({ href, icon, color, title, sub, badge }: { href: string; icon: string; color: string; title: string; sub: string; badge?: string }) {
   return (
     <Link href={href} className="flex items-center gap-3 border-t border-paper-dim px-3.5 py-3 first:border-t-0 hover:bg-[#f7f8f8]">
-      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-paper-dim" style={{ color }}>
+      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px]" style={{ color, background: `${color}1a` }}>
         <Icon d={icon} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">

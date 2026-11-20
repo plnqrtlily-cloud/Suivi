@@ -97,8 +97,8 @@ export default async function MoiPage() {
 
         <div className="flex flex-col gap-3.5 px-4">
           <MoiGroup label="Ma performance">
-            <MoiRow href="/athlete/profile/zones" icon={ICONS.zones} color="#1b4b4f" title="Mes zones" sub={zonesSub} />
-            <MoiRow href="/athlete/profile/mesures" icon={ICONS.tests} color="#1b4b4f" title="Tests et mesures" sub={lastTestLabel} />
+            <MoiRow href="/athlete/profile/zones" icon={ICONS.zones} color="#2b78a8" title="Mes zones" sub={zonesSub} />
+            <MoiRow href="/athlete/profile/mesures" icon={ICONS.tests} color="#2f7d5b" title="Tests et mesures" sub={lastTestLabel} />
             {perf.qualities.length > 0 && (
               <MoiRow
                 href="/athlete/auto-evaluation"
@@ -112,7 +112,7 @@ export default async function MoiPage() {
             <MoiRow
               href="/athlete/profile/charges"
               icon={ICONS.grid}
-              color="#1b4b4f"
+              color="#a8751c"
               title="Charges et records"
               sub={[maxes.length ? `${maxes.length} charge${maxes.length > 1 ? "s" : ""} de référence` : null, records.length ? `records sur ${records.length} sport${records.length > 1 ? "s" : ""}` : null].filter(Boolean).join(" · ") || "Tes maximums et tes records"}
             />
@@ -142,9 +142,9 @@ export default async function MoiPage() {
           </MoiGroup>
 
           <MoiGroup label="Mon compte">
-            <MoiRow href="/athlete/profile/infos" icon={ICONS.user} color="#1b4b4f" title="Mes infos" sub="Photo, genre, sports pratiqués" />
-            <MoiRow href="/settings#coachs" icon={ICONS.coach} color="#1b4b4f" title="Mes coachs" sub={coachNames || "Rejoindre un coach avec son code"} />
-            <MoiRow href="/settings#calendrier" icon={ICONS.link} color="#1b4b4f" title="Mon calendrier" sub={calToken ? "Synchronisé avec ton agenda" : "Synchroniser avec Google, Apple, Outlook"} />
+            <MoiRow href="/athlete/profile/infos" icon={ICONS.user} color="#1d6c7c" title="Mes infos" sub="Photo, genre, sports pratiqués" />
+            <MoiRow href="/settings#coachs" icon={ICONS.coach} color="#c8623f" title="Mes coachs" sub={coachNames || "Rejoindre un coach avec son code"} />
+            <MoiRow href="/settings#calendrier" icon={ICONS.link} color="#6a4cc0" title="Mon calendrier" sub={calToken ? "Synchronisé avec ton agenda" : "Synchroniser avec Google, Apple, Outlook"} />
             <MoiRow href="/settings" icon={ICONS.gear} color="#5b6660" title="Paramètres" sub="Notifications, données, sécurité" />
           </MoiGroup>
         </div>

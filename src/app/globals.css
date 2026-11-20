@@ -39,6 +39,13 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Curseurs, cases et boutons radio aux couleurs de Rythme (et non le bleu du navigateur). */
+input[type="range"],
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--color-moss);
+}
+
 :focus-visible {
   outline: 2px solid var(--color-moss);
   outline-offset: 2px;
