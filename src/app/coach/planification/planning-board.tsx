@@ -978,6 +978,16 @@ export function PlanningBoard({
                       <button
                         type="button"
                         className={menuItem}
+                        onClick={() => {
+                          setForm({ title: cur.title, sport: cur.sport, minutes: String(cur.minutes || 60), date: cur.date });
+                          setEdit(true);
+                        }}
+                      >
+                        Déplacer / reporter…
+                      </button>
+                      <button
+                        type="button"
+                        className={menuItem}
                         onClick={() => run(() => duplicateWorkoutAction({ workoutId: cur.id, targetDate: addDays(cur.date, 7) }), `Copiée au ${frs(addDays(cur.date, 7))}`)}
                       >
                         Copier la semaine suivante

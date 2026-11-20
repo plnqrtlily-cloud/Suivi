@@ -1,4 +1,5 @@
 import { AutoRefresh } from "@/components/auto-refresh";
+import { MoveProvider } from "@/components/long-press-move";
 import { dbAll } from "@/lib/db";
 import { TEAMS_ENABLED } from "@/lib/features";
 import { redirect, notFound } from "next/navigation";
@@ -482,7 +483,7 @@ export default async function AthleteDetailPage({
                   tests={overviewTests}
                 />
               ),
-              programmation: <CoachCalendar data={calendarData} />,
+              programmation: <MoveProvider><CoachCalendar data={calendarData} /></MoveProvider>,
               periodisation: (
                 <PeriodizationPanel
                   athleteId={athleteId}

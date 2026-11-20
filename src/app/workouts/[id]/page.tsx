@@ -18,6 +18,7 @@ import { formatDuration } from "@/lib/duration";
 import { StatusForm } from "./status-form";
 import { CommentBody } from "@/components/comment-body";
 import { OpenDetailsButton } from "@/components/open-details-button";
+import { MoveWorkoutItem } from "@/components/entry-menus";
 import { CommentForm } from "./comment-form";
 import { CancelWorkoutButton } from "./cancel-button";
 import { CopyWorkoutButton, SendToAthletesButton } from "@/components/workout-clipboard";
@@ -209,6 +210,7 @@ export default async function WorkoutDetailPage({
                     {workout.status === "planned" ? "Renseigner le retour" : "Modifier le retour"}
                   </OpenDetailsButton>
                   <CopyWorkoutButton workout={{ id: workout.id, title: workout.title, athleteName: athleteFirstName }} className={menuItem} />
+                  <MoveWorkoutItem workoutId={workout.id} date={workout.date} />
                   <SendToAthletesButton
                     workoutId={workout.id}
                     workoutTitle={workout.title}
@@ -222,6 +224,12 @@ export default async function WorkoutDetailPage({
                   <CancelWorkoutButton workoutId={workout.id} className={`${menuItem} !text-[#a4492a]`} />
                 </MoreMenu>
               </div>
+            )}
+            {role === "athlete" && !preview && (
+              <MoreMenu label="Actions sur la séance">
+                <a href="#renseigner" className={menuItem}>{workout.status === "planned" ? "Renseigner la séance" : "Modifier mon retour"}</a>
+                <MoveWorkoutItem workoutId={workout.id} date={workout.date} />
+              </MoreMenu>
             )}
             {role === "athlete" && (
               <a

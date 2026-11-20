@@ -1870,16 +1870,43 @@ export async function updateImportedActivityAction(id: string, formData: FormDat
 
 export async function deleteImportedActivityAction(id: string) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+  if (!user) throw new Error("Non autorisé.");
 
+  // L'athlète, ou un de ses coachs.
   const existing = await dbGet<any>(`SELECT athlete_id, activity_date FROM imported_activities WHERE id = ?`, [id]);
-  if (!existing || existing.athlete_id !== user.id) throw new Error("Non autorisé.");
+  if (!existing || !(await canManageAthleteCalendar(user, existing.athlete_id))) throw new Error("Non autorisé.");
 
   await dbRun(`DELETE FROM imported_activities WHERE id = ?`, [id]);
+  revalidateAthleteDays(existing.athlete_id, [existing.activity_date]);
+}
 
-  revalidatePath("/athlete/profile");
-  revalidatePath("/athlete");
-  revalidatePath(`/athlete/day/${existing.activity_date}`);
+/** Déplacer une activité faite à un autre jour (athlète ou coach). */
+export async function moveImportedActivityAction(id: string, date: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Non autorisé.");
+  if (!DATE_ONLY_RE.test(date)) throw new Error("Date invalide.");
+  const a = await dbGet<any>(`SELECT athlete_id, activity_date FROM imported_activities WHERE id = ?`, [id]);
+  if (!a || !(await canManageAthleteCalendar(user, a.athlete_id))) throw new Error("Non autorisé.");
+  await dbRun(`UPDATE imported_activities SET activity_date = ? WHERE id = ?`, [date, id]);
+  revalidateAthleteDays(a.athlete_id, [a.activity_date, date]);
+}
+
+/** Copier une activité faite sur d'autres jours (une copie par jour). */
+export async function duplicateImportedActivityAction(id: string, dates: string[]) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Non autorisé.");
+  const days = [...new Set(dates.filter((d) => DATE_ONLY_RE.test(d)))].slice(0, 60);
+  if (!days.length) throw new Error("Choisissez au moins un jour.");
+  const a = await dbGet<any>(`SELECT * FROM imported_activities WHERE id = ?`, [id]);
+  if (!a || !(await canManageAthleteCalendar(user, a.athlete_id))) throw new Error("Non autorisé.");
+  await dbBatch(
+    days.map((d) => ({
+      sql: `INSERT INTO imported_activities (id, athlete_id, source, activity_date, activity_time, sport, duration_minutes, distance_km, avg_hr, elevation_gain_m, avg_power_w, rpe, notes, route_points, discipline, elapsed_minutes, route_url, created_by)
+            VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [randomUUID(), a.athlete_id, d, a.activity_time, a.sport, a.duration_minutes, a.distance_km, a.avg_hr, a.elevation_gain_m, a.avg_power_w, a.rpe, a.notes, a.route_points, a.discipline, a.elapsed_minutes, a.route_url, user.role === "coach" ? user.id : null],
+    }))
+  );
+  revalidateAthleteDays(a.athlete_id, days);
 }
 
 // ---------- INDISPONIBILITÉS PERSONNELLES DE L'ATHLÈTE ----------
@@ -1916,6 +1943,17 @@ export async function addAvailabilityBlockAction(params: { dates: string[]; time
   revalidatePath("/athlete/programmation");
   revalidatePath("/athlete");
   for (const date of params.dates) revalidatePath(`/athlete/day/${date}`);
+}
+
+/** Déplacer une indisponibilité à un autre jour (athlète ou coach). */
+export async function moveAvailabilityBlockAction(id: string, date: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Non autorisé.");
+  if (!DATE_ONLY_RE.test(date)) throw new Error("Date invalide.");
+  const b = await dbGet<any>(`SELECT athlete_id, date FROM availability_blocks WHERE id = ?`, [id]);
+  if (!b || !(await canManageAthleteCalendar(user, b.athlete_id))) throw new Error("Non autorisé.");
+  await dbRun(`UPDATE availability_blocks SET date = ? WHERE id = ?`, [date, id]);
+  revalidateAthleteDays(b.athlete_id, [b.date, date]);
 }
 
 export async function updateAvailabilityBlockAction(id: string, formData: FormData) {
@@ -2057,8 +2095,7 @@ export async function coachDeleteEntryAction(kind: "activity" | "availability", 
     kind === "activity"
       ? await dbGet<any>(`SELECT athlete_id, activity_date AS date, created_by FROM imported_activities WHERE id = ?`, [id])
       : await dbGet<any>(`SELECT athlete_id, date, created_by FROM availability_blocks WHERE id = ?`, [id]);
-  if (!row || row.created_by !== user.id) throw new Error("Non autorisé.");
-  if (!(await isCoachLinkedToAthlete(user.id, row.athlete_id))) throw new Error("Non autorisé.");
+  if (!row || !(await isCoachLinkedToAthlete(user.id, row.athlete_id))) throw new Error("Non autorisé.");
 
   await dbRun(kind === "activity" ? `DELETE FROM imported_activities WHERE id = ?` : `DELETE FROM availability_blocks WHERE id = ?`, [id]);
   revalidateAthleteDays(row.athlete_id, [row.date]);
@@ -3198,13 +3235,25 @@ export async function createTeamSessionAction(params: {
 
 export async function moveWorkoutAction(params: { workoutId: string; date: string }) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  if (!user) throw new Error("Non autorisé.");
   if (!DATE_ONLY_RE.test(params.date)) throw new Error("Date invalide.");
   const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [params.workoutId]);
-  if (!workout || workout.coach_id !== user.id) throw new Error("Non autorisé.");
+  // Le coach de la séance, ou l'athlète lui-même (son coach est prévenu).
+  if (!workout || (workout.coach_id !== user.id && workout.athlete_id !== user.id)) throw new Error("Non autorisé.");
   await dbRun(`UPDATE workouts SET date = ? WHERE id = ?`, [params.date, params.workoutId]);
   revalidatePath(`/workouts/${params.workoutId}`);
   revalidateAthleteDays(workout.athlete_id, [workout.date, params.date]);
+  if (user.id === workout.athlete_id) {
+    if (params.date !== workout.date)
+      await createNotification({
+        userId: workout.coach_id,
+        type: "workout_updated",
+        title: `${user.first_name} a déplacé une séance`,
+        body: `${workout.title} : ${params.date.slice(8, 10)}/${params.date.slice(5, 7)}`,
+        link: `/workouts/${params.workoutId}`,
+      });
+    return;
+  }
   if (!workout.is_draft && params.date !== workout.date) {
     await createNotification({
       userId: workout.athlete_id,

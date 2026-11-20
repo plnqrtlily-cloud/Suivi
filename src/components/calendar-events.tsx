@@ -1,5 +1,7 @@
 "use client";
 
+import { MoreMenu, MenuSeparator, menuItem } from "@/components/more-menu";
+import { PickDaysButton } from "@/components/pick-days-button";
 import { RouteUrlField } from "@/components/activity-extra-fields";
 import { SessionDurationInput } from "@/components/session-duration-input";
 import { useState } from "react";
@@ -7,7 +9,7 @@ import { createPortal } from "react-dom";
 import { Button, Field, TextAreaField, ErrorText } from "@/components/ui";
 import { DaysPicker } from "@/components/days-picker";
 import { dateRangeToList } from "@/components/date-range-picker";
-import { createCalendarEventAction, deleteCalendarEventAction, updateCalendarEventAction } from "@/lib/calendar-event-actions";
+import { createCalendarEventAction, deleteCalendarEventAction, duplicateCalendarEventAction, moveCalendarEventAction, updateCalendarEventAction } from "@/lib/calendar-event-actions";
 import { MtbPicker } from "@/components/mtb-picker";
 import { Linkify, safeUrl, shortUrl } from "@/components/linkify";
 import { EVENT_KINDS, ELEVATION_SPORTS, TRAINING_SPORTS, guessMtbFromTitle, guessSportFromTitle, eventKind, eventSubtitle, type CalendarEventView } from "@/lib/calendar-event-kinds";
@@ -140,7 +142,7 @@ export function CalendarEventForm({
     <form onSubmit={submit} className="flex flex-col gap-3.5">
       {/* Depuis l'option Entraînement, le type est déjà choisi ; depuis
           Événement, on propose les autres types. En modification, tous. */}
-      {!(initialKind === "entrainement" && !event) && (
+      {!((initialKind === "entrainement" || initialKind === "note") && !event) && (
       <div>
         <span className="mb-1.5 block text-sm font-medium text-ink-soft">Type</span>
         <div className="flex flex-wrap gap-1.5">
@@ -221,7 +223,7 @@ export function CalendarEventForm({
       <ErrorText>{error}</ErrorText>
       <div className="flex gap-2">
         <Button type="submit" loading={pending}>
-          {event ? "Enregistrer" : kind === "entrainement" ? "Ajouter l'entraînement" : "Ajouter l'événement"}
+          {event ? "Enregistrer" : kind === "entrainement" ? "Ajouter l'entraînement" : kind === "note" ? "Ajouter la note" : "Ajouter l'événement"}
         </Button>
         {onCancel && (
           <Button type="button" variant="ghost" onClick={onCancel}>
@@ -297,10 +299,21 @@ export function EventDetail({
     <div className="flex flex-col gap-3">
       <div className="flex items-start gap-2.5">
         <EventFlag kind={event.kind} size={20} />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <b className="block text-base text-ink">{event.title}</b>
           <span className="block text-[13px] text-slate">{eventSubtitle(event, you)}</span>
         </div>
+        <MoreMenu label="Actions sur l'événement">
+          <button type="button" className={menuItem} onClick={() => setEditing(true)}>Modifier</button>
+          <PickDaysButton className={menuItem} title="Copier l'événement" multiple confirmLabel="Copier" onPick={async (d) => { await duplicateCalendarEventAction(event.id, d); onChanged?.(); }}>
+            Copier…
+          </PickDaysButton>
+          <PickDaysButton className={menuItem} title="Déplacer l'événement" initial={event.startDate} confirmLabel="Déplacer" onPick={async (d) => { await moveCalendarEventAction(event.id, d[0]); onChanged?.(); onClose(); }}>
+            Déplacer / reporter…
+          </PickDaysButton>
+          <MenuSeparator />
+          <button type="button" disabled={pending} className={`${menuItem} !text-[#a4492a]`} onClick={remove}>Supprimer</button>
+        </MoreMenu>
       </div>
       {event.routeUrl && safeUrl(event.routeUrl) && (
         <a href={safeUrl(event.routeUrl)!} target="_blank" rel="noopener noreferrer" className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-moss-dark underline decoration-moss/40 underline-offset-2">
@@ -309,14 +322,6 @@ export function EventDetail({
       )}
       {event.notes && <p className="whitespace-pre-line rounded-xl bg-paper px-3 py-2.5 text-sm text-ink-soft"><Linkify text={event.notes} /></p>}
       <p className="text-xs text-slate">Modifiable par {you === "toi" ? "toi et ton coach" : "vous et l'athlète"} · {other}</p>
-      <div className="flex gap-2">
-        <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
-          Modifier
-        </Button>
-        <Button type="button" variant="ghost" loading={pending} onClick={remove} className="text-[#a4492a] hover:text-[#7d3418]">
-          Supprimer
-        </Button>
-      </div>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { mtbLabel } from "@/lib/mtb";
+import { LongPressMove, MoveProvider } from "@/components/long-press-move";
 import { ActivityMenu, AvailabilityMenu } from "@/components/entry-menus";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -118,10 +119,13 @@ function DayItems({
   return (
     <>
       {eventsOn(events, date).map((e) => (
-        <EventRow key={e.id} event={e} you="toi" />
+        <LongPressMove key={e.id} item={{ kind: "event", id: e.id, title: e.title, date: e.startDate }}>
+          <EventRow event={e} you="toi" />
+        </LongPressMove>
       ))}
       {bs.map((b) => (
-        <div key={b.id} className="flex items-center gap-2 rounded-xl bg-ink px-3 py-2.5 text-[13px] text-white">
+        <LongPressMove key={b.id} item={{ kind: "availability", id: b.id, title: "Indisponible", date: b.date }}>
+        <div className="flex items-center gap-2 rounded-xl bg-ink px-3 py-2.5 text-[13px] text-white">
           <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
             <rect x="4.5" y="9" width="11" height="8" rx="1.5" />
             <path d="M7 9V6.5a3 3 0 016 0V9" />
@@ -135,11 +139,12 @@ function DayItems({
             <AvailabilityMenu block={b} />
           </span>
         </div>
+        </LongPressMove>
       ))}
       {ws.map((w) =>
         isGoal(w) ? (
+          <LongPressMove key={w.id} item={{ kind: "workout", id: w.id, title: w.title, date: w.date }}>
           <CalItem
-            key={w.id}
             muted={muted}
             icon={<SportIcon sport={w.sport} size={18} />}
             iconColor="#c9a227"
@@ -152,9 +157,10 @@ function DayItems({
               </span>
             }
           />
+          </LongPressMove>
         ) : (
+          <LongPressMove key={w.id} item={{ kind: "workout", id: w.id, title: w.title, date: w.date }}>
           <CalItem
-            key={w.id}
             muted={muted}
             icon={<SportIcon sport={w.sport} size={18} />}
             iconColor={w.color || PET}
@@ -163,11 +169,12 @@ function DayItems({
             href={`/workouts/${w.id}`}
             chip={<Chip k={statusKey(w, today)} />}
           />
+          </LongPressMove>
         )
       )}
       {ims.map((a) => (
+        <LongPressMove key={a.id} item={{ kind: "activity", id: a.id, title: mtbLabel(a.discipline) ?? sportLabel(a.sport), date: a.activity_date }}>
         <CalItem
-          key={a.id}
           muted={muted}
           icon={<SportIcon sport={a.sport} size={18} />}
           iconColor={DONE_COLOR}
@@ -183,6 +190,7 @@ function DayItems({
             </span>
           }
         />
+        </LongPressMove>
       ))}
     </>
   );
@@ -211,6 +219,7 @@ export default async function ProgrammationPage({
     <div className="min-h-screen bg-[#f2f4f3]">
       <Nav user={user} />
       <AutoRefresh />
+      <MoveProvider>
       <main className="mx-auto flex max-w-xl flex-col pb-28 lg:pb-10">
         {/* En-tête fixe : les semaines/mois défilent en continu dessous. */}
         <div data-sticky-head className="sticky top-0 z-20 bg-[#f2f4f3]">
@@ -241,6 +250,7 @@ export default async function ProgrammationPage({
           <MonthView athleteId={user.id} monthParam={month} dayParam={day} fromParam={from} toParam={to} today={today} />
         )}
       </main>
+      </MoveProvider>
     </div>
   );
 }
@@ -321,7 +331,7 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
                 blocks.some((b) => b.date === date) ||
                 eventsOn(events, date).length > 0;
               return (
-                <div key={date} className={`flex gap-3 ${date < today ? "opacity-80" : ""}`}>
+                <div key={date} data-move-date={date} className={`flex gap-3 rounded-xl ${date < today ? "opacity-80" : ""}`}>
                   <Link href={`/athlete/day/${date}`} className="flex w-10 flex-shrink-0 flex-col items-center gap-0.5 pt-1">
                     <span className="text-[11px] font-bold uppercase text-slate">{DAY_SHORT[idx]}</span>
                     <span
@@ -456,6 +466,7 @@ async function MonthView({
                         key={c.date}
                         id={c.inMonth ? `d-${c.date}` : undefined}
                         data-keep={c.inMonth ? "" : undefined}
+                        data-move-date={c.date}
                         href={`${base}&month=${c.date.slice(0, 7)}&day=${c.date}`}
                         scroll={false}
                         className="flex flex-col items-center gap-[3px] py-1"

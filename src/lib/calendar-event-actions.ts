@@ -5,7 +5,7 @@ import { parseDiscipline } from "./mtb";
 import { randomUUID } from "crypto";
 import { revalidatePath as nextRevalidatePath, refresh } from "next/cache";
 import { getCurrentUser } from "./auth";
-import { dbRun } from "./db";
+import { dbGet, dbRun } from "./db";
 import { EVENT_KINDS } from "./calendar-event-kinds";
 import { canManageAthleteCalendar, getCalendarEvent, notifyEventChange } from "./calendar-events";
 import { consecutiveRuns } from "./day-runs";
@@ -150,4 +150,42 @@ export async function deleteCalendarEventAction(id: string) {
   await dbRun(`DELETE FROM calendar_events WHERE id = ?`, [id]);
   await notifyEventChange(user, row.athlete_id, "deleted", row);
   revalidateCalendars(row.athlete_id, [row.start_date]);
+}
+
+function shiftDate(date: string, days: number) {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+const dayDiff = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86400000);
+
+/** Déplacer un événement (athlète ou coach) : il garde sa durée. */
+export async function moveCalendarEventAction(id: string, newStart: string) {
+  if (!DATE_RE.test(newStart)) throw new Error("Date invalide.");
+  const row = await dbGet<any>(`SELECT * FROM calendar_events WHERE id = ?`, [id]);
+  if (!row) throw new Error("Cet événement n'existe plus.");
+  const user = await requireManager(row.athlete_id);
+  const newEnd = shiftDate(newStart, dayDiff(row.start_date, row.end_date));
+  await dbRun(`UPDATE calendar_events SET start_date = ?, end_date = ?, updated_by = ?, updated_at = datetime('now') WHERE id = ?`, [newStart, newEnd, user.id, id]);
+  await notifyEventChange(user, row.athlete_id, "updated", { ...row, start_date: newStart, end_date: newEnd });
+  revalidateCalendars(row.athlete_id, [row.start_date, newStart]);
+}
+
+/** Copier un événement sur d'autres jours (même durée à partir de chaque jour). */
+export async function duplicateCalendarEventAction(id: string, dates: string[]) {
+  const days = [...new Set(dates.filter((d) => DATE_RE.test(d)))].sort().slice(0, 60);
+  if (!days.length) throw new Error("Choisissez au moins un jour.");
+  const row = await dbGet<any>(`SELECT * FROM calendar_events WHERE id = ?`, [id]);
+  if (!row) throw new Error("Cet événement n'existe plus.");
+  const user = await requireManager(row.athlete_id);
+  const len = dayDiff(row.start_date, row.end_date);
+  for (const d of days) {
+    await dbRun(
+      `INSERT INTO calendar_events (id, athlete_id, author_id, updated_by, kind, title, start_date, end_date, time, location, notes, sport, duration_minutes, discipline, elevation_gain_m, route_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [randomUUID(), row.athlete_id, user.id, user.id, row.kind, row.title, d, shiftDate(d, len), row.time, row.location, row.notes, row.sport, row.duration_minutes, row.discipline, row.elevation_gain_m, row.route_url]
+    );
+  }
+  await notifyEventChange(user, row.athlete_id, "added", row, days.length > 1 ? days : undefined);
+  revalidateCalendars(row.athlete_id, days);
 }

@@ -11,7 +11,7 @@ import { CalendarEventForm } from "@/components/calendar-events";
 // l'onglet + de la barre du bas.
 export function CalendarAddButton({ defaultDate }: { defaultDate: string }) {
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"training" | "event" | "activity" | "unavailable">("training");
+  const [mode, setMode] = useState<"training" | "event" | "note" | "activity" | "unavailable">("training");
   const close = () => setOpen(false);
 
   return (
@@ -43,6 +43,7 @@ export function CalendarAddButton({ defaultDate }: { defaultDate: string }) {
                   options={[
                     { value: "training", label: "Entraînement" },
                     { value: "event", label: "Événement" },
+                    { value: "note", label: "Note" },
                     { value: "activity", label: "Faite" },
                     { value: "unavailable", label: "Indispo" },
                   ]}
@@ -53,6 +54,9 @@ export function CalendarAddButton({ defaultDate }: { defaultDate: string }) {
                 <CalendarEventForm key="training" initialKind="entrainement" defaultDate={defaultDate} onDone={close} onCancel={close} />
               ) : mode === "event" ? (
                 <CalendarEventForm key="event" defaultDate={defaultDate} onDone={close} onCancel={close} />
+              ) : mode === "note" ? (
+                // Note sur un ou plusieurs jours, visible aussi par le coach.
+                <CalendarEventForm key="note" initialKind="note" defaultDate={defaultDate} onDone={close} onCancel={close} />
               ) : mode === "activity" ? (
                 <DoneActivityForm defaultDate={defaultDate} onDone={close} onCancel={close} />
               ) : (

@@ -29,7 +29,8 @@ import { CalendarEventForm, EventDetail, EventFlag } from "@/components/calendar
 import { DaysPicker } from "@/components/days-picker";
 import { StatusForm } from "@/app/workouts/[id]/status-form";
 import { CommentBody } from "@/components/comment-body";
-import { EditImportedActivityModal } from "@/components/imported-activity-modal";
+import { ActivityMenuItems } from "@/components/entry-menus";
+import { LongPressMove } from "@/components/long-press-move";
 import { EditAvailabilityModal, type ExistingBlock } from "@/components/availability-modal";
 import { ElapsedTimeField, RouteUrlField } from "@/components/activity-extra-fields";
 import { PlaceTray } from "@/components/place-tray";
@@ -82,7 +83,7 @@ const SPORTS = [
   { value: "other", label: "Divers" },
 ];
 
-type AddMode = "event" | "done" | "todo" | "unavailable";
+type AddMode = "event" | "note" | "done" | "todo" | "unavailable";
 
 type Panel =
   | { type: "day"; date: string }
@@ -985,6 +986,7 @@ function DayCard({
   return (
     <div
       data-date={day.date}
+      data-move-date={day.date}
       onClick={(e) => { if ((e.target as HTMLElement).closest("button")) return; onOpenDay(); }}
       className="relative flex min-h-[170px] snap-start sm:min-h-[230px] cursor-pointer flex-col gap-3 rounded-2xl px-2.5 pb-2.5 pt-3 transition-colors"
       style={{ background: day.isToday ? "#fffaf7" : "#ffffff", border: `2px solid ${isSel ? "#1b4b4f" : day.isToday ? "#e8896a" : "transparent"}` }}
@@ -1000,13 +1002,15 @@ function DayCard({
         <CycleLine day={day} />
       </div>
       {day.events.map((ev) => (
-        <EventChip key={ev.id} ev={ev} on={selected?.type === "event" && selected.id === ev.id} onClick={() => onOpenEvent(ev.id)} />
+        <LongPressMove key={ev.id} item={{ kind: "event", id: ev.id, title: ev.title, date: ev.startDate }} className="flex flex-col">
+          <EventChip ev={ev} on={selected?.type === "event" && selected.id === ev.id} onClick={() => onOpenEvent(ev.id)} />
+        </LongPressMove>
       ))}
       {day.entries.map((e) => {
         const on = selected?.type === "entry" && selected.id === e.id;
         return (
+          <LongPressMove key={e.id} item={{ kind: e.kind === "workout" ? "workout" : "activity", id: e.id, title: e.title, date: e.date }} className="flex flex-col">
           <button
-            key={e.id}
             type="button"
             onClick={() => onOpenEntry(e.id)}
             className="rounded-r-lg py-1 pl-2.5 pr-1.5 text-left transition-colors"
@@ -1019,10 +1023,13 @@ function DayCard({
             <span className="block text-[13px] font-bold leading-snug text-ink">{!e.isGoal && <EntryIcon status={e.status} />}{e.title}{e.isDraft ? " · brouillon" : ""}</span>
             <span className="mt-0.5 block text-xs leading-snug text-ink-soft">{entrySub(e)}</span>
           </button>
+          </LongPressMove>
         );
       })}
       {day.blocks.map((b) => (
-        <span key={b.id} className="px-1.5 text-xs text-ink-soft">{b.label}{b.reason ? ` · ${b.reason}` : ""}</span>
+        <LongPressMove key={b.id} item={{ kind: "availability", id: b.id, title: b.label, date: b.date }}>
+          <span className="block px-1.5 text-xs text-ink-soft">{b.label}{b.reason ? ` · ${b.reason}` : ""}</span>
+        </LongPressMove>
       ))}
       <span className="flex-1" />
       {copied && (
@@ -1112,6 +1119,7 @@ function MonthScroller({
                 return (
                   <div
                     key={d.date}
+                    data-move-date={d.date}
                     onClick={(e) => { if ((e.target as HTMLElement).closest("button")) return; onOpenDay(d.date); }}
                     className="flex min-h-[64px] cursor-pointer flex-col gap-1 overflow-hidden rounded-lg px-1 py-1.5 sm:min-h-[104px] sm:gap-1.5 sm:rounded-xl sm:px-2 sm:py-2 transition-[background-color,opacity] duration-300"
                     style={{ background: d.isToday ? "#fffaf7" : inMonth ? "#ffffff" : "#f7f8f8", opacity: inMonth || d.isToday ? 1 : 0.75, border: `2px solid ${sel ? "#1b4b4f" : d.isToday ? "#e8896a" : "transparent"}` }}
@@ -1134,10 +1142,12 @@ function MonthScroller({
                       </span>
                     )}
                     {d.events.map((ev) => (
-                      <button key={ev.id} type="button" onClick={() => onOpenEvent(ev.id)} className="hidden items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-left text-[12px] font-bold sm:flex" style={{ background: `${eventKind(ev.kind).color}1a`, color: eventKind(ev.kind).color }}>
+                      <LongPressMove key={ev.id} item={{ kind: "event", id: ev.id, title: ev.title, date: ev.startDate }} className="hidden sm:flex">
+                      <button type="button" onClick={() => onOpenEvent(ev.id)} className="flex w-full min-w-0 items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-left text-[12px] font-bold" style={{ background: `${eventKind(ev.kind).color}1a`, color: eventKind(ev.kind).color }}>
                         <EventFlag kind={ev.kind} size={12} />
                         <span className="truncate text-ink">{ev.title}</span>
                       </button>
+                      </LongPressMove>
                     ))}
                     {d.entries.length > 0 && (
                       <span className="flex flex-wrap gap-0.5 sm:hidden">
@@ -1147,9 +1157,11 @@ function MonthScroller({
                       </span>
                     )}
                     {d.entries.map((e) => (
-                      <button key={e.id} type="button" onClick={() => onOpenEntry(e.id)} className="hidden truncate rounded-r py-px pl-1.5 text-left sm:block text-[12.5px] font-semibold text-ink" style={{ borderLeft: e.isGoal ? "3px solid #a4492a" : BAR[e.status], opacity: e.isDraft ? 0.6 : 1 }}>{!e.isGoal && <EntryIcon status={e.status} size={11} />}
+                      <LongPressMove key={e.id} item={{ kind: e.kind === "workout" ? "workout" : "activity", id: e.id, title: e.title, date: e.date }} className="hidden sm:block">
+                      <button type="button" onClick={() => onOpenEntry(e.id)} className="block w-full truncate rounded-r py-px pl-1.5 text-left text-[12.5px] font-semibold text-ink" style={{ borderLeft: e.isGoal ? "3px solid #a4492a" : BAR[e.status], opacity: e.isDraft ? 0.6 : 1 }}>{!e.isGoal && <EntryIcon status={e.status} size={11} />}
                         {e.title}
                       </button>
+                      </LongPressMove>
                     ))}
                     {d.blocks.map((b) => (
                       <span key={b.id} className="hidden text-[11.5px] text-slate sm:inline">{b.label}</span>
@@ -1391,14 +1403,27 @@ function EntryPanel({
             </button>
           )}
           {/* Les autres actions sont regroupées dans le menu « ⋯ ». */}
+          {/* Toujours les mêmes actions, dans le même ordre : Modifier,
+              Copier, Déplacer / reporter, puis Supprimer. */}
           <MoreMenu label="Actions sur la séance">
-              {isWorkout && !e.isGoal && !e.isDraft && !(e.status === "todo" || e.status === "noreport") && (
-                <button type="button" onClick={() => setReporting(true)} className={menuItem}>Modifier le retour</button>
-              )}
-              {/* Activité hors programme : modifiable par le coach (saisie par
-                  lui ou par l'athlète). */}
-              {!isWorkout && (
-                <EditImportedActivityModal className={menuItem} activity={{
+            {isWorkout ? (
+              <>
+                <Link href={`/workouts/${e.id}/edit`} className={menuItem}>Modifier la séance</Link>
+                {!e.isGoal && !e.isDraft && !(e.status === "todo" || e.status === "noreport") && (
+                  <button type="button" onClick={() => setReporting(true)} className={menuItem}>Modifier le retour</button>
+                )}
+                <CopyWorkoutButton workout={{ id: e.id, title: e.title, athleteName: data.athleteName }} className={menuItem} />
+                <button type="button" disabled={pending} onClick={() => togglePicker("move")} className={menuItem}>Déplacer / reporter…</button>
+                <button type="button" disabled={pending} onClick={() => togglePicker("dup")} className={menuItem}>{e.status === "miss" ? "Reprogrammer…" : "Dupliquer…"}</button>
+                <Link href={`/workouts/${e.id}?apercu=athlete`} className={menuItem}>Voir comme l&apos;athlète</Link>
+                <MenuSeparator />
+                <button type="button" disabled={pending} onClick={() => setConfirmDelete(true)} className={`${menuItem} !text-[#a4492a]`}>Supprimer</button>
+              </>
+            ) : (
+              <>
+                {/* Activité hors programme : modifiable par le coach (saisie
+                    par lui ou par l'athlète). */}
+                <ActivityMenuItems activity={{
                 id: e.id,
                 activity_date: e.date,
                 activity_time: e.timeLabel,
@@ -1413,21 +1438,12 @@ function EntryPanel({
                 rpe: e.rpe,
                 notes: e.description,
                 route_url: e.routeUrl,
-              }}>Modifier</EditImportedActivityModal>
-              )}
-              {isWorkout && <Link href={`/workouts/${e.id}?apercu=athlete`} className={menuItem}>Voir comme l&apos;athlète</Link>}
-              {isWorkout && <Link href={`/workouts/${e.id}/edit`} className={menuItem}>Modifier la séance</Link>}
-              {isWorkout && <CopyWorkoutButton workout={{ id: e.id, title: e.title, athleteName: data.athleteName }} className={menuItem} />}
-              {isWorkout && <button type="button" disabled={pending} onClick={() => togglePicker("dup")} className={menuItem}>{e.status === "miss" ? "Reprogrammer…" : "Dupliquer…"}</button>}
-              {isWorkout && (e.status === "todo" || e.status === "noreport") && <button type="button" disabled={pending} onClick={() => togglePicker("move")} className={menuItem}>Déplacer / reporter…</button>}
-              {e.createdByMe && <MenuSeparator />}
-              {!isWorkout && e.createdByMe && <button type="button" disabled={pending} onClick={onDeleteImport} className={`${menuItem} !text-[#a4492a]`}>Supprimer</button>}
-              {isWorkout && e.createdByMe && (
-                <button type="button" disabled={pending} onClick={() => setConfirmDelete(true)} className={`${menuItem} !text-[#a4492a]`}>
-                  Supprimer
-                </button>
-              )}
-            </MoreMenu>
+              }} />
+                <MenuSeparator />
+                <button type="button" disabled={pending} onClick={onDeleteImport} className={`${menuItem} !text-[#a4492a]`}>Supprimer</button>
+              </>
+            )}
+          </MoreMenu>
         </div>
       </PanelHead>
       {/* Même formulaire que l'athlète quand il renseigne sa séance, pré-rempli
@@ -1687,13 +1703,14 @@ function AddPanel({
   const input = "rounded-[10px] border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink";
   return (
     <div>
-      <PanelHead date={longDate(date)} title={mode === "event" ? "Nouvel événement" : mode === "unavailable" ? "Nouvelle indisponibilité" : mode === "done" ? "Séance déjà faite" : "Nouvelle séance"} />
+      <PanelHead date={longDate(date)} title={mode === "event" ? "Nouvel événement" : mode === "note" ? "Nouvelle note" : mode === "unavailable" ? "Nouvelle indisponibilité" : mode === "done" ? "Séance déjà faite" : "Nouvelle séance"} />
       <div className="mb-5 flex self-start">
         <div className="flex rounded-full bg-paper-dim p-[3px]">
           {([
             ["todo", "Séance à faire"],
             ["done", "Séance faite"],
             ["event", "Événement"],
+            ["note", "Note"],
             ["unavailable", "Indisponibilité"],
           ] as const).map(([m, l]) => (
             <button key={m} type="button" onClick={() => setMode(m)} className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${mode === m ? "bg-white text-ink shadow-sm" : "text-slate"}`}>
@@ -1707,6 +1724,13 @@ function AddPanel({
         <div className="max-w-xl">
           <p className="mb-4 text-[13px] text-slate">Compétition, stage, rendez-vous… visible aussi par {data.athleteName}, qui est prévenu par une notification.</p>
           <CalendarEventForm athleteId={data.athleteId} defaultDate={date} onDone={onEventDone} />
+        </div>
+      )}
+
+      {mode === "note" && (
+        <div className="max-w-xl">
+          <p className="mb-4 text-[13px] text-slate">Une note sur un ou plusieurs jours, visible aussi par {data.athleteName}.</p>
+          <CalendarEventForm key="note" athleteId={data.athleteId} initialKind="note" defaultDate={date} onDone={onEventDone} />
         </div>
       )}
 

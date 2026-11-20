@@ -7,7 +7,7 @@ import { Button } from "@/components/ui";
 export function CancelWorkoutButton({ workoutId, className }: { workoutId: string; className?: string }) {
   const [pending, setPending] = useState(false);
   const run = async () => {
-    if (!confirm("Annuler cette séance ? L'athlète sera notifié.")) return;
+    if (!confirm("Supprimer cette séance ? L'athlète sera prévenu.")) return;
     setPending(true);
     await cancelWorkoutAction(workoutId);
     setPending(false);
@@ -15,7 +15,7 @@ export function CancelWorkoutButton({ workoutId, className }: { workoutId: strin
   if (className)
     return (
       <button type="button" disabled={pending} onClick={run} className={className}>
-        Annuler cette séance
+        Supprimer
       </button>
     );
   return (
@@ -25,7 +25,7 @@ export function CancelWorkoutButton({ workoutId, className }: { workoutId: strin
       className="text-clay"
       loading={pending}
       onClick={async () => {
-        if (!confirm("Annuler cette séance ? L'athlète sera notifié.")) return;
+        if (!confirm("Supprimer cette séance ? L'athlète sera prévenu.")) return;
         setPending(true);
         await cancelWorkoutAction(workoutId);
         setPending(false);
