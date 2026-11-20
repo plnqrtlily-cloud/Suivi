@@ -1,7 +1,6 @@
 "use client";
 
 import { SessionDurationInput } from "@/components/session-duration-input";
-import { formatDuration } from "@/lib/duration";
 import { MtbPicker } from "@/components/mtb-picker";
 import { Linkify, safeUrl, shortUrl } from "@/components/linkify";
 import { SESSION_TONES, type SessionTone } from "@/lib/session-status";
@@ -19,7 +18,6 @@ import {
   publishWorkoutsAction,
   copyWeekAction,
   duplicateWorkoutAction,
-  updateWorkoutStatusAction,
   validateWorkoutAction,
   moveWorkoutAction,
   loadCoachCalendarWeeksAction,
@@ -29,6 +27,8 @@ import { CYCLE_DAY_STYLE } from "@/lib/cycle-types";
 import { WorkoutStructure } from "@/components/workout-structure";
 import { CalendarEventForm, EventDetail, EventFlag } from "@/components/calendar-events";
 import { DaysPicker } from "@/components/days-picker";
+import { StatusForm } from "@/app/workouts/[id]/status-form";
+import { ElapsedTimeField, RouteUrlField } from "@/components/activity-extra-fields";
 import { PlaceTray } from "@/components/place-tray";
 import { ClipboardBar, CopyWorkoutButton, pasteWorkout, useCopiedWorkout, type CopiedWorkout } from "@/components/workout-clipboard";
 import { eventKind, eventSubtitle, type CalendarEventView } from "@/lib/calendar-event-kinds";
@@ -804,12 +804,6 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
                     picker={picker}
                     setPicker={setPicker}
                     pending={pending}
-                    onReport={(r) =>
-                      run(
-                        () => updateWorkoutStatusAction({ workoutId: f.entry.id, ...r }),
-                        r.status === "done" ? "Séance renseignée comme faite" : r.status === "partial" ? "Séance renseignée comme partielle" : r.status === "not_done" ? "Séance renseignée comme annulée" : r.postponedToDate ? `Séance reportée au ${longDate(r.postponedToDate).toLowerCase()}` : "Séance renseignée comme reportée"
-                      )
-                    }
                     onValidate={() => run(() => validateWorkoutAction(f.entry.id), "Retour validé")}
                     onPick={(mode, date) =>
                       run(
@@ -1343,7 +1337,6 @@ function EntryPanel({
   picker,
   setPicker,
   pending,
-  onReport,
   onValidate,
   onPick,
   onDeleteImport,
@@ -1356,7 +1349,6 @@ function EntryPanel({
   picker: { mode: "move" | "dup"; id: string } | null;
   setPicker: (p: { mode: "move" | "dup"; id: string } | null) => void;
   pending: boolean;
-  onReport: (r: ReportInput) => void;
   onValidate: () => void;
   onPick: (mode: "move" | "dup", date: string) => void;
   onDeleteImport: () => void;
@@ -1414,17 +1406,30 @@ function EntryPanel({
           )}
         </div>
       </PanelHead>
+      {/* Même formulaire que l'athlète quand il renseigne sa séance, pré-rempli
+          avec le retour déjà saisi : tout reste modifiable. */}
       {isWorkout && reporting && (
-        <ReportForm
-          entry={e}
-          data={data}
-          pending={pending}
-          onCancel={() => setReporting(false)}
-          onSave={(r) => {
-            onReport(r);
-            setReporting(false);
-          }}
-        />
+        <div className="mb-6 rounded-2xl bg-paper p-4 animate-expand-in">
+          <div className="mb-3 flex items-center gap-3">
+            <b className="text-sm text-ink">{e.status === "todo" || e.status === "noreport" ? "Renseigner la séance" : "Modifier le retour"}</b>
+            <span className="flex-1" />
+            <button type="button" onClick={() => setReporting(false)} className="text-[13px] font-semibold text-slate">Annuler</button>
+          </div>
+          <StatusForm
+            key={e.id}
+            workoutId={e.id}
+            currentStatus={e.status === "todo" || e.status === "noreport" ? "planned" : e.status === "miss" ? "not_done" : e.status === "postponed" ? "postponed" : "done"}
+            sport={e.sport}
+            discipline={e.discipline}
+            asCoach
+            initial={
+              e.status === "todo" || e.status === "noreport"
+                ? undefined
+                : { rpe: e.rpe, feedback: e.feedback, actualMin: e.realMin, elapsedMin: e.totalMin, distanceKm: e.distanceKm, avgHr: e.avgHr, elevation: e.elevation, power: e.power, routeUrl: e.routeUrl }
+            }
+            onDone={() => setReporting(false)}
+          />
+        </div>
       )}
       {isWorkout && confirmDelete && (
         <div className="-mt-2 mb-5 flex flex-wrap items-center gap-3 rounded-2xl bg-[#fbe9e2] px-4 py-3 text-sm text-[#8a3a1f]">
@@ -1464,7 +1469,7 @@ function EntryPanel({
           {realised ? (
             <div className="grid grid-cols-2 border-y border-paper-dim sm:grid-cols-5">
               {[
-                { l: "Durée", v: fmt(e.realMin), sub: e.plannedMin ? `prévu ${fmt(e.plannedMin)}` : e.kind === "import" ? "hors programme" : "", warn: warnDur },
+                { l: e.totalMin ? "Temps effectif" : "Durée", v: fmt(e.realMin), sub: [e.totalMin ? `total ${fmt(e.totalMin)}` : "", e.plannedMin ? `prévu ${fmt(e.plannedMin)}` : e.kind === "import" ? "hors programme" : ""].filter(Boolean).join(" · "), warn: warnDur },
                 { l: "RPE", v: e.rpe ? String(e.rpe) : "—", sub: e.plannedRpe ? `visé ${e.plannedRpe}` : "", warn: warnRpe },
                 { l: "Charge", v: e.realMin && e.rpe ? `${nb(e.realMin * e.rpe)} UA` : "—", sub: e.plannedMin && e.plannedRpe ? `prévu ${nb(e.plannedMin * e.plannedRpe)}` : "", warn: false },
                 { l: "Distance", v: e.distanceKm ? `${String(e.distanceKm).replace(".", ",")} km` : "—", sub: e.elevation ? `D+ ${nb(e.elevation)} m` : "", warn: false },
@@ -1484,6 +1489,11 @@ function EntryPanel({
               {e.plan.map((p) => <span key={p.label}>{p.label} <b className="mt-1 block text-[22px] text-ink">{p.value}</b></span>)}
               {e.timeLabel && <span>Moment <b className="mt-1 block text-[22px] text-ink">{e.timeLabel}</b></span>}
             </div>
+          )}
+          {e.routeUrl && safeUrl(e.routeUrl) && (
+            <a href={safeUrl(e.routeUrl)!} target="_blank" rel="noopener noreferrer" className="-mt-2 inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-moss-dark underline decoration-moss/40 underline-offset-2">
+              Parcours · {shortUrl(e.routeUrl)}
+            </a>
           )}
           {(e.structure || e.content.length > 0 || e.description) && (
             <div className="flex flex-col gap-3">
@@ -1568,157 +1578,6 @@ function EntryPanel({
             </div>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-type ReportInput = {
-  status: "done" | "partial" | "not_done" | "postponed";
-  rpe?: number;
-  athleteFeedback?: string;
-  actualDurationMinutes?: number;
-  distanceKm?: number;
-  avgHr?: number;
-  elevationGainM?: number;
-  postponedToDate?: string;
-};
-
-// « Renseigner » une séance à la place de l'athlète (infos reçues à
-// l'entraînement, par message…) : faite, partielle, reportée ou annulée.
-function ReportForm({ entry: e, data, pending, onCancel, onSave }: { entry: CalEntry; data: CoachCalendarData; pending: boolean; onCancel: () => void; onSave: (r: ReportInput) => void }) {
-  const initialChoice: ReportInput["status"] = e.status === "miss" ? "not_done" : e.status === "postponed" ? "postponed" : "done";
-  const [choice, setChoice] = useState<ReportInput["status"]>(initialChoice);
-  const [minutes, setMinutes] = useState(String(e.realMin ?? e.plannedMin ?? ""));
-  const [rpe, setRpe] = useState<number | null>(e.rpe ?? e.plannedRpe ?? null);
-  const [dist, setDist] = useState(e.distanceKm != null ? String(e.distanceKm).replace(".", ",") : "");
-  const [hr, setHr] = useState(e.avgHr != null ? String(e.avgHr) : "");
-  const [dplus, setDplus] = useState(e.elevation != null ? String(e.elevation) : "");
-  const withElevation = ["cycling", "running", "hiking", "mtb"].includes(e.sport);
-  const [note, setNote] = useState(e.feedback ?? "");
-  const [newDate, setNewDate] = useState("");
-  const input = "w-full rounded-[10px] border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-moss";
-  const label = "flex min-w-0 flex-col gap-1.5 text-[12.5px] font-semibold text-slate";
-  const num = (v: string) => {
-    const n = Number(v.replace(",", ".").trim());
-    return v.trim() && !Number.isNaN(n) && n > 0 ? n : undefined;
-  };
-  const options: { k: ReportInput["status"]; l: string; c: string }[] = [
-    { k: "done", l: "Faite", c: "#1b4b4f" },
-    { k: "partial", l: "Partielle", c: "#e8896a" },
-    { k: "postponed", l: "Reportée", c: "#6b7a8a" },
-    { k: "not_done", l: "Annulée", c: "#9aa39c" },
-  ];
-  const realised = choice === "done" || choice === "partial";
-
-  return (
-    <div className="-mt-2 mb-6 flex flex-col gap-4 rounded-2xl bg-paper p-4 animate-expand-in">
-      <div className="flex flex-wrap items-center gap-3">
-        <b className="text-sm text-ink">Renseigner la séance</b>
-        <span className="text-[13px] text-slate">à la place de {data.athleteName} · la saisie sera indiquée comme venant de vous</span>
-        <span className="flex-1" />
-        <button type="button" onClick={onCancel} className="text-[13px] font-semibold text-slate">
-          Fermer
-        </button>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {options.map((o) => (
-          <button
-            key={o.k}
-            type="button"
-            onClick={() => setChoice(o.k)}
-            className="flex items-center gap-2 rounded-full border px-4 py-2 text-[13.5px] font-semibold transition-colors"
-            style={choice === o.k ? { background: o.c, borderColor: o.c, color: "#ffffff" } : { background: "#ffffff", borderColor: "#d5dbda", color: "#37413f" }}
-          >
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: choice === o.k ? "#ffffff" : o.c }} />
-            {o.l}
-          </button>
-        ))}
-      </div>
-
-      {realised && (
-        <>
-          <div className="grid max-w-[640px] grid-cols-2 gap-3 sm:grid-cols-3">
-            <label className={label}>
-              Durée réelle
-              <SessionDurationInput bare value={minutes} onChange={setMinutes} placeholder={e.plannedMin ? formatDuration(e.plannedMin) : "1h"} className={input} />
-            </label>
-            <label className={label}>
-              Distance (km)
-              <input inputMode="decimal" value={dist} onChange={(ev) => setDist(ev.target.value)} placeholder="—" className={input} />
-            </label>
-            <label className={label}>
-              FC moyenne (bpm)
-              <input inputMode="numeric" value={hr} onChange={(ev) => setHr(ev.target.value)} placeholder="—" className={input} />
-            </label>
-            {withElevation && (
-              <label className={label}>
-                Dénivelé + (m)
-                <input inputMode="numeric" value={dplus} onChange={(ev) => setDplus(ev.target.value)} placeholder="—" className={input} />
-              </label>
-            )}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[12.5px] font-semibold text-slate">
-              Ressenti (RPE){e.plannedRpe ? <span className="font-normal"> · visé {e.plannedRpe}</span> : null}
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setRpe(rpe === n ? null : n)}
-                  className="h-9 w-9 rounded-full border text-sm font-bold"
-                  style={rpe === n ? { background: n >= 8 ? "#a4492a" : n >= 5 ? "#e8896a" : "#1b4b4f", borderColor: "transparent", color: "#ffffff" } : { background: "#ffffff", borderColor: "#d5dbda", color: "#37413f" }}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-
-      {choice === "postponed" && (
-        <label className={`${label} max-w-[240px]`}>
-          Nouvelle date (facultatif)
-          <input type="date" min={data.today} value={newDate} onChange={(ev) => setNewDate(ev.target.value)} className={input} />
-          <span className="font-normal text-slate">Avec une date, la séance est déplacée et redevient « à faire ».</span>
-        </label>
-      )}
-
-      <label className={label}>
-        {choice === "not_done" ? "Raison (facultatif)" : choice === "postponed" ? "Commentaire (facultatif)" : "Retour de l'athlète, remarques"}
-        <textarea
-          rows={2}
-          value={note}
-          onChange={(ev) => setNote(ev.target.value)}
-          placeholder={choice === "not_done" ? "ex. malade, météo, déplacement…" : "ex. bonnes sensations, jambes lourdes sur la fin…"}
-          className={`${input} resize-y`}
-        />
-      </label>
-
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() =>
-            onSave({
-              status: choice,
-              ...(realised
-                ? { actualDurationMinutes: num(minutes), distanceKm: num(dist), avgHr: num(hr), elevationGainM: withElevation ? num(dplus) : undefined, rpe: rpe ?? undefined }
-                : {}),
-              athleteFeedback: note.trim() || undefined,
-              postponedToDate: choice === "postponed" && newDate ? newDate : undefined,
-            })
-          }
-          className={pillMain}
-        >
-          Enregistrer
-        </button>
-        <button type="button" onClick={onCancel} className="text-[13px] font-semibold text-slate">
-          Annuler
-        </button>
       </div>
     </div>
   );
@@ -1839,14 +1698,20 @@ function AddPanel({
               <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Activité
                 <select name="sport" value={doneSport} onChange={(ev) => setDoneSport(ev.target.value)} className={input}>{SPORTS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}</select>
               </label>
-              <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Durée<SessionDurationInput bare name="durationMinutes" required className={input} /></label>
+              <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">{["mtb", "cycling", "running", "hiking"].includes(doneSport) ? "Temps effectif" : "Durée"}<SessionDurationInput bare name="durationMinutes" required className={input} /></label>
               <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">RPE<input name="rpe" type="number" min={1} max={10} className={input} /></label>
               <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Distance (km)<input name="distanceKm" type="number" step="0.1" min={0} className={input} /></label>
               <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">FC moyenne<input name="avgHr" type="number" min={30} max={230} className={input} /></label>
               {["mtb", "cycling", "running", "hiking"].includes(doneSport) && (
-                <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Dénivelé + (m)<input name="elevationGainM" type="number" min={0} step={10} className={input} /></label>
+                <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Dénivelé + (m)<input name="elevationGainM" type="number" min={0} step={1} className={input} /></label>
               )}
             </div>
+            {["mtb", "cycling", "running", "hiking"].includes(doneSport) && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ElapsedTimeField />
+                <RouteUrlField />
+              </div>
+            )}
             {doneSport === "mtb" && <MtbPicker value={doneMtb} onChange={setDoneMtb} name="discipline" />}
             <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Notes<textarea name="notes" rows={2} placeholder="Ce que l'athlète vous a dit de la séance…" className={`${input} resize-y`} /></label>
             <div><button type="submit" disabled={pending || !doneDates.length} className={pillMain}>Enregistrer{doneDates.length > 1 ? ` (${doneDates.length} jours)` : ""}</button></div>

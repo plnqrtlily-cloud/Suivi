@@ -1,5 +1,7 @@
 "use client";
 
+import { ElapsedTimeField, RouteUrlField } from "@/components/activity-extra-fields";
+import { OUTDOOR_SPORTS } from "@/lib/route-url";
 import { SessionDurationInput } from "@/components/session-duration-input";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -104,12 +106,18 @@ export function DoneActivityForm({ defaultDate, onDone, onCancel }: { defaultDat
             <MtbPicker value={discipline} onChange={setDiscipline} />
           </div>
         )}
-        <SessionDurationInput label="Durée" name="durationMinutes" />
+        <SessionDurationInput label={OUTDOOR_SPORTS.includes(sport) ? "Temps effectif" : "Durée"} name="durationMinutes" />
+        {OUTDOOR_SPORTS.includes(sport) && <ElapsedTimeField />}
         {sport !== "strength" && <Field label="Distance (km)" type="number" step="0.1" name="distanceKm" min={0} />}
         <Field label="FC moyenne (bpm)" type="number" name="avgHr" min={0} />
         {(sport === "running" || bike || sport === "hiking") && <Field label="Dénivelé + (m)" type="number" name="elevationGainM" min={0} />}
         {bike && <Field label="Puissance moy. (W)" type="number" name="avgPowerW" min={0} />}
         <Field label="RPE ressenti (1-10)" type="number" name="rpe" min={1} max={10} />
+        {OUTDOOR_SPORTS.includes(sport) && (
+          <div className="col-span-2">
+            <RouteUrlField />
+          </div>
+        )}
       </div>
       <TextAreaField label="Notes (facultatif)" name="notes" rows={2} placeholder="Sensations, contexte…" />
       <ErrorText>{error}</ErrorText>

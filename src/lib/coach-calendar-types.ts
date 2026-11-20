@@ -40,6 +40,11 @@ export interface CalEntry {
   avgHr: number | null;
   elevation: number | null;
   power: number | null;
+  /** Temps total, pauses comprises (realMin = temps effectif). */
+  totalMin?: number | null;
+  routeUrl?: string | null;
+  /** Type de VTT (séance vélo). */
+  discipline?: string | null;
   timeLabel: string | null;
   description: string | null;
   /** Liens ajoutés par le coach (rubrique « Liens et ressources »). */

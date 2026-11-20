@@ -175,7 +175,7 @@ function DayItems({
           icon={<SportIcon sport={a.sport} size={18} />}
           iconColor={DONE_COLOR}
           title={mtbLabel(a.discipline) ?? sportLabel(a.sport)}
-          sub={[a.activity_time, durationLabel(a.duration_minutes), a.distance_km ? `${String(a.distance_km).replace(".", ",")} km` : null, a.created_by ? "par ton coach" : "par toi"]
+          sub={[a.activity_time, durationLabel(a.duration_minutes), a.distance_km ? `${String(a.distance_km).replace(".", ",")} km` : null, a.elevation_gain_m ? `D+ ${a.elevation_gain_m} m` : null, a.created_by ? "par ton coach" : "par toi"]
             .filter(Boolean)
             .join(" · ")}
           href={`/athlete/day/${date}`}

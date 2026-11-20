@@ -811,6 +811,13 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE calendar_events ADD COLUMN discipline TEXT`,
   // Dénivelé positif prévu d'un entraînement (VTT, vélo, course, rando).
   `ALTER TABLE calendar_events ADD COLUMN elevation_gain_m INTEGER`,
+  // Lien d'un parcours (Strava, Komoot…) et temps total (pauses comprises ;
+  // la durée déjà enregistrée est le temps effectif, en mouvement).
+  `ALTER TABLE calendar_events ADD COLUMN route_url TEXT`,
+  `ALTER TABLE workouts ADD COLUMN route_url TEXT`,
+  `ALTER TABLE workouts ADD COLUMN elapsed_minutes INTEGER`,
+  `ALTER TABLE imported_activities ADD COLUMN route_url TEXT`,
+  `ALTER TABLE imported_activities ADD COLUMN elapsed_minutes INTEGER`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

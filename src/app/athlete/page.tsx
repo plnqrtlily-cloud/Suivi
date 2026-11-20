@@ -1,3 +1,4 @@
+import { formatDuration } from "@/lib/duration";
 import { mtbLabel } from "@/lib/mtb";
 import { PlaceTray, type DayInfo, type FlexItem } from "@/components/place-tray";
 import { sportLabelPlain } from "@/lib/sport-labels";
@@ -380,7 +381,7 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
               iconColor="#8a5a44"
               title={mtbLabel(a.discipline) ?? sportLabel(a.sport)}
               sub={
-                [a.activity_time, a.duration_minutes ? `${a.duration_minutes} min` : null, a.distance_km ? `${String(a.distance_km).replace(".", ",")} km` : null, a.rpe ? `RPE ${a.rpe}` : null]
+                [a.activity_time, a.duration_minutes ? formatDuration(a.duration_minutes) : null, a.distance_km ? `${String(a.distance_km).replace(".", ",")} km` : null, a.elevation_gain_m ? `D+ ${a.elevation_gain_m} m` : null, a.rpe ? `RPE ${a.rpe}` : null]
                   .filter(Boolean)
                   .join(" · ") || "Séance faite"
               }

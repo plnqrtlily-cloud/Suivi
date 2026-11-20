@@ -1,5 +1,7 @@
 "use client";
 
+import { ElapsedTimeField, RouteUrlField } from "@/components/activity-extra-fields";
+import { OUTDOOR_SPORTS } from "@/lib/route-url";
 import { SessionDurationInput } from "@/components/session-duration-input";
 import { useState } from "react";
 import { updateImportedActivityAction, deleteImportedActivityAction } from "@/lib/actions";
@@ -20,6 +22,8 @@ export interface EditableActivity {
   notes: string | null;
   route_points?: string | null;
   discipline?: string | null;
+  elapsed_minutes?: number | null;
+  route_url?: string | null;
 }
 
 function Modal({ title, subtitle, onClose, children }: { title: string; subtitle: string; onClose: () => void; children: React.ReactNode }) {
@@ -99,7 +103,8 @@ export function EditImportedActivityModal({ activity, className }: { activity: E
                 <MtbPicker value={discipline} onChange={setDiscipline} name="discipline" />
               </div>
             )}
-            <SessionDurationInput label="Durée" name="durationMinutes" defaultMinutes={activity.duration_minutes ?? null} />
+            <SessionDurationInput label={OUTDOOR_SPORTS.includes(sport) ? "Temps effectif" : "Durée"} name="durationMinutes" defaultMinutes={activity.duration_minutes ?? null} />
+            {OUTDOOR_SPORTS.includes(sport) && <ElapsedTimeField defaultMinutes={activity.elapsed_minutes} />}
             {sport !== "strength" && (
               <Field label="Distance (km)" type="number" step="0.1" name="distanceKm" min={0} defaultValue={activity.distance_km ?? ""} />
             )}
@@ -112,6 +117,11 @@ export function EditImportedActivityModal({ activity, className }: { activity: E
             )}
             <Field label="RPE ressenti (facultatif)" type="number" name="rpe" min={1} max={10} placeholder="1 à 10" defaultValue={activity.rpe ?? ""} />
             <Field label="Notes" name="notes" defaultValue={activity.notes || ""} />
+            {OUTDOOR_SPORTS.includes(sport) && (
+              <div className="sm:col-span-2">
+                <RouteUrlField defaultValue={activity.route_url} />
+              </div>
+            )}
             <div className="sm:col-span-2">
               <Field
                 label={activity.route_points ? "Remplacer la trace GPS (.gpx)" : "Trace GPS (fichier .gpx, facultatif)"}

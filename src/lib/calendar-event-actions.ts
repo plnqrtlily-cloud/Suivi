@@ -1,5 +1,6 @@
 "use server";
 
+import { cleanRouteUrl } from "@/lib/route-url";
 import { parseDiscipline } from "./mtb";
 import { randomUUID } from "crypto";
 import { revalidatePath as nextRevalidatePath, refresh } from "next/cache";
@@ -42,6 +43,7 @@ export interface CalendarEventInput {
   discipline?: string | null;
   durationMinutes?: number;
   elevationGainM?: number;
+  routeUrl?: string;
 }
 
 function clean(input: CalendarEventInput) {
@@ -63,6 +65,7 @@ function clean(input: CalendarEventInput) {
     // « VTT » : enregistré en vélo, avec son type à côté.
     sport: kind === "entrainement" && input.sport ? (input.sport === "mtb" ? "cycling" : input.sport.slice(0, 30)) : null,
     discipline: kind === "entrainement" && input.sport === "mtb" ? (parseDiscipline(input.discipline) ?? "mtb") : null,
+    route_url: kind === "entrainement" ? cleanRouteUrl(input.routeUrl) : null,
     elevation_gain_m:
       kind === "entrainement" && ["mtb", "cycling", "running", "hiking", "trail"].includes(input.sport ?? "") && input.elevationGainM && input.elevationGainM > 0
         ? Math.min(Math.round(input.elevationGainM), 20000)
@@ -104,9 +107,9 @@ export async function createCalendarEventAction(input: CalendarEventInput) {
     const e = clean({ ...input, startDate: start, endDate: end, time: days.length === 1 ? input.time : "" });
     first ??= e;
     await dbRun(
-      `INSERT INTO calendar_events (id, athlete_id, author_id, updated_by, kind, title, start_date, end_date, time, location, notes, sport, duration_minutes, discipline, elevation_gain_m)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [randomUUID(), athleteId, user.id, user.id, e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes, e.sport, e.duration_minutes, e.discipline, e.elevation_gain_m]
+      `INSERT INTO calendar_events (id, athlete_id, author_id, updated_by, kind, title, start_date, end_date, time, location, notes, sport, duration_minutes, discipline, elevation_gain_m, route_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [randomUUID(), athleteId, user.id, user.id, e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes, e.sport, e.duration_minutes, e.discipline, e.elevation_gain_m, e.route_url]
     );
   }
   // Une seule notification, même pour plusieurs dates.
@@ -126,15 +129,15 @@ export async function updateCalendarEventAction(id: string, input: CalendarEvent
   for (const [start, end] of runs.slice(1)) {
     const x = clean({ ...input, startDate: start, endDate: end, time: "" });
     await dbRun(
-      `INSERT INTO calendar_events (id, athlete_id, author_id, updated_by, kind, title, start_date, end_date, time, location, notes, sport, duration_minutes, discipline, elevation_gain_m)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [randomUUID(), row.athlete_id, user.id, user.id, x.kind, x.title, x.start_date, x.end_date, x.time, x.location, x.notes, x.sport, x.duration_minutes, x.discipline, x.elevation_gain_m]
+      `INSERT INTO calendar_events (id, athlete_id, author_id, updated_by, kind, title, start_date, end_date, time, location, notes, sport, duration_minutes, discipline, elevation_gain_m, route_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [randomUUID(), row.athlete_id, user.id, user.id, x.kind, x.title, x.start_date, x.end_date, x.time, x.location, x.notes, x.sport, x.duration_minutes, x.discipline, x.elevation_gain_m, x.route_url]
     );
   }
   await dbRun(
-    `UPDATE calendar_events SET kind = ?, title = ?, start_date = ?, end_date = ?, time = ?, location = ?, notes = ?, sport = ?, discipline = ?, duration_minutes = ?, elevation_gain_m = ?,
+    `UPDATE calendar_events SET kind = ?, title = ?, start_date = ?, end_date = ?, time = ?, location = ?, notes = ?, sport = ?, discipline = ?, duration_minutes = ?, elevation_gain_m = ?, route_url = ?,
        updated_by = ?, updated_at = datetime('now') WHERE id = ?`,
-    [e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes, e.sport, e.discipline, e.duration_minutes, e.elevation_gain_m, user.id, id]
+    [e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes, e.sport, e.discipline, e.duration_minutes, e.elevation_gain_m, e.route_url, user.id, id]
   );
   await notifyEventChange(user, row.athlete_id, "updated", e);
   revalidateCalendars(row.athlete_id, [row.start_date, e.start_date, e.end_date, ...days]);

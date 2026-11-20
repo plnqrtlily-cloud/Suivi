@@ -6,6 +6,21 @@ import { useState } from "react";
 import { updateWorkoutStatusAction, addCompletionPhotoAction } from "@/lib/actions";
 import { Button, Field, TextAreaField } from "@/components/ui";
 import { todayISO } from "@/lib/dates";
+import { ElapsedTimeField, RouteUrlField } from "@/components/activity-extra-fields";
+import { OUTDOOR_SPORTS } from "@/lib/route-url";
+
+/** Retour déjà saisi : le formulaire s'ouvre pré-rempli pour le modifier. */
+export interface StatusInitial {
+  rpe?: number | null;
+  feedback?: string | null;
+  actualMin?: number | null;
+  elapsedMin?: number | null;
+  distanceKm?: number | null;
+  avgHr?: number | null;
+  elevation?: number | null;
+  power?: number | null;
+  routeUrl?: string | null;
+}
 
 const STATUSES: { value: "done" | "not_done" | "postponed"; label: string }[] = [
   { value: "done", label: "Réalisée" },
@@ -21,6 +36,9 @@ export function StatusForm({
   currentStatus,
   sport,
   asCoach = false,
+  initial,
+  onDone,
+  discipline,
 }: {
   workoutId: string;
   currentStatus: string;
@@ -28,12 +46,18 @@ export function StatusForm({
   // Saisie par le coach : la photo « prise sur le moment » n'a alors aucun
   // sens, c'est l'athlète qui l'aurait prise, pas lui.
   asCoach?: boolean;
+  initial?: StatusInitial;
+  onDone?: () => void;
+  /** Type de VTT d'une séance vélo (plan_json) : sortie d'extérieur. */
+  discipline?: string | null;
 }) {
   const [status, setStatus] = useState(currentStatus === "planned" || currentStatus === "partial" ? "done" : currentStatus);
-  const [rpe, setRpe] = useState(5);
+  const [rpe, setRpe] = useState(initial?.rpe ?? 5);
   const [pending, setPending] = useState(false);
   const showDone = status === "done";
   const isPostponed = status === "postponed";
+  const outdoor = OUTDOOR_SPORTS.includes(sport) || !!discipline;
+  const v = (n: number | null | undefined) => (n == null ? "" : n);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -49,6 +73,8 @@ export function StatusForm({
       avgHr: formData.get("avgHr") ? Number(formData.get("avgHr")) : undefined,
       elevationGainM: formData.get("elevationGainM") ? Number(formData.get("elevationGainM")) : undefined,
       avgPowerW: formData.get("avgPowerW") ? Number(formData.get("avgPowerW")) : undefined,
+      elapsedMinutes: formData.get("elapsedMinutes") ? Number(formData.get("elapsedMinutes")) : undefined,
+      routeUrl: String(formData.get("routeUrl") || "") || undefined,
       postponedToDate: isPostponed ? String(formData.get("postponedToDate") || "") : undefined,
     });
     // Photo de validation envoyée séparément : elle n'a de sens que sur une
@@ -65,6 +91,7 @@ export function StatusForm({
       }
     }
     setPending(false);
+    onDone?.();
   }
 
   return (
@@ -93,16 +120,26 @@ export function StatusForm({
             <input type="range" min={1} max={10} value={rpe} onChange={(e) => setRpe(Number(e.target.value))} />
           </label>
 
-          <SessionDurationInput label="Durée réelle (facultatif)" name="actualDuration" placeholder="45 min ou 1h30" />
+          {outdoor && showDone ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <SessionDurationInput label="Temps effectif" name="actualDuration" defaultMinutes={initial?.actualMin ?? null} placeholder="en mouvement, ex. 1h30" />
+              <ElapsedTimeField defaultMinutes={initial?.elapsedMin} />
+            </div>
+          ) : (
+            <SessionDurationInput label="Durée réelle (facultatif)" name="actualDuration" defaultMinutes={initial?.actualMin ?? null} placeholder="45 min ou 1h30" />
+          )}
 
           {showDone && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {sport !== "strength" && <Field label="Distance (km)" type="number" step="0.1" name="distanceKm" min={0} />}
-              <Field label="FC moyenne (bpm)" type="number" name="avgHr" min={0} />
-              {(sport === "hiking" || sport === "cycling" || sport === "running") && (
-                <Field label="Dénivelé positif (m)" type="number" name="elevationGainM" min={0} />
+              {sport !== "strength" && <Field label="Distance (km)" type="number" step="0.1" name="distanceKm" min={0} defaultValue={v(initial?.distanceKm)} />}
+              <Field label="FC moyenne (bpm)" type="number" name="avgHr" min={0} defaultValue={v(initial?.avgHr)} />
+              {outdoor && <Field label="Dénivelé positif (m)" type="number" name="elevationGainM" min={0} defaultValue={v(initial?.elevation)} />}
+              {sport === "cycling" && <Field label="Puissance moyenne (W)" type="number" name="avgPowerW" min={0} defaultValue={v(initial?.power)} />}
+              {outdoor && (
+                <div className="sm:col-span-2">
+                  <RouteUrlField defaultValue={initial?.routeUrl} />
+                </div>
               )}
-              {sport === "cycling" && <Field label="Puissance moyenne (W)" type="number" name="avgPowerW" min={0} />}
             </div>
           )}
 
@@ -125,7 +162,7 @@ export function StatusForm({
             </label>
           )}
 
-          <TextAreaField label="Sensations, remarques" name="feedback" rows={3} placeholder="Comment s'est passée la séance ?" />
+          <TextAreaField label="Sensations, remarques" name="feedback" rows={3} defaultValue={initial?.feedback ?? ""} placeholder="Comment s'est passée la séance ?" />
         </>
       )}
 

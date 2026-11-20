@@ -221,6 +221,8 @@ export interface Workout {
   avg_hr: number | null;
   elevation_gain_m: number | null;
   avg_power_w: number | null;
+  elapsed_minutes?: number | null;
+  route_url?: string | null;
   reported_by: string | null;
   planned_rpe?: number | null;
   plan_json?: string | null;
@@ -665,6 +667,8 @@ export interface ImportedActivity {
   route_points: string | null;
   created_by?: string | null;
   discipline?: string | null;
+  elapsed_minutes?: number | null;
+  route_url?: string | null;
 }
 
 export interface PersonalRecord {

@@ -35,6 +35,8 @@ export interface CalendarEventView {
   durationMinutes: number | null;
   /** Dénivelé positif prévu (m). */
   elevationGainM?: number | null;
+  /** Lien du parcours prévu. */
+  routeUrl?: string | null;
   authorName: string;
   mine: boolean;
 }

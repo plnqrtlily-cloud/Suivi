@@ -1,5 +1,6 @@
 "use client";
 
+import { RouteUrlField } from "@/components/activity-extra-fields";
 import { SessionDurationInput } from "@/components/session-duration-input";
 import { useState } from "react";
 import { createPortal } from "react-dom";
@@ -8,7 +9,7 @@ import { DaysPicker } from "@/components/days-picker";
 import { dateRangeToList } from "@/components/date-range-picker";
 import { createCalendarEventAction, deleteCalendarEventAction, updateCalendarEventAction } from "@/lib/calendar-event-actions";
 import { MtbPicker } from "@/components/mtb-picker";
-import { Linkify } from "@/components/linkify";
+import { Linkify, safeUrl, shortUrl } from "@/components/linkify";
 import { EVENT_KINDS, ELEVATION_SPORTS, TRAINING_SPORTS, guessMtbFromTitle, guessSportFromTitle, eventKind, eventSubtitle, type CalendarEventView } from "@/lib/calendar-event-kinds";
 
 // Événements du calendrier partagé athlète ↔ coach : formulaire (ajout et
@@ -72,6 +73,7 @@ export function CalendarEventForm({
       discipline: sport === "mtb" ? mtb : null,
       durationMinutes: Number(fd.get("durationMinutes") || 0) || undefined,
       elevationGainM: Number(fd.get("elevationGainM") || 0) || undefined,
+      routeUrl: String(fd.get("routeUrl") || ""),
     };
     setPending(true);
     setError(undefined);
@@ -140,7 +142,12 @@ export function CalendarEventForm({
           </label>
           <SessionDurationInput label="Durée prévue" name="durationMinutes" defaultMinutes={event?.durationMinutes ?? null} />
           {ELEVATION_SPORTS.includes(sport) && (
-            <Field label="Dénivelé + prévu (m)" type="number" name="elevationGainM" min={0} step={10} defaultValue={event?.elevationGainM ?? ""} placeholder="ex. 800" />
+            <Field label="Dénivelé + prévu (m)" type="number" name="elevationGainM" min={0} step={1} defaultValue={event?.elevationGainM ?? ""} placeholder="ex. 800" />
+          )}
+          {ELEVATION_SPORTS.includes(sport) && (
+            <div className="col-span-2">
+              <RouteUrlField defaultValue={event?.routeUrl} />
+            </div>
           )}
           {sport === "mtb" && (
             <div className="col-span-2">
@@ -246,6 +253,11 @@ export function EventDetail({
           <span className="block text-[13px] text-slate">{eventSubtitle(event, you)}</span>
         </div>
       </div>
+      {event.routeUrl && safeUrl(event.routeUrl) && (
+        <a href={safeUrl(event.routeUrl)!} target="_blank" rel="noopener noreferrer" className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-moss-dark underline decoration-moss/40 underline-offset-2">
+          Parcours · {shortUrl(event.routeUrl)}
+        </a>
+      )}
       {event.notes && <p className="whitespace-pre-line rounded-xl bg-paper px-3 py-2.5 text-sm text-ink-soft"><Linkify text={event.notes} /></p>}
       <p className="text-xs text-slate">Modifiable par {you === "toi" ? "toi et ton coach" : "vous et l'athlète"} · {other}</p>
       <div className="flex gap-2">

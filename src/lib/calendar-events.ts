@@ -22,6 +22,7 @@ interface EventRow {
   discipline: string | null;
   duration_minutes: number | null;
   elevation_gain_m: number | null;
+  route_url: string | null;
   author_first_name: string | null;
 }
 
@@ -40,6 +41,7 @@ function toView(r: EventRow, viewerId: string): CalendarEventView {
     discipline: r.discipline,
     durationMinutes: r.duration_minutes,
     elevationGainM: r.elevation_gain_m,
+    routeUrl: r.route_url,
     authorName: r.author_first_name || "?",
     mine: r.author_id === viewerId,
   };
@@ -49,7 +51,7 @@ function toView(r: EventRow, viewerId: string): CalendarEventView {
 export async function getCalendarEvents(athleteIds: string[], from: string, to: string, viewerId: string): Promise<CalendarEventView[]> {
   if (!athleteIds.length) return [];
   const rows = await dbAll<EventRow>(
-    `SELECT e.id, e.athlete_id, e.author_id, e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes, e.sport, e.discipline, e.duration_minutes, e.elevation_gain_m,
+    `SELECT e.id, e.athlete_id, e.author_id, e.kind, e.title, e.start_date, e.end_date, e.time, e.location, e.notes, e.sport, e.discipline, e.duration_minutes, e.elevation_gain_m, e.route_url,
             u.first_name AS author_first_name
      FROM calendar_events e LEFT JOIN users u ON u.id = e.author_id
      WHERE e.athlete_id IN (${athleteIds.map(() => "?").join(",")}) AND e.start_date <= ? AND e.end_date >= ?

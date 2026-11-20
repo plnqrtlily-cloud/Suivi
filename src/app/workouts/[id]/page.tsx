@@ -14,6 +14,7 @@ import { resourceFileUrl } from "@/lib/exercise-animations";
 import { after } from "next/server";
 import { MoreMenu, MenuSeparator, menuItem } from "@/components/more-menu";
 import { parsePlan } from "@/lib/discipline";
+import { formatDuration } from "@/lib/duration";
 import { StatusForm } from "./status-form";
 import { CommentForm } from "./comment-form";
 import { CancelWorkoutButton } from "./cancel-button";
@@ -95,6 +96,21 @@ export default async function WorkoutDetailPage({
   // « Voir comme l'athlète » : le coach parcourt la séance exactement comme
   // l'athlète la recevra (consignes, détail des exercices), sans ses outils.
   const preview = user.role === "coach" && apercu === "athlete";
+  const workoutDiscipline = parsePlan(workout.plan_json)?.discipline ?? null;
+  const statusInitial =
+    workout.status === "planned"
+      ? undefined
+      : {
+          rpe: workout.rpe,
+          feedback: workout.athlete_feedback,
+          actualMin: workout.actual_duration_minutes,
+          elapsedMin: workout.elapsed_minutes,
+          distanceKm: workout.distance_km,
+          avgHr: workout.avg_hr,
+          elevation: workout.elevation_gain_m,
+          power: workout.avg_power_w,
+          routeUrl: workout.route_url,
+        };
   const role = preview ? "athlete" : user.role;
 
   // Animations refaites depuis leur import : remplacées en arrière-plan, sans
@@ -530,13 +546,19 @@ export default async function WorkoutDetailPage({
             </h2>
             <p className="text-sm text-ink">
               {workout.rpe ? `RPE ${workout.rpe}/10` : "Pas de RPE renseigné"}
-              {workout.actual_duration_minutes ? ` · ${workout.actual_duration_minutes} min réelles` : ""}
+              {workout.actual_duration_minutes ? ` · ${formatDuration(workout.actual_duration_minutes)} ${workout.elapsed_minutes ? "effectif" : "réelles"}` : ""}
+              {workout.elapsed_minutes ? ` · ${formatDuration(workout.elapsed_minutes)} au total` : ""}
               {workout.distance_km ? ` · ${workout.distance_km} km` : ""}
               {workout.avg_hr ? ` · FC moy. ${workout.avg_hr}` : ""}
               {workout.elevation_gain_m ? ` · D+ ${workout.elevation_gain_m} m` : ""}
               {workout.avg_power_w ? ` · ${workout.avg_power_w} W moy.` : ""}
             </p>
-            {workout.athlete_feedback && <p className="mt-1 text-sm text-ink-soft">{workout.athlete_feedback}</p>}
+            {workout.route_url && safeUrl(workout.route_url) && (
+              <a href={safeUrl(workout.route_url)!} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center gap-1.5 text-sm font-semibold text-moss-dark underline decoration-moss/40 underline-offset-2">
+                Parcours · {shortUrl(workout.route_url)}
+              </a>
+            )}
+            {workout.athlete_feedback && <p className="mt-1 whitespace-pre-line text-sm text-ink-soft"><Linkify text={workout.athlete_feedback} /></p>}
           </Card>
         )}
 
@@ -548,11 +570,11 @@ export default async function WorkoutDetailPage({
                 <>
                   <p className="mb-3 text-xs text-slate">Aperçu : {athleteFirstName} renseigne ici sa séance. Désactivé dans l&apos;aperçu.</p>
                   <div inert className="pointer-events-none select-none opacity-60">
-                    <StatusForm workoutId={workout.id} currentStatus={workout.status} sport={workout.sport} />
+                    <StatusForm workoutId={workout.id} currentStatus={workout.status} sport={workout.sport} discipline={workoutDiscipline} initial={statusInitial} />
                   </div>
                 </>
               ) : (
-                <StatusForm workoutId={workout.id} currentStatus={workout.status} sport={workout.sport} />
+                <StatusForm workoutId={workout.id} currentStatus={workout.status} sport={workout.sport} discipline={workoutDiscipline} initial={statusInitial} />
               )}
             </Card>
           </div>
@@ -566,13 +588,13 @@ export default async function WorkoutDetailPage({
           <Card className="mb-6">
             <details>
               <summary className="cursor-pointer text-[11px] font-bold uppercase tracking-wider text-slate">
-                Renseigner la séance à la place de l&apos;athlète
+                {workout.status === "planned" ? <>Renseigner la séance à la place de l&apos;athlète</> : "Modifier le retour de la séance"}
               </summary>
               <p className="mb-3 mt-2 text-xs text-slate">
                 À utiliser si l&apos;athlète vous a transmis son retour en dehors de l&apos;application. La saisie sera
                 signalée comme venant de vous.
               </p>
-              <StatusForm workoutId={workout.id} currentStatus={workout.status} sport={workout.sport} asCoach />
+              <StatusForm workoutId={workout.id} currentStatus={workout.status} sport={workout.sport} discipline={workoutDiscipline} initial={statusInitial} asCoach />
             </details>
           </Card>
         )}

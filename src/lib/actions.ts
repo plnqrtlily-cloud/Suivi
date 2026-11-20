@@ -1,5 +1,6 @@
 "use server";
 
+import { cleanRouteUrl } from "@/lib/route-url";
 import { randomUUID } from "crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath as nextRevalidatePath, refresh } from "next/cache";
@@ -673,6 +674,9 @@ export async function updateWorkoutStatusAction(params: {
   avgHr?: number;
   elevationGainM?: number;
   avgPowerW?: number;
+  /** Temps total, pauses comprises (actualDurationMinutes = temps effectif). */
+  elapsedMinutes?: number;
+  routeUrl?: string;
   // Nouveau jour choisi par l'athlète pour une séance reportée — une séance
   // "reportée" n'est pas un état permanent, c'est une transition vers un
   // autre jour : dès qu'un nouveau jour est fourni, le statut repasse à
@@ -695,7 +699,7 @@ export async function updateWorkoutStatusAction(params: {
   // Un report n'est pas un retour d'entraînement : aucun de ces champs ne
   // s'applique à une séance qui n'a pas eu lieu, quoi que le client envoie.
   const feedbackFields = isReschedule
-    ? { rpe: null, athleteFeedback: null, actualDurationMinutes: null, distanceKm: null, avgHr: null, elevationGainM: null, avgPowerW: null }
+    ? { rpe: null, athleteFeedback: null, actualDurationMinutes: null, distanceKm: null, avgHr: null, elevationGainM: null, avgPowerW: null, elapsedMinutes: null, routeUrl: null }
     : params;
 
   // Trace de l'auteur de la saisie : le coach peut renseigner à la place de
@@ -703,7 +707,7 @@ export async function updateWorkoutStatusAction(params: {
   const reportedBy = isReschedule ? null : workout.athlete_id === user.id ? "athlete" : "coach";
 
   await dbRun(
-    `UPDATE workouts SET status = ?, date = ?, rpe = ?, athlete_feedback = ?, actual_duration_minutes = ?, distance_km = ?, avg_hr = ?, elevation_gain_m = ?, avg_power_w = ?, reported_by = ?,
+    `UPDATE workouts SET status = ?, date = ?, rpe = ?, athlete_feedback = ?, actual_duration_minutes = ?, distance_km = ?, avg_hr = ?, elevation_gain_m = ?, avg_power_w = ?, elapsed_minutes = ?, route_url = ?, reported_by = ?,
        coach_validated_at = ?
      WHERE id = ?`,
     [
@@ -716,6 +720,8 @@ export async function updateWorkoutStatusAction(params: {
       feedbackFields.avgHr ?? null,
       feedbackFields.elevationGainM ?? null,
       feedbackFields.avgPowerW ?? null,
+      feedbackFields.elapsedMinutes && feedbackFields.elapsedMinutes > 0 ? Math.min(Math.round(feedbackFields.elapsedMinutes), 2880) : null,
+      cleanRouteUrl(feedbackFields.routeUrl),
       reportedBy,
       // Saisi par le coach : validé d'office. Saisi par l'athlète : le coach
       // doit (re)valider ce nouveau retour.
@@ -1749,6 +1755,12 @@ function sportAndDiscipline(formData: FormData): { sport: string; discipline: st
   return { sport: raw, discipline: null };
 }
 
+// Temps total (pauses comprises), en minutes ; vide ou illisible : NULL.
+function elapsedOf(formData: FormData): number | null {
+  const n = Number(formData.get("elapsedMinutes") || 0);
+  return Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 2880) : null;
+}
+
 export async function addImportedActivityAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
@@ -1767,8 +1779,8 @@ export async function addImportedActivityAction(formData: FormData) {
   const routePoints = await extractRoutePoints(formData);
 
   await dbRun(
-    `INSERT INTO imported_activities (id, athlete_id, source, activity_date, activity_time, sport, duration_minutes, distance_km, avg_hr, elevation_gain_m, avg_power_w, rpe, notes, route_points, discipline)
-     VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO imported_activities (id, athlete_id, source, activity_date, activity_time, sport, duration_minutes, distance_km, avg_hr, elevation_gain_m, avg_power_w, rpe, notes, route_points, discipline, elapsed_minutes, route_url)
+     VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       randomUUID(),
       user.id,
@@ -1784,6 +1796,8 @@ export async function addImportedActivityAction(formData: FormData) {
       notes || null,
       routePoints,
       discipline,
+      elapsedOf(formData),
+      cleanRouteUrl(formData.get("routeUrl")),
     ]
   );
 
@@ -1815,9 +1829,9 @@ export async function updateImportedActivityAction(id: string, formData: FormDat
   const routePoints = (await extractRoutePoints(formData)) ?? existing.route_points ?? null;
 
   await dbRun(
-    `UPDATE imported_activities SET activity_date = ?, activity_time = ?, sport = ?, discipline = ?, duration_minutes = ?, distance_km = ?, avg_hr = ?, elevation_gain_m = ?, avg_power_w = ?, rpe = ?, notes = ?, route_points = ?
+    `UPDATE imported_activities SET activity_date = ?, activity_time = ?, sport = ?, discipline = ?, duration_minutes = ?, distance_km = ?, avg_hr = ?, elevation_gain_m = ?, avg_power_w = ?, rpe = ?, notes = ?, route_points = ?, elapsed_minutes = ?, route_url = ?
      WHERE id = ?`,
-    [activityDate, activityTime || null, sport, discipline, durationMinutes, distanceKm, avgHr, elevationGainM, avgPowerW, rpe, notes || null, routePoints, id]
+    [activityDate, activityTime || null, sport, discipline, durationMinutes, distanceKm, avgHr, elevationGainM, avgPowerW, rpe, notes || null, routePoints, elapsedOf(formData), cleanRouteUrl(formData.get("routeUrl")), id]
   );
 
   revalidatePath("/athlete/profile");
@@ -1959,8 +1973,8 @@ export async function coachAddActivityAction(athleteId: string, formData: FormDa
   const notes = String(formData.get("notes") || "").trim();
 
   await dbRun(
-    `INSERT INTO imported_activities (id, athlete_id, source, activity_date, activity_time, sport, duration_minutes, distance_km, avg_hr, elevation_gain_m, avg_power_w, rpe, notes, created_by, discipline)
-     VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO imported_activities (id, athlete_id, source, activity_date, activity_time, sport, duration_minutes, distance_km, avg_hr, elevation_gain_m, avg_power_w, rpe, notes, created_by, discipline, elapsed_minutes, route_url)
+     VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       randomUUID(),
       athleteId,
@@ -1976,6 +1990,8 @@ export async function coachAddActivityAction(athleteId: string, formData: FormDa
       notes || null,
       user.id,
       discipline,
+      elapsedOf(formData),
+      cleanRouteUrl(formData.get("routeUrl")),
     ]
   );
 
