@@ -300,7 +300,7 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
   const range = (a: number, b: number) => `/athlete/programmation?view=week&week=${offset}&from=${a}&to=${b}`;
   return (
     <div className="flex flex-col gap-2 px-4">
-      <ContinuousScroll anchorId={`w-${getWeekDates(offset)[0]}`} prevHref={range(lo - 6, hi)} nextHref={range(lo, hi + 6)} rangeKey={`${lo}:${hi}`}>
+      <ContinuousScroll anchorId={getWeekDates(offset).includes(today) ? `day-${today}` : `w-${getWeekDates(offset)[0]}`} prevHref={range(lo - 6, hi)} nextHref={range(lo, hi + 6)} rangeKey={`${lo}:${hi}`}>
       {weeks.map((dates) => {
         const planned = workouts.filter((w) => dates.includes(w.date) && !isGoal(w)).reduce((s, w) => s + (w.duration_minutes || 0), 0);
         const done =
@@ -331,7 +331,7 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
                 blocks.some((b) => b.date === date) ||
                 eventsOn(events, date).length > 0;
               return (
-                <div key={date} data-move-date={date} className={`flex gap-3 rounded-xl ${date < today ? "opacity-80" : ""}`}>
+                <div key={date} id={`day-${date}`} data-move-date={date} className={`flex gap-3 rounded-xl ${date < today ? "opacity-80" : ""}`}>
                   <Link href={`/athlete/day/${date}`} className="flex w-10 flex-shrink-0 flex-col items-center gap-0.5 pt-1">
                     <span className="text-[11px] font-bold uppercase text-slate">{DAY_SHORT[idx]}</span>
                     <span
