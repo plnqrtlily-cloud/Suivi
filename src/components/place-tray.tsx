@@ -182,7 +182,7 @@ export function PlaceTray({
         }}
         title={i.movable ? (vous ? "Glissez sur un jour, ou touchez puis choisissez le jour" : "Glisse sur un jour, ou touche puis choisis le jour") : "Séance déjà renseignée"}
         style={{ touchAction: i.movable ? "none" : undefined }}
-        className={`flex w-full min-w-0 select-none items-center gap-2 rounded-xl border bg-white text-left transition-[box-shadow,opacity,transform] ${compact ? "px-1.5 py-1.5" : "px-2.5 py-2.5"} ${
+        className={`flex w-full min-w-0 select-none items-center gap-2 rounded-xl border bg-white text-left transition-[box-shadow,opacity,transform] ${compact ? "px-1.5 py-1.5" : "px-2 py-2.5"} ${
           selected === i.id ? "border-[#1b4b4f] shadow-[0_0_0_3px_#1b4b4f26]" : "border-line shadow-sm"
         } ${floating ? "" : i.movable ? "cursor-grab active:cursor-grabbing" : "cursor-default opacity-70"} ${ghost ? "opacity-30" : ""} ${landed === i.id ? "animate-place-pop" : ""}`}
       >
@@ -192,11 +192,11 @@ export function PlaceTray({
           </svg>
         </span>
         <span className="min-w-0 flex-1">
-          <span className={`block truncate font-semibold text-ink ${compact ? "text-[12px] leading-tight" : "text-[14px]"}`}>{i.title}</span>
+          <span className={`block font-semibold text-ink ${compact ? "truncate text-[12px] leading-tight" : "line-clamp-2 text-[13.5px] leading-snug"}`}>{i.title}</span>
           <span className={`block truncate text-slate ${compact ? "text-[10.5px]" : "text-[12px]"}`}>{[i.sportLabel, minutes(i.durationMinutes)].filter(Boolean).join(" · ")}</span>
         </span>
         {i.movable && !compact && (
-          <svg width="14" height="14" viewBox="0 0 20 20" fill="#9aa39c" aria-hidden className="flex-shrink-0">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="#9aa39c" aria-hidden className="hidden flex-shrink-0 sm:block">
             {[6, 10, 14].flatMap((y) => [7, 13].map((x) => <circle key={`${x}${y}`} cx={x} cy={y} r="1.4" />))}
           </svg>
         )}
@@ -230,68 +230,74 @@ export function PlaceTray({
         <div className="h-full rounded-full bg-[#2f7d5b] transition-[width] duration-500" style={{ width: `${items.length ? (placedCount / items.length) * 100 : 0}%` }} />
       </div>
 
-      {/* Bac : les séances qui attendent (et zone pour en retirer une). */}
-      <div
-        data-drop={TRAY}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (sel?.date) place(sel.id, null);
-        }}
-        className={`mb-3 rounded-2xl border-2 border-dashed p-2 transition-colors ${
-          over === TRAY ? "border-[#1b4b4f] bg-[#e3eeed]" : (dragging?.date || sel?.date) ? "border-[#1b4b4f]/40 bg-white/60" : "border-transparent"
-        } ${waiting.length === 0 && !dragging?.date && !sel?.date ? "hidden" : ""}`}
-      >
-        {waiting.length > 0 ? (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{waiting.map((i) => card(i))}</div>
-        ) : (
-          <p className="py-2 text-center text-[12.5px] font-semibold text-moss-dark">↩ {vous ? "Déposez ici pour remettre à placer" : "Dépose ici pour remettre à placer"}</p>
-        )}
-      </div>
+      {/* Étiquettes à gauche, jours de la semaine en colonne à droite : on
+          fait glisser chaque étiquette dans le jour choisi. */}
+      <div className="grid grid-cols-[minmax(0,5fr)_minmax(0,7fr)] items-start gap-2.5 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] sm:gap-4">
+        {/* Bac des étiquettes (et zone où en remettre une). */}
+        <div
+          data-drop={TRAY}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (sel?.date) place(sel.id, null);
+          }}
+          className={`flex min-h-full flex-col gap-2 self-stretch rounded-2xl border-2 border-dashed p-1.5 transition-colors ${
+            over === TRAY ? "border-[#1b4b4f] bg-[#e3eeed]" : dragging?.date || sel?.date ? "border-[#1b4b4f]/40 bg-white/60" : "border-[#1b4b4f]/15"
+          }`}
+        >
+          <span className="px-1 text-[11px] font-bold uppercase tracking-wide text-slate">Séances</span>
+          {waiting.map((i) => card(i))}
+          {waiting.length === 0 && (
+            <p className="m-auto px-1 py-3 text-center text-[12px] leading-snug text-slate">
+              {dragging?.date || sel?.date ? `↩ ${vous ? "Déposez ici pour la remettre à placer" : "Dépose ici pour la remettre à placer"}` : "Tout est placé ✓"}
+            </p>
+          )}
+        </div>
 
-      {/* Jours : grandes lignes sur téléphone, 7 colonnes sur ordinateur. */}
-      <div className="flex flex-col gap-1.5 sm:grid sm:grid-cols-7 sm:gap-1.5">
-        {dates.map((date, idx) => {
-          const placed = items.filter((i) => i.date === date);
-          const info = days[date] ?? { busy: 0, unavailable: false };
-          const active = !!(dragging || sel);
-          const isOver = over === date;
-          return (
-            <div
-              key={date}
-              data-drop={date}
-              role="button"
-              tabIndex={0}
-              aria-label={`Placer le ${date}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (sel) place(sel.id, date);
-              }}
-              className={`flex min-w-0 items-center gap-2 rounded-xl border p-1.5 transition-all duration-150 sm:min-h-[96px] sm:flex-col sm:items-stretch ${
-                isOver
-                  ? "scale-[1.02] border-[#1b4b4f] bg-[#e3eeed] shadow-md"
-                  : active
-                    ? "border-dashed border-[#1b4b4f]/45 bg-white"
-                    : "border-line bg-white/80"
-              } ${info.unavailable && !isOver ? "bg-[repeating-linear-gradient(135deg,#f3ece6_0,#f3ece6_5px,#faf6f2_5px,#faf6f2_10px)]" : ""}`}
-            >
-              <span className={`flex w-12 flex-shrink-0 flex-col items-center leading-tight sm:w-auto sm:flex-row sm:justify-center sm:gap-1 ${date === today ? "text-[#a4492a]" : "text-slate"}`}>
-                <span className="text-[11px] font-bold uppercase">{DOW[idx]}</span>
-                <span className="text-[15px] font-bold sm:text-[11px]">{Number(date.slice(8))}</span>
-              </span>
-              <div className="flex min-h-[38px] min-w-0 flex-1 flex-col justify-center gap-1">
-                {placed.map((i) => card(i, true))}
-                {placed.length === 0 && (
-                  <span className={`text-[11.5px] ${isOver ? "font-semibold text-moss-dark" : "text-[#9aa39c]"} sm:text-center`}>
-                    {isOver ? (vous ? "Déposez ici" : "Dépose ici") : info.unavailable ? "Indispo" : info.busy ? `${info.busy} autre${info.busy > 1 ? "s" : ""} séance${info.busy > 1 ? "s" : ""}` : active ? "+" : "Libre"}
-                  </span>
+        {/* Jours de la semaine, en colonne. */}
+        <div className="flex flex-col gap-1.5">
+          {dates.map((date, idx) => {
+            const placed = items.filter((i) => i.date === date);
+            const info = days[date] ?? { busy: 0, unavailable: false };
+            const active = !!(dragging || sel);
+            const isOver = over === date;
+            return (
+              <div
+                key={date}
+                data-drop={date}
+                role="button"
+                tabIndex={0}
+                aria-label={`Placer le ${date}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (sel) place(sel.id, date);
+                }}
+                className={`flex min-h-[52px] min-w-0 items-center gap-2 rounded-xl border p-1.5 transition-all duration-150 ${
+                  isOver
+                    ? "scale-[1.03] border-[#1b4b4f] bg-[#e3eeed] shadow-md"
+                    : active
+                      ? "border-dashed border-[#1b4b4f]/45 bg-white"
+                      : "border-line bg-white/80"
+                } ${info.unavailable && !isOver ? "bg-[repeating-linear-gradient(135deg,#f3ece6_0,#f3ece6_5px,#faf6f2_5px,#faf6f2_10px)]" : ""}`}
+              >
+                <span className={`flex w-9 flex-shrink-0 flex-col items-center leading-tight ${date === today ? "text-[#a4492a]" : "text-slate"}`}>
+                  <span className="text-[10.5px] font-bold uppercase">{DOW[idx]}</span>
+                  <span className="text-[15px] font-bold">{Number(date.slice(8))}</span>
+                </span>
+                <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+                  {placed.map((i) => card(i, true))}
+                  {placed.length === 0 && (
+                    <span className={`text-[11.5px] ${isOver ? "font-semibold text-moss-dark" : "text-[#9aa39c]"}`}>
+                      {isOver ? (vous ? "Déposez ici" : "Dépose ici") : info.unavailable ? "Indispo" : info.busy ? `${info.busy} autre${info.busy > 1 ? "s" : ""} séance${info.busy > 1 ? "s" : ""}` : active ? "+" : "Libre"}
+                    </span>
+                  )}
+                </div>
+                {placed.length > 0 && (info.busy > 0 || info.unavailable) && (
+                  <span className="flex-shrink-0 text-[10px] text-slate">{info.unavailable ? "Indispo" : `+${info.busy}`}</span>
                 )}
               </div>
-              {placed.length > 0 && (info.busy > 0 || info.unavailable) && (
-                <span className="flex-shrink-0 text-[10px] text-slate sm:text-center">{info.unavailable ? "Indispo" : `+${info.busy}`}</span>
-              )}
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
       {error && <p className="mt-2 text-[12.5px] text-[#a4492a]">{error}</p>}
 
