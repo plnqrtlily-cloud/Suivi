@@ -3240,7 +3240,14 @@ export async function moveWorkoutAction(params: { workoutId: string; date: strin
   const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [params.workoutId]);
   // Le coach de la séance, ou l'athlète lui-même (son coach est prévenu).
   if (!workout || (workout.coach_id !== user.id && workout.athlete_id !== user.id)) throw new Error("Non autorisé.");
-  await dbRun(`UPDATE workouts SET date = ? WHERE id = ?`, [params.date, params.workoutId]);
+  if (workout.flex_week) {
+    // Séance « à placer » : la déplacer vaut la placer ; hors de sa semaine,
+    // elle devient une séance ordinaire.
+    const weekEnd = new Date(`${workout.flex_week}T12:00:00Z`);
+    weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
+    const inWeek = params.date >= workout.flex_week && params.date <= weekEnd.toISOString().slice(0, 10);
+    await dbRun(`UPDATE workouts SET date = ?, flex_placed = 1, flex_week = ? WHERE id = ?`, [params.date, inWeek ? workout.flex_week : null, params.workoutId]);
+  } else await dbRun(`UPDATE workouts SET date = ? WHERE id = ?`, [params.date, params.workoutId]);
   revalidatePath(`/workouts/${params.workoutId}`);
   revalidateAthleteDays(workout.athlete_id, [workout.date, params.date]);
   if (user.id === workout.athlete_id) {

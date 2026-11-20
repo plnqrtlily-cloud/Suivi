@@ -61,8 +61,9 @@ export function MoreMenu({ children, label = "Plus d'actions", small = false }: 
       role="menu"
       style={pos}
       className={`${open ? "" : "hidden"} fixed z-[80] flex max-h-[80vh] min-w-[230px] flex-col overflow-y-auto rounded-2xl border border-line bg-white p-1.5 shadow-xl`}
-      onClick={(e) => {
-        // Une action choisie referme le menu.
+      // Une action choisie referme le menu (en capture : certaines actions
+      // arrêtent la propagation du clic pour ouvrir leur fenêtre).
+      onClickCapture={(e) => {
         if ((e.target as HTMLElement).closest("button, a")) setOpen(false);
       }}
     >
