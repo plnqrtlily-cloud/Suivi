@@ -265,7 +265,7 @@ export function PeriodizationPanel({
         <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
           <h3 className="text-[17px] font-bold tracking-tight text-ink">Frise</h3>
           <span className="text-[13px] text-slate">
-            {longDate(span.from)} → {longDate(span.to)} · {periodWeeks(span.from, span.to)} semaines
+            {longDate(span.from)} {span.from.slice(0, 4)} → {longDate(span.to)} {span.to.slice(0, 4)} · {periodWeeks(span.from, span.to)} semaines
           </span>
           <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-soft">
             {usedFocus.map((f) => (
@@ -300,7 +300,9 @@ export function PeriodizationPanel({
         {periods.length === 0 ? (
           <p className="text-sm text-slate">Aucune période pour l&apos;instant : commencez par la saison, puis ses blocs et ses cycles.</p>
         ) : (
-          <div className="grid grid-cols-[64px_1fr] gap-x-3 sm:grid-cols-[80px_1fr]">
+          // Frise défilable horizontalement quand elle couvre beaucoup de semaines.
+          <div className="-mx-1 overflow-x-auto px-1 pb-1">
+          <div className="grid grid-cols-[64px_1fr] gap-x-3 sm:grid-cols-[80px_1fr]" style={{ minWidth: Math.max(520, periodWeeks(span.from, span.to) * 16 + 90) }}>
             <span />
             <div className="relative mb-2 h-4 text-[11px] text-slate">
               {months.map((m) => (
@@ -311,12 +313,22 @@ export function PeriodizationPanel({
             </div>
 
             {(["saison", "bloc", "cycle"] as const).map((level) => {
-              const items = periods.filter((p) => p.level === level && inSpan(p));
+              const items = periods.filter((p) => p.level === level && inSpan(p)).sort((a, b) => a.start_date.localeCompare(b.start_date));
               if (items.length === 0) return null;
+              // Périodes qui se chevauchent : chacune sur sa ligne, aucune cachée.
+              const laneEnds: string[] = [];
+              const lane = new Map<string, number>();
+              for (const p of items) {
+                let l = laneEnds.findIndex((end) => end < p.start_date);
+                if (l === -1) l = laneEnds.length;
+                laneEnds[l] = p.end_date;
+                lane.set(p.id, l);
+              }
+              const rows = Math.max(1, laneEnds.length);
               return (
                 <div key={level} className="contents">
-                  <span className="flex h-10 items-center text-[13px] font-semibold text-ink">{LEVEL_LABEL[level]}</span>
-                  <div className="relative h-10">
+                  <span className="flex items-center text-[13px] font-semibold text-ink" style={{ height: rows * 36 + 4 }}>{LEVEL_LABEL[level]}</span>
+                  <div className="relative" style={{ height: rows * 36 + 4 }}>
                     {items.map((p) => {
                       const left = pct(p.start_date < span.from ? span.from : p.start_date);
                       const right = pct(p.end_date > span.to ? span.to : p.end_date) + (1 / total) * 100;
@@ -330,10 +342,11 @@ export function PeriodizationPanel({
                             setSelId(p.id);
                             setMode("view");
                           }}
-                          className={`absolute top-1 flex h-8 items-center overflow-hidden rounded-lg px-2 text-left text-[12px] font-semibold text-white transition-shadow ${
+                          className={`absolute flex h-8 items-center overflow-hidden rounded-lg px-2 text-left text-[12px] font-semibold text-white transition-shadow ${
                             isSel ? "ring-2 ring-ink ring-offset-1" : "hover:brightness-110"
                           }`}
                           style={{
+                            top: 4 + (lane.get(p.id) ?? 0) * 36,
                             left: `calc(${left}% + 1px)`,
                             width: `calc(${Math.max(1, right - left)}% - 3px)`,
                             background: periodColor(p.focus, p.color),
@@ -383,6 +396,7 @@ export function PeriodizationPanel({
                 </span>
               )}
             </div>
+          </div>
           </div>
         )}
       </Panel>

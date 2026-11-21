@@ -364,8 +364,9 @@ export function buildAttention(params: {
 }
 
 /**
- * Étendue affichée dans la frise de périodisation : la saison en cours s'il y
- * en a une, sinon toutes les périodes, sinon les 6 mois autour d'aujourd'hui.
+ * Étendue affichée dans la frise de périodisation : toutes les périodes (de la
+ * plus ancienne à la plus lointaine), sinon les 6 mois autour d'aujourd'hui.
+ * « season » : la saison en cours (ou la prochaine), pour le titre.
  */
 export function seasonSpan(
   periods: TrainingPeriod[],
@@ -376,12 +377,13 @@ export function seasonSpan(
     seasons.find((p) => p.start_date <= today && today <= p.end_date) ??
     seasons.filter((p) => p.start_date > today).sort((a, b) => a.start_date.localeCompare(b.start_date))[0] ??
     null;
-  if (season) return { from: season.start_date, to: season.end_date, season };
+  // Toutes les périodes sont visibles sur la frise : elle va de la plus
+  // ancienne à la plus lointaine (la saison en cours sert au titre).
   if (periods.length) {
     return {
       from: periods.reduce((m, p) => (p.start_date < m ? p.start_date : m), periods[0].start_date),
       to: periods.reduce((m, p) => (p.end_date > m ? p.end_date : m), periods[0].end_date),
-      season: null,
+      season,
     };
   }
   return { from: addDays(today, -91), to: addDays(today, 91), season: null };
