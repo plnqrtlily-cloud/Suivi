@@ -247,7 +247,7 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
     durationMinutes: w.duration_minutes ?? null,
     color: w.color || "#1b4b4f",
     date: w.flex_placed ? w.date : null,
-    movable: w.status === "planned",
+    movable: true,
   }));
   const flexDays: Record<string, DayInfo> = Object.fromEntries(
     weekDates.map((d) => [

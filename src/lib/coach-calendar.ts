@@ -369,7 +369,7 @@ export async function loadCalendarWeeks(params: {
           durationMinutes: w.duration_minutes ?? null,
           color: w.color || "#1b4b4f",
           date: w.flex_placed ? w.date : null,
-          movable: w.status === "planned",
+          movable: true,
         })),
       disciplines: Object.keys(disc)
         .sort((a, b) => disc[b] - disc[a])

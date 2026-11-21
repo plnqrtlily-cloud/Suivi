@@ -3786,7 +3786,9 @@ export async function placeFlexWorkoutAction(workoutId: string, date: string | n
   if (!w || !w.flex_week) throw new Error("Cette séance n'est pas à placer.");
   const allowed = user.id === w.athlete_id || (user.role === "coach" && user.id === w.coach_id);
   if (!allowed) throw new Error("Non autorisé.");
-  if (w.status !== "planned") throw new Error("Une séance déjà renseignée ne se déplace plus.");
+  // Toute séance se déplace, faite ou validée comprise ; seule une séance
+  // pas encore faite peut retourner dans le bac « à placer ».
+  if (w.status !== "planned" && !date) throw new Error("Une séance déjà renseignée reste sur un jour : glisse-la sur un autre jour.");
   const weekEnd = new Date(`${w.flex_week}T00:00:00Z`);
   weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
   if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < w.flex_week || date > weekEnd.toISOString().slice(0, 10))) {

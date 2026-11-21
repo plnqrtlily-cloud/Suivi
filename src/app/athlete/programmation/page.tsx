@@ -362,7 +362,7 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
         durationMinutes: w.duration_minutes ?? null,
         color: w.color || PET,
         date: w.flex_placed ? w.date : null,
-        movable: w.status === "planned",
+        movable: true,
       }));
   const dayInfo = (dates: string[]): Record<string, DayInfo> =>
     Object.fromEntries(
