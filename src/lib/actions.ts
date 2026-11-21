@@ -532,6 +532,8 @@ export async function updateWorkoutAction(params: {
   linksJson?: string;
   plannedRpe?: number;
   planJson?: string;
+  /** Semaine (lundi) : la séance devient « à placer par l'athlète » ; null : jour fixé ; absent : inchangé. */
+  toPlaceWeek?: string | null;
 }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "coach") throw new Error("Non autorisé.");
@@ -540,6 +542,9 @@ export async function updateWorkoutAction(params: {
   if (!workout) throw new Error("Séance introuvable.");
   if (workout.coach_id !== user.id) throw new Error("Non autorisé.");
   if (!params.date) throw new Error("Choisissez un jour.");
+  if (params.toPlaceWeek && !DATE_ONLY_RE.test(params.toPlaceWeek)) throw new Error("Semaine invalide.");
+  // À placer : la séance attend dans le bac de sa semaine (date = lundi).
+  if (params.toPlaceWeek) params.date = params.toPlaceWeek;
 
   const resolvedBlocks =
     params.sport === "strength" && params.blocks?.length
@@ -590,6 +595,11 @@ export async function updateWorkoutAction(params: {
     // nettoyer.
     { sql: `DELETE FROM workout_blocks WHERE workout_id = ?`, args: [params.workoutId] },
   ];
+  if (params.toPlaceWeek !== undefined)
+    statements.push({
+      sql: `UPDATE workouts SET flex_week = ?, flex_placed = 0 WHERE id = ?`,
+      args: [params.toPlaceWeek || null, params.workoutId],
+    });
 
   resolvedBlocks.forEach((b, idx) => {
     const blockId = randomUUID();

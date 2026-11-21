@@ -113,6 +113,8 @@ export default async function EditWorkoutPage({ params }: { params: Promise<{ id
             plannedRpe: workout.planned_rpe ?? null,
             planJson: workout.plan_json ?? null,
             isDraft: !!workout.is_draft,
+            flexWeek: workout.flex_week ?? null,
+            flexPlaced: !!workout.flex_placed,
           }}
           zones={zoneLabelsFor(latest)}
         />

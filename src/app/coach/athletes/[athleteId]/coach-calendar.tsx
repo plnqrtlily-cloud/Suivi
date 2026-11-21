@@ -72,6 +72,7 @@ function EntryIcon({ status, size = 13 }: { status: EntryStatus; size?: number }
   return <StatusIcon name={toneOf(status).icon} size={size} className="mr-1 inline-block flex-shrink-0 -translate-y-px align-middle" />;
 }
 const STATUS_COLOR = Object.fromEntries((Object.keys(TONE_OF) as EntryStatus[]).map((k) => [k, toneOf(k).fg])) as Record<EntryStatus, string>;
+const MONTHS_SHORT = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 const DOW_LONG = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const SPORTS = [
@@ -1637,10 +1638,12 @@ function EntryPanel({
 }
 
 function DatePicker({ data, mode, currentDate, onPick, onCancel }: { data: CoachCalendarData; mode: "move" | "dup"; currentDate: string; onPick: (d: string) => void; onCancel: () => void }) {
-  // Mini calendrier à partir de la semaine en cours : il suffit de choisir la date.
-  const t = parse(data.today);
+  // Mini calendrier de 6 semaines autour de la séance ; les flèches remontent
+  // ou avancent de 4 semaines. Les dates passées sont permises.
+  const [shift, setShift] = useState(0);
+  const t = parse(currentDate < data.today ? currentDate : data.today);
   const monday = new Date(t);
-  monday.setDate(t.getDate() - ((t.getDay() + 6) % 7));
+  monday.setDate(t.getDate() - ((t.getDay() + 6) % 7) - 14 + shift * 28);
   const weeks = Array.from({ length: 6 }, (_, w) =>
     Array.from({ length: 7 }, (_, d) => {
       const x = new Date(monday);
@@ -1656,6 +1659,11 @@ function DatePicker({ data, mode, currentDate, onPick, onCancel }: { data: Coach
         <span className="flex-1" />
         <button type="button" onClick={onCancel} className="text-[13px] font-semibold text-slate">Annuler</button>
       </div>
+      <div className="flex max-w-[460px] items-center gap-2">
+        <button type="button" onClick={() => setShift((x) => x - 1)} aria-label="Semaines précédentes" className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-white text-ink hover:border-moss">‹</button>
+        <span className="flex-1 text-center text-[13px] font-semibold text-ink">{`${parse(weeks[0][0]).getDate()} ${MONTHS_SHORT[parse(weeks[0][0]).getMonth()]} – ${parse(weeks[5][6]).getDate()} ${MONTHS_SHORT[parse(weeks[5][6]).getMonth()]}`}</span>
+        <button type="button" onClick={() => setShift((x) => x + 1)} aria-label="Semaines suivantes" className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-white text-ink hover:border-moss">›</button>
+      </div>
       <div className="grid max-w-[460px] grid-cols-7 gap-1 text-center">
         {["L", "M", "M", "J", "V", "S", "D"].map((l, i) => <span key={i} className="text-xs font-semibold text-slate">{l}</span>)}
         {weeks.flat().map((d) => {
@@ -1666,13 +1674,13 @@ function DatePicker({ data, mode, currentDate, onPick, onCancel }: { data: Coach
             <button
               key={d}
               type="button"
-              disabled={past || same}
+              disabled={same}
               onClick={() => onPick(d)}
-              className="flex flex-col items-center rounded-lg py-1.5 text-[13px] font-semibold transition-colors enabled:hover:bg-[#e3eeed] disabled:opacity-35"
+              className={`flex flex-col items-center rounded-lg py-1.5 text-[13px] font-semibold transition-colors enabled:hover:bg-[#e3eeed] disabled:opacity-35 ${past ? "text-slate" : ""}`}
               style={{ background: d === currentDate ? "#e3eeed" : "#ffffff", border: d === data.today ? "1.5px solid #e8896a" : "1.5px solid transparent" }}
             >
               {x.getDate()}
-              {x.getDate() === 1 && <span className="text-[10px] font-normal text-slate">{MONTHS[x.getMonth()].slice(0, 4)}.</span>}
+              {x.getDate() === 1 && <span className="text-[10px] font-normal text-slate">{MONTHS_SHORT[x.getMonth()]}</span>}
             </button>
           );
         })}

@@ -5,7 +5,6 @@ import { withDirectUploads } from "@/lib/upload-client";
 import { useState } from "react";
 import { updateWorkoutStatusAction, addCompletionPhotoAction } from "@/lib/actions";
 import { Button, Field, TextAreaField } from "@/components/ui";
-import { todayISO } from "@/lib/dates";
 import { ElapsedTimeField, RouteUrlField } from "@/components/activity-extra-fields";
 import { OUTDOOR_SPORTS } from "@/lib/route-url";
 
@@ -124,7 +123,7 @@ export function StatusForm({
       </div>
 
       {isPostponed ? (
-        <Field label="Nouveau jour" type="date" name="postponedToDate" required min={todayISO()} />
+        <Field label="Nouveau jour" type="date" name="postponedToDate" required />
       ) : (
         <>
           <label className="flex flex-col gap-1.5 text-sm">

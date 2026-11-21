@@ -79,6 +79,9 @@ export interface WorkoutFormInitial {
   planJson?: string | null;
   /** Séance encore en brouillon : l'édition propose alors de la publier. */
   isDraft?: boolean;
+  /** Séance « à placer » : sa semaine (lundi) et si l'athlète l'a déjà placée. */
+  flexWeek?: string | null;
+  flexPlaced?: boolean;
 }
 
 export interface OtherAthleteOption {
@@ -137,7 +140,9 @@ export function WorkoutForm({
   const [duration, setDuration] = useState(initial?.durationMinutes ? String(initial.durationMinutes) : "");
   const [structure, setStructure] = useState<BlocItem[]>(() => {
     const init = (initial?.intervals ?? []) as unknown as StructureItem[];
-    return init.length ? toBlocs(init) : defaultStructure(activityForSport(initial?.sport ?? "running", initialPlan));
+    // Séance existante sans structure : elle reste sans structure.
+    if (initial) return init.length ? toBlocs(init) : [];
+    return defaultStructure(activityForSport("running", initialPlan));
   });
   const [category, setCategory] = useState(initial?.category ?? "entrainement");
   // Le coach ne connaît pas toujours l'heure exacte d'une séance à venir —
@@ -157,8 +162,10 @@ export function WorkoutForm({
   const [weekdayFilter, setWeekdayFilter] = useState<number[]>([]);
   // « À placer » : la séance est proposée pour une ou plusieurs semaines et
   // l'athlète choisit lui-même le jour (cf. placeFlexWorkoutAction).
-  const [placeMode, setPlaceMode] = useState(!!placeWeek);
-  const [weeks, setWeeks] = useState<string[]>(() => [mondayISO(defaultDate ?? todayISO())]);
+  const [placeMode, setPlaceMode] = useState(!!placeWeek || (!!initial?.flexWeek && !initial.flexPlaced));
+  // Modification : jour de la séance (dates passées permises).
+  const [editDate, setEditDate] = useState(initial?.date ?? "");
+  const [weeks, setWeeks] = useState<string[]>(() => [mondayISO(initial ? initial.flexWeek ?? initial.date : defaultDate ?? todayISO())]);
   const [alsoSendTo, setAlsoSendTo] = useState<string[]>([]);
   const [error, setError] = useState<string | undefined>();
   const [pending, setPending] = useState(false);
@@ -285,9 +292,10 @@ export function WorkoutForm({
     const formData = new FormData(e.currentTarget);
 
     if (initial) {
-      const date = String(formData.get("date") || "");
+      const placeWeekChosen = placeMode ? weeks[0] : null;
+      const date = placeWeekChosen ?? editDate;
       if (!date) {
-        setError("Choisissez un jour.");
+        setError(placeMode ? "Choisissez la semaine." : "Choisissez un jour.");
         return;
       }
       setPending(true);
@@ -309,6 +317,7 @@ export function WorkoutForm({
           plannedRpe: rpeNumber,
           planJson: planJson(),
           linksJson: JSON.stringify(cleanLinks(links)),
+          toPlaceWeek: placeWeekChosen,
         });
         if (initial.isDraft && !draftRef.current) await publishWorkoutAction(initial.workoutId);
         router.push(`/coach/athletes/${athleteId}`);
@@ -395,7 +404,7 @@ export function WorkoutForm({
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-5">
-      {knownDate && <input type="hidden" name="date" value={knownDate} />}
+
 
       {!initial && templates && templates.length > 0 && (
         <label className={`${label} rounded-2xl border border-dashed border-[#aab4b1] bg-white px-4 py-3`}>
@@ -509,6 +518,55 @@ export function WorkoutForm({
           <input type="hidden" name="time" value={timeMode === "none" ? "" : timeMode === "precise" ? preciseTime : timeMode} />
         </div>
 
+        {knownDate && (
+          <div>
+            <span className="mb-1.5 block text-sm font-bold text-ink">Quand ?</span>
+            <div className="mb-3 flex rounded-full bg-paper-dim p-[3px] text-[13px] font-semibold">
+              {(
+                [
+                  [false, "Jour fixé par vous"],
+                  [true, "À placer par l'athlète"],
+                ] as const
+              ).map(([m, l]) => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => {
+                    setPlaceMode(m);
+                    if (m && !weeks.length) setWeeks([mondayISO(editDate || knownDate)]);
+                  }}
+                  className={`flex-1 rounded-full px-3 py-1.5 ${placeMode === m ? "bg-white text-ink shadow-sm" : "text-slate"}`}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            {placeMode ? (
+              <div>
+                <p className="mb-2 text-xs text-slate">La séance part dans le bac « À placer » de la semaine choisie ; l&apos;athlète la glisse sur le jour qui lui convient.</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {upcomingWeeks([mondayISO(knownDate), mondayISO(todayISO())].sort()[0]).map((w) => {
+                    const on = weeks[0] === w;
+                    return (
+                      <button
+                        key={w}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => setWeeks([w])}
+                        className={`rounded-full border px-3 py-1.5 text-[13px] font-semibold ${on ? "border-moss-dark bg-moss-dark text-white" : "border-line bg-white text-ink-soft hover:border-moss"}`}
+                      >
+                        {weekLabel(w)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} required className={`${input} max-w-[220px]`} />
+            )}
+          </div>
+        )}
+
         {!knownDate && (
           <div>
             <span className="mb-1.5 block text-sm font-bold text-ink">Quand ?</span>
@@ -591,7 +649,33 @@ export function WorkoutForm({
             exerciseMaxes={exerciseMaxes}
           />
         ) : (
-          <StructureBuilder items={structure} onChange={setStructure} activity={activity} zones={zones ?? {}} onUseDuration={(m) => setDuration(String(m))} />
+          <>
+            {/* Toutes les séances n'ont pas de schéma précis : la structure
+                (échauffement, corps de séance, retour au calme) est facultative. */}
+            <div className="flex rounded-full bg-paper-dim p-[3px] text-[13px] font-semibold">
+              {(
+                [
+                  [false, "Sans structure"],
+                  [true, "Avec structure"],
+                ] as const
+              ).map(([on, l]) => (
+                <button
+                  key={l}
+                  type="button"
+                  aria-pressed={structure.length > 0 === on}
+                  onClick={() => setStructure(on ? (structure.length ? structure : defaultStructure(activity)) : [])}
+                  className={`flex-1 rounded-full px-3 py-1.5 ${structure.length > 0 === on ? "bg-white text-ink shadow-sm" : "text-slate"}`}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            {structure.length ? (
+              <StructureBuilder items={structure} onChange={setStructure} activity={activity} zones={zones ?? {}} onUseDuration={(m) => setDuration(String(m))} />
+            ) : (
+              <p className="text-[13px] text-slate">Pas de schéma précis : la séance s&apos;appuie sur la durée, les objectifs et la description (dans les options).</p>
+            )}
+          </>
         )}
       </section>
 
