@@ -1993,13 +1993,11 @@ export async function deleteAvailabilityBlockAction(id: string) {
   if (!user) throw new Error("Non autorisé.");
 
   const block = await dbGet<any>(`SELECT athlete_id, date FROM availability_blocks WHERE id = ?`, [id]);
-  if (!block || block.athlete_id !== user.id) throw new Error("Non autorisé.");
+  if (!block || !(await canManageAthleteCalendar(user, block.athlete_id))) throw new Error("Non autorisé.");
 
   await dbRun(`DELETE FROM availability_blocks WHERE id = ?`, [id]);
 
-  revalidatePath("/athlete/programmation");
-  revalidatePath("/athlete");
-  revalidatePath(`/athlete/day/${block.date}`);
+  revalidateAthleteDays(block.athlete_id, [block.date]);
 }
 
 // ---------- SAISIE PAR LE COACH POUR LE COMPTE DE L'ATHLÈTE ----------
@@ -3700,7 +3698,8 @@ export async function planningUpdateWorkoutAction(params: { workoutId: string; t
 /** Suppression depuis la planification (sans quitter la page, contrairement à cancelWorkoutAction). */
 export async function planningDeleteWorkoutAction(workoutId: string) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "coach") throw new Error("Non autorisé.");
+  if (!user) throw new Error("Non autorisé.");
+  if (user.role !== "coach") throw new Error("Seul ton coach peut supprimer une séance qu'il a programmée.");
   const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [workoutId]);
   if (!workout) return;
   if (workout.coach_id !== user.id) throw new Error("Non autorisé.");
