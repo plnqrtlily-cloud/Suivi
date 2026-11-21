@@ -1,4 +1,5 @@
 import { redirect, notFound } from "next/navigation";
+import { cleanStructureJson } from "@/lib/structure-clean";
 import { getCurrentUser, findUserById } from "@/lib/auth";
 import { getWorkoutById, getBlocksForWorkout, getResourcesForCoach, getCoachExerciseHistory, getLatestExerciseMaxes, getLatestMeasurements } from "@/lib/queries";
 import { zoneLabelsFor } from "@/lib/zone-labels";
@@ -66,7 +67,8 @@ export default async function EditWorkoutPage({ params }: { params: Promise<{ id
 
   let intervals: IntervalItem[] = [];
   try {
-    intervals = workout.intervals_json ? JSON.parse(workout.intervals_json) : [];
+    // Les étapes laissées vides ne reviennent pas : la séance reste « sans structure ».
+    intervals = cleanStructureJson(workout.intervals_json) ? JSON.parse(cleanStructureJson(workout.intervals_json)!) : [];
   } catch {
     intervals = []; // JSON corrompu ou vide — repart d'une structure neuve plutôt que de faire planter la page
   }

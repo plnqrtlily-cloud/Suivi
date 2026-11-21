@@ -1,5 +1,6 @@
 "use client";
 
+import { cleanStructure } from "@/lib/structure-clean";
 import { SessionDurationInput } from "@/components/session-duration-input";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -277,7 +278,8 @@ export function WorkoutForm({
   // vouloir une étape « au ressenti ») et objectifs propres à la discipline.
   function structureJson(): string | undefined {
     if (sport === "strength") return undefined;
-    const kept = structure.filter((b) => b.items.length > 0);
+    // Ce qui n'a pas été rempli (étapes proposées d'office) n'est pas gardé.
+    const kept = cleanStructure(structure);
     return kept.length ? JSON.stringify(kept) : undefined;
   }
   function planJson(): string {
@@ -638,7 +640,11 @@ export function WorkoutForm({
       </section>
 
       <section className={section}>
-        <h2 className="text-base font-bold text-ink">Structure de la séance</h2>
+        <div className="flex items-baseline">
+          <h2 className="text-base font-bold text-ink">Structure de la séance</h2>
+          <span className="flex-1" />
+          <span className="text-[13px] text-slate">facultatif · ce qui reste vide n&apos;apparaît pas</span>
+        </div>
         {sport === "strength" ? (
           <StrengthBuilder
             key={`sb-${templateKey}`}

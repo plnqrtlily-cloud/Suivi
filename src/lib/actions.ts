@@ -400,7 +400,7 @@ export async function createWorkoutAction(params: {
     params.sport === "strength" && params.blocks?.length
       ? await Promise.all(
           params.blocks
-            .filter((b) => b.exercise_name)
+            .filter((b) => b.exercise_name?.trim())
             .map(async (b) => {
               let resourceId: string | null = null;
               if (b.resource_id) {
@@ -550,7 +550,7 @@ export async function updateWorkoutAction(params: {
     params.sport === "strength" && params.blocks?.length
       ? await Promise.all(
           params.blocks
-            .filter((b) => b.exercise_name)
+            .filter((b) => b.exercise_name?.trim())
             .map(async (b) => {
               let resourceId: string | null = null;
               if (b.resource_id) {

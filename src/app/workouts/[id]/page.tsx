@@ -1,4 +1,5 @@
 import { redirect, notFound } from "next/navigation";
+import { cleanStructureJson } from "@/lib/structure-clean";
 import { sportIconPath } from "@/lib/sport-icons";
 import { sportTone } from "@/lib/palette";
 import Link from "next/link";
@@ -291,10 +292,10 @@ export default async function WorkoutDetailPage({
           </Card>
         )}
 
-        {workout.intervals_json && (
+        {cleanStructureJson(workout.intervals_json) && (
           <Card className="mb-6">
             <h2 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate"><span className="h-3 w-0.5 rounded-full bg-moss" />Déroulé de la séance</h2>
-            <WorkoutStructure json={workout.intervals_json} sport={workout.sport} />
+            <WorkoutStructure json={cleanStructureJson(workout.intervals_json)!} sport={workout.sport} />
           </Card>
         )}
 

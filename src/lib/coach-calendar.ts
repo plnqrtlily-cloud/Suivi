@@ -1,6 +1,7 @@
 // Chargement du calendrier coach (vue semaine ou mois) : toutes les requêtes
 // de la période en une fois, puis mise en forme dans CoachCalendarData.
 
+import { cleanStructureJson } from "./structure-clean";
 import { sportTone } from "./palette";
 import { mtbLabel } from "./mtb";
 import { getCalendarEvents } from "./calendar-events";
@@ -199,7 +200,7 @@ export async function loadCalendarWeeks(params: {
     const content =
       w.sport === "strength"
         ? strengthBlocksToLines(strengthBlocks.filter((b) => b.workout_id === w.id))
-        : intervalsToLines(w.intervals_json);
+        : intervalsToLines(cleanStructureJson(w.intervals_json));
     const plan = parsePlan(w.plan_json);
     return {
       id: w.id,
@@ -233,7 +234,7 @@ export async function loadCalendarWeeks(params: {
         }
       })(),
       content,
-      structure: w.sport !== "strength" && w.intervals_json ? w.intervals_json : null,
+      structure: w.sport !== "strength" ? cleanStructureJson(w.intervals_json) : null,
       feedback: w.athlete_feedback,
       reportedByCoach: w.reported_by === "coach",
       createdByMe: w.coach_id === coachId,
