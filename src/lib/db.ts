@@ -818,6 +818,9 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE workouts ADD COLUMN elapsed_minutes INTEGER`,
   `ALTER TABLE imported_activities ADD COLUMN route_url TEXT`,
   `ALTER TABLE imported_activities ADD COLUMN elapsed_minutes INTEGER`,
+  // Réparation : des séances à jour fixé modifiées ont été marquées « à placer
+  // pas encore placée » par erreur et avaient disparu du calendrier.
+  `UPDATE workouts SET flex_placed = NULL WHERE flex_week IS NULL AND flex_placed = 0`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

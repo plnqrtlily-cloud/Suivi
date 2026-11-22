@@ -597,8 +597,10 @@ export async function updateWorkoutAction(params: {
   ];
   if (params.toPlaceWeek !== undefined)
     statements.push({
-      sql: `UPDATE workouts SET flex_week = ?, flex_placed = 0 WHERE id = ?`,
-      args: [params.toPlaceWeek || null, params.workoutId],
+      // À placer : en attente dans le bac (flex_placed = 0). Jour fixé : séance
+      // ordinaire (flex_placed NULL), sinon elle disparaîtrait du calendrier.
+      sql: `UPDATE workouts SET flex_week = ?, flex_placed = ? WHERE id = ?`,
+      args: [params.toPlaceWeek || null, params.toPlaceWeek ? 0 : null, params.workoutId],
     });
 
   resolvedBlocks.forEach((b, idx) => {
