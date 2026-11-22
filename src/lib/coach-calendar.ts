@@ -324,15 +324,23 @@ export async function loadCalendarWeeks(params: {
     const days = wk.map((d, i) => buildDay(d.date, d.inMonth, i));
     let load = 0, plannedLoad = 0, minutes = 0, plannedMinutes = 0, km = 0, done = 0, total = 0;
     const disc: Record<string, number> = {};
+    // Données de la semaine : toutes les séances de catégorie entraînement,
+    // quelle que soit la façon dont elles ont été mises (séance programmée,
+    // séance à placer, entraînement ajouté au calendrier, activité saisie à
+    // côté) et par qui. Objectifs et compétitions n'entrent pas dans le compte.
     for (const day of days) {
       for (const e of day.entries) {
-        if (e.isGoal && e.kind === "workout" && !e.plannedMin) continue;
+        if (e.isGoal) continue;
         const realised = e.status === "done" || e.status === "tovalidate" || e.status === "hors";
         if (e.kind === "workout") {
           total++;
           if (e.status === "done" || e.status === "tovalidate") done++;
           plannedMinutes += e.plannedMin || 0;
           plannedLoad += sessionLoad(e.plannedMin, e.plannedRpe);
+        } else {
+          // Activité faite hors programme : une séance réalisée de plus.
+          total++;
+          done++;
         }
         if (realised) {
           const m = e.realMin ?? e.plannedMin ?? 0;
@@ -342,6 +350,18 @@ export async function loadCalendarWeeks(params: {
           disc[e.sport] = (disc[e.sport] || 0) + m;
         }
       }
+      // Entraînements ajoutés au calendrier (comptés une fois, le premier jour).
+      for (const ev of day.events) {
+        if (ev.kind !== "entrainement" || ev.startDate !== day.date) continue;
+        total++;
+        plannedMinutes += ev.durationMinutes || 0;
+      }
+    }
+    // Séances à placer encore dans le bac de cette semaine.
+    for (const w of flex) {
+      if (w.flex_week !== wk[0].date || w.flex_placed) continue;
+      total++;
+      plannedMinutes += w.duration_minutes || 0;
     }
     const mid = wk[3].date;
     const active = periodsOnDate(periods, mid);

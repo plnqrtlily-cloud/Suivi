@@ -224,9 +224,14 @@ export default async function AthleteDetailPage({
   // ---------- Aperçu ----------
   const acwrImports = rangeImports.filter((a) => a.activity_date >= addDays(today, -27));
   const acwr = computeAcwr(allWorkouts, acwrImports, today);
+  const trainingEvents = await dbAll<{ start_date: string; duration_minutes: number | null }>(
+    `SELECT start_date, duration_minutes FROM calendar_events WHERE athlete_id = ? AND kind = 'entrainement' AND start_date BETWEEN ? AND ?`,
+    [athleteId, rangeFrom, addDays(rangeTo, 6)]
+  );
   const allWeeks = buildLoadWeeks({
     workouts: allWorkouts,
     imports: rangeImports,
+    trainingEvents,
     checkins: rangeCheckins,
     periods: trainingPeriods,
     fromMonday: rangeFrom,

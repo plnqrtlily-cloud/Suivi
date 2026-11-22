@@ -269,10 +269,12 @@ function CompactDayItems({
   );
 }
 
-function dayMinutes(date: string, workouts: Workout[], imports: ImportedActivity[]) {
+function dayMinutes(date: string, workouts: Workout[], imports: ImportedActivity[], events: CalendarEventView[] = []) {
   const w = workouts.filter((x) => x.date === date && !isGoal(x)).reduce((s, x) => s + (x.duration_minutes || 0), 0);
   const i = imports.filter((x) => x.activity_date === date).reduce((s, x) => s + (x.duration_minutes || 0), 0);
-  return w + i;
+  // Entraînements ajoutés au calendrier (comptés le premier jour).
+  const e = events.filter((x) => x.kind === "entrainement" && x.startDate === date).reduce((s, x) => s + (x.durationMinutes || 0), 0);
+  return w + i + e;
 }
 
 export default async function ProgrammationPage({
@@ -381,7 +383,11 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
     <div className="flex flex-col gap-2 px-4">
       <div>
       {weeks.map((dates) => {
-        const planned = workouts.filter((w) => dates.includes(w.date) && !isGoal(w)).reduce((s, w) => s + (w.duration_minutes || 0), 0);
+        // Toutes les séances d'entraînement de la semaine, quelle que soit la
+        // façon dont elles ont été mises : programmées, à placer, ajoutées au calendrier.
+        const planned =
+          workouts.filter((w) => dates.includes(w.date) && !isGoal(w)).reduce((s, w) => s + (w.duration_minutes || 0), 0) +
+          events.filter((e) => e.kind === "entrainement" && dates.includes(e.startDate)).reduce((s, e) => s + (e.durationMinutes || 0), 0);
         const done =
           workouts
             .filter((w) => dates.includes(w.date) && !isGoal(w) && (w.status === "done" || w.status === "partial"))
@@ -423,7 +429,7 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
               />
             ) : dates.map((date, idx) => {
               const isToday = date === today;
-              const total = dayMinutes(date, workouts, imports);
+              const total = dayMinutes(date, workouts, imports, events);
               const has =
                 workouts.some((w) => w.date === date) ||
                 imports.some((a) => a.activity_date === date) ||
@@ -531,7 +537,7 @@ async function MonthView({
   const base = `/athlete/programmation?view=month&from=${lo}&to=${hi}`;
   const range = (a: string, b: string) => `/athlete/programmation?view=month&month=${anchor}&from=${a}&to=${b}${dayParam ? `&day=${dayParam}` : ""}`;
   const selDate = new Date(`${selected}T00:00:00`);
-  const selTotal = dayMinutes(selected, workouts, imports);
+  const selTotal = dayMinutes(selected, workouts, imports, events);
   const selHas =
     workouts.some((w) => w.date === selected) ||
     imports.some((a) => a.activity_date === selected) ||

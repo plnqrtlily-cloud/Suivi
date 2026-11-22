@@ -100,20 +100,24 @@ function fmtScore(n: number): string {
 const isGoal = (w: Workout) => w.category === "objectif" || w.category === "evenement";
 
 /**
- * Semaines de `fromMonday` à `toMonday` inclus. Charge réalisée = séances
- * faites ou partielles + activités importées hors programme ; charge prévue =
- * durée prévue × RPE visé des séances programmées (brouillons exclus).
+ * Semaines de `fromMonday` à `toMonday` inclus. Toutes les séances de
+ * catégorie entraînement comptent, quelle que soit la façon dont elles ont été
+ * mises : séances programmées (brouillons exclus), activités faites hors
+ * programme, entraînements ajoutés au calendrier. Charge réalisée = séances
+ * faites ou partielles + activités ; charge prévue = durée × RPE visé.
  */
 export function buildLoadWeeks(params: {
   workouts: Workout[];
   imports: ImportedActivity[];
+  /** Entraînements ajoutés au calendrier (événements « Entraînement »). */
+  trainingEvents?: { start_date: string; duration_minutes: number | null }[];
   checkins: Checkin[];
   periods: TrainingPeriod[];
   fromMonday: string;
   toMonday: string;
   today: string;
 }): LoadWeek[] {
-  const { workouts, imports, checkins, periods, fromMonday, toMonday, today } = params;
+  const { workouts, imports, trainingEvents = [], checkins, periods, fromMonday, toMonday, today } = params;
   const currentMonday = mondayOf(today);
   const byWeek = new Map<string, LoadWeek>();
   const formes = new Map<string, number[]>();
@@ -140,7 +144,8 @@ export function buildLoadWeeks(params: {
     if (w.status === "cancelled") continue;
     const wk = byWeek.get(mondayOf(w.date));
     if (!wk) continue;
-    if (isGoal(w) && !w.duration_minutes) continue;
+    // Seules les séances d'entraînement comptent (pas objectifs ni compétitions).
+    if (isGoal(w)) continue;
     wk.total++;
     wk.plannedMinutes += w.duration_minutes || 0;
     wk.plannedLoad += sessionLoad(w.duration_minutes, w.planned_rpe ?? null);
@@ -155,8 +160,17 @@ export function buildLoadWeeks(params: {
     if (a.workout_id) continue;
     const wk = byWeek.get(mondayOf(a.activity_date));
     if (!wk) continue;
+    // Activité faite hors programme : une séance réalisée de plus.
+    wk.total++;
+    wk.done++;
     wk.minutes += a.duration_minutes || 0;
     wk.load += sessionLoad(a.duration_minutes, a.rpe);
+  }
+  for (const e of trainingEvents) {
+    const wk = byWeek.get(mondayOf(e.start_date));
+    if (!wk) continue;
+    wk.total++;
+    wk.plannedMinutes += e.duration_minutes || 0;
   }
   for (const c of checkins) {
     const key = mondayOf(c.check_date);
