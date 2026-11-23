@@ -28,7 +28,7 @@ import { estimateCyclePhase } from "@/lib/cycle";
 import { getWeekDates, todayISO, daysUntil } from "@/lib/dates";
 import { Nav } from "@/components/nav";
 import { sportLabel } from "@/components/ui";
-import { SnapScrollNav } from "@/components/snap-scroll-nav";
+import { WeekStrip, type StripDay } from "./week-strip";
 import { JournalEntry } from "./journal-entry";
 import { CheckinModal } from "./checkin-modal";
 import { CycleBadge } from "./cycle-badge";
@@ -37,8 +37,6 @@ import { SeasonFrise, type FriseSegment } from "./season-frise";
 import { Chip, ItemCard, SportIcon, durationLabel, isGoal, statusKey, STATUS_CHIP } from "./athlete-ui";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const DAY_LETTERS = ["L", "M", "M", "J", "V", "S", "D"];
-const PET = "#1b4b4f";
 
 type DayMark = "done" | "missed" | "planned" | "goal" | null;
 
@@ -54,61 +52,6 @@ function dayMark(date: string, today: string, workouts: Workout[], imports: Impo
   }
   if (training.every((w) => w.status === "done") && (training.length || doneImport)) return date === today ? "done" : "planned";
   return training.length ? "planned" : null;
-}
-
-function WeekRow({
-  dates,
-  weekOffset,
-  today,
-  selectedDate,
-  workouts,
-  imports,
-}: {
-  dates: string[];
-  weekOffset: number;
-  today: string;
-  selectedDate: string;
-  workouts: Workout[];
-  imports: ImportedActivity[];
-}) {
-  return (
-    <div className="flex justify-between py-1">
-      {dates.map((date, idx) => {
-        const isSel = date === selectedDate;
-        const mark = dayMark(date, today, workouts, imports);
-        return (
-          <Link
-            key={date}
-            href={`/athlete?week=${weekOffset}&day=${date}`}
-            scroll={false}
-            aria-current={isSel ? "date" : undefined}
-            className="flex flex-1 flex-col items-center gap-1"
-          >
-            <span className="text-[11px] font-semibold text-slate">{DAY_LETTERS[idx]}</span>
-            <span
-              className={`flex h-[34px] w-[34px] items-center justify-center rounded-full text-[15px] font-bold ${
-                isSel ? "bg-[#1b4b4f] text-white" : date === today ? "text-[#1b4b4f] ring-2 ring-[#1b4b4f]/30" : "text-ink"
-              }`}
-            >
-              {Number(date.slice(8, 10))}
-            </span>
-            <span className="flex h-[11px] items-center">
-              {mark === "done" ? (
-                <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke={PET} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-label="fait">
-                  <path d="M4.5 10.5l3.5 3.5 7.5-8" />
-                </svg>
-              ) : mark ? (
-                <span
-                  className="h-1.5 w-1.5 rounded-full"
-                  style={{ background: mark === "missed" ? "#e8896a" : mark === "goal" ? "#c9a227" : "#9fc3c4" }}
-                />
-              ) : null}
-            </span>
-          </Link>
-        );
-      })}
-    </div>
-  );
 }
 
 function SessionHero({ w, today }: { w: Workout; today: string }) {
@@ -217,15 +160,19 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
   const today = todayISO();
   const selectedDate = day && DATE_RE.test(day) && weekDates.includes(day) ? day : weekDates.includes(today) ? today : weekDates[0];
   const isToday = selectedDate === today;
-  const prevDates = getWeekDates(offset - 1);
-  const nextDates = getWeekDates(offset + 1);
+  // Bande des jours : plusieurs mois d'avance et de recul, pour un défilement
+  // continu sans rechargement.
+  const stripFrom = Math.min(-12, offset - 4);
+  const stripTo = Math.max(12, offset + 4);
+  const stripStart = getWeekDates(stripFrom)[0];
+  const stripEnd = getWeekDates(stripTo)[6];
 
   const [journal, todaysCheckin, otherDayCheckin, rangeWorkouts, rangeImports, gender, nextGoal, periods, selectedBlocks, ongoing] = await Promise.all([
     getJournalForAthlete(user.id, selectedDate),
     getCheckinForDate(user.id, today),
     isToday ? Promise.resolve(undefined) : getCheckinForDate(user.id, selectedDate),
-    getWorkoutsForAthlete(user.id, prevDates[0], nextDates[6]),
-    getImportedActivitiesForRange(user.id, prevDates[0], nextDates[6]),
+    getWorkoutsForAthlete(user.id, stripStart, stripEnd),
+    getImportedActivitiesForRange(user.id, stripStart, stripEnd),
     getUserGender(user.id),
     getNextGoalForAthlete(user.id, today),
     getTrainingPeriods(user.id),
@@ -283,7 +230,13 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
   const selDate = new Date(`${selectedDate}T00:00:00`);
   const dateLine = selDate.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }).replace(/^./, (c) => c.toUpperCase());
   const title = isToday ? "Aujourd'hui" : selDate.toLocaleDateString("fr-FR", { weekday: "long" }).replace(/^./, (c) => c.toUpperCase());
-  const weekLink = (o: number) => `/athlete?week=${o}`;
+  const wByDate = new Map<string, Workout[]>();
+  for (const w of rangeWorkouts) wByDate.set(w.date, [...(wByDate.get(w.date) ?? []), w]);
+  const iByDate = new Map<string, ImportedActivity[]>();
+  for (const a of rangeImports) iByDate.set(a.activity_date, [...(iByDate.get(a.activity_date) ?? []), a]);
+  const stripDays: StripDay[] = [];
+  for (let o = stripFrom; o <= stripTo; o++)
+    for (const d of getWeekDates(o)) stripDays.push({ date: d, week: o, mark: dayMark(d, today, wByDate.get(d) ?? [], iByDate.get(d) ?? []) });
   const nothing = dayWorkouts.length === 0 && dayImports.length === 0 && selectedBlocks.length === 0;
 
   return (
@@ -312,17 +265,7 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
         </header>
 
         <div className="px-4">
-          <SnapScrollNav
-            axis="x"
-            panesKey={`week-${offset}`}
-            prevHref={weekLink(offset - 1)}
-            nextHref={weekLink(offset + 1)}
-            panes={[
-              <WeekRow key="prev" dates={prevDates} weekOffset={offset - 1} today={today} selectedDate={selectedDate} workouts={rangeWorkouts} imports={rangeImports} />,
-              <WeekRow key="cur" dates={weekDates} weekOffset={offset} today={today} selectedDate={selectedDate} workouts={rangeWorkouts} imports={rangeImports} />,
-              <WeekRow key="next" dates={nextDates} weekOffset={offset + 1} today={today} selectedDate={selectedDate} workouts={rangeWorkouts} imports={rangeImports} />,
-            ]}
-          />
+          <WeekStrip days={stripDays} selectedDate={selectedDate} today={today} anchorDate={weekDates[0]} />
         </div>
 
         <div className="flex flex-col gap-3 px-4 pt-3">
