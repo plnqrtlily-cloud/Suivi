@@ -1,5 +1,5 @@
 import { dbAll } from "./db";
-import { TIME_SORT_SQL, type Workout } from "./queries";
+import { NOTE_CONTENT_SQL, TIME_SORT_SQL, type Workout } from "./queries";
 import type { Checkin } from "./checkin-types";
 
 // Le tableau de bord affichait une ligne par athlète en faisant 8 requêtes
@@ -64,8 +64,9 @@ export async function loadDashboardBatch(
       [coachId, ...athleteIds, coachId]
     ),
     // Note de journal du jour
-    dbAll<any>(`SELECT athlete_id, content FROM journal_entries WHERE athlete_id IN (${ph}) AND entry_date = ?`, [
+    dbAll<any>(`SELECT athlete_id, ${NOTE_CONTENT_SQL} AS content FROM calendar_events WHERE athlete_id IN (${ph}) AND kind = 'note' AND author_id = athlete_id AND start_date <= ? AND end_date >= ?`, [
       ...athleteIds,
+      today,
       today,
     ]),
     // Séances de la fenêtre ACWR (28 jours)

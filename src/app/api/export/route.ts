@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   const profile = await dbGet<any>(`SELECT id, email, role, first_name, last_name, created_at FROM users WHERE id = ?`, [user.id]);
   const measurements = await dbAll(`SELECT metric, value, recorded_at FROM athlete_measurements WHERE athlete_id = ?`, [user.id]);
   const injuries = await dbAll(`SELECT zone, description, date_start, date_end FROM injuries WHERE athlete_id = ?`, [user.id]);
-  const journal = await dbAll(`SELECT entry_date, content FROM journal_entries WHERE athlete_id = ?`, [user.id]);
+  const journal = await dbAll(`SELECT start_date AS entry_date, end_date, title, notes FROM calendar_events WHERE athlete_id = ? AND kind = 'note'`, [user.id]);
   const cycleEntries = await dbAll(`SELECT entry_date, entry_type, notes FROM cycle_entries WHERE athlete_id = ?`, [user.id]);
   const workoutsAsAthlete = await dbAll(
     `SELECT sport, title, date, status, rpe, athlete_feedback FROM workouts WHERE athlete_id = ?`,

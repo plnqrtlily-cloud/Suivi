@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DoneActivityForm, HealthReportForm, JournalNoteForm, PeriodForm, UnavailabilityForm } from "./add-forms";
+import { DoneActivityForm, HealthReportForm, PeriodForm, UnavailabilityForm } from "./add-forms";
 import { CalendarEventForm } from "./calendar-events";
 
 type Choice = "training" | "event" | "calnote" | "done" | "health" | "unavailable" | "note" | "period";
@@ -23,8 +23,8 @@ const LABELS: Record<Choice, string> = {
   done: "Une séance que j'ai faite",
   health: "Blessure, maladie ou état",
   unavailable: "Une indisponibilité",
-  note: "Une note dans mon journal",
-  calnote: "Une note dans le calendrier (un ou plusieurs jours)",
+  note: "Une note",
+  calnote: "Une note · journal de bord (un ou plusieurs jours)",
   period: "Mes règles",
 };
 const TITLES: Record<Choice, string> = {
@@ -34,7 +34,7 @@ const TITLES: Record<Choice, string> = {
   health: "Comment tu vas ?",
   unavailable: "Indisponibilité",
   note: "Note dans mon journal",
-  calnote: "Note dans le calendrier",
+  calnote: "Note · journal de bord",
   period: "Mes règles",
 };
 
@@ -61,7 +61,7 @@ export function AddMenu({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [choice, setChoice] = useState<Choice | null>(null);
-  const choices: Choice[] = ["training", "event", "calnote", "done", "health", "unavailable", "note", ...(isFemale ? (["period"] as Choice[]) : [])];
+  const choices: Choice[] = ["training", "event", "calnote", "done", "health", "unavailable", ...(isFemale ? (["period"] as Choice[]) : [])];
 
   useEffect(() => {
     if (!menuOpen && !choice) return;
@@ -157,7 +157,6 @@ export function AddMenu({
             {choice === "calnote" && <CalendarEventForm key="calnote" initialKind="note" defaultDate={today} onDone={close} onCancel={close} />}
             {choice === "done" && <DoneActivityForm onDone={close} />}
             {choice === "unavailable" && <UnavailabilityForm onDone={close} />}
-            {choice === "note" && <JournalNoteForm defaultDate={today} onDone={close} />}
             {choice === "period" && <PeriodForm defaultDate={today} onDone={close} />}
             {choice === "health" && <HealthReportForm defaultDate={today} coachName={coachName} onDone={close} />}
           </section>

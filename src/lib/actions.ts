@@ -1554,6 +1554,18 @@ export async function deleteExerciseMaxAction(id: string, athleteId: string) {
   revalidatePath("/athlete/profile");
 }
 
+// Journal de bord = notes du calendrier (kind 'note') écrites par l'athlète.
+function journalNoteFields(content: string) {
+  const flat = content.replace(/\s*\n\s*/g, " ");
+  const long = flat.length > 60 || content.includes("\n");
+  return { title: flat.length > 60 ? flat.slice(0, 57) + "…" : flat, notes: long ? content : null };
+}
+
+function revalidateJournal() {
+  revalidatePath("/athlete");
+  revalidatePath("/athlete/programmation");
+}
+
 export async function addJournalEntryAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
@@ -1562,14 +1574,14 @@ export async function addJournalEntryAction(formData: FormData) {
   const content = String(formData.get("content") || "").trim();
   if (!entryDate || !content) return;
 
-  await dbRun(`INSERT INTO journal_entries (id, athlete_id, entry_date, content) VALUES (?, ?, ?, ?)`, [
-    randomUUID(),
-    user.id,
-    entryDate,
-    content,
-  ]);
+  const { title, notes } = journalNoteFields(content);
+  await dbRun(
+    `INSERT INTO calendar_events (id, athlete_id, author_id, updated_by, kind, title, start_date, end_date, notes)
+     VALUES (?, ?, ?, ?, 'note', ?, ?, ?, ?)`,
+    [randomUUID(), user.id, user.id, user.id, title, entryDate, entryDate, notes],
+  );
 
-  revalidatePath("/athlete"); // le journal s'affiche sur /athlete, pas /athlete/profile (bug corrigé au passage)
+  revalidateJournal();
 }
 
 export async function updateJournalEntryAction(formData: FormData) {
@@ -1581,26 +1593,32 @@ export async function updateJournalEntryAction(formData: FormData) {
   const content = String(formData.get("content") || "").trim();
   if (!entryId || !entryDate || !content) return;
 
-  // Règle de permission : une entrée ne peut être modifiée que par l'athlète à qui elle appartient.
-  const entry = await dbGet<any>(`SELECT athlete_id FROM journal_entries WHERE id = ?`, [entryId]);
+  const entry = await dbGet<any>(`SELECT athlete_id, start_date, end_date FROM calendar_events WHERE id = ? AND kind = 'note'`, [entryId]);
   if (!entry || entry.athlete_id !== user.id) throw new Error("Non autorisé.");
 
-  await dbRun(`UPDATE journal_entries SET entry_date = ?, content = ? WHERE id = ?`, [entryDate, content, entryId]);
+  // Conserve la durée d'une note posée sur plusieurs jours.
+  const span = Math.round((Date.parse(entry.end_date) - Date.parse(entry.start_date)) / 86400000) || 0;
+  const end = new Date(Date.parse(entryDate) + span * 86400000).toISOString().slice(0, 10);
+  const { title, notes } = journalNoteFields(content);
+  await dbRun(
+    `UPDATE calendar_events SET start_date = ?, end_date = ?, title = ?, notes = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [entryDate, end, title, notes, user.id, entryId],
+  );
 
-  revalidatePath("/athlete");
+  revalidateJournal();
 }
 
 export async function deleteJournalEntryAction(entryId: string) {
   const user = await getCurrentUser();
   if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
 
-  const entry = await dbGet<any>(`SELECT athlete_id FROM journal_entries WHERE id = ?`, [entryId]);
+  const entry = await dbGet<any>(`SELECT athlete_id FROM calendar_events WHERE id = ? AND kind = 'note'`, [entryId]);
   if (!entry) return;
   if (entry.athlete_id !== user.id) throw new Error("Non autorisé.");
 
-  await dbRun(`DELETE FROM journal_entries WHERE id = ?`, [entryId]);
+  await dbRun(`DELETE FROM calendar_events WHERE id = ?`, [entryId]);
 
-  revalidatePath("/athlete");
+  revalidateJournal();
 }
 
 // ---------- SÉCURITÉ DES COMPTES (consolidation) ----------

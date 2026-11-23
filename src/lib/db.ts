@@ -821,6 +821,16 @@ const MIGRATIONS: string[] = [
   // Réparation : des séances à jour fixé modifiées ont été marquées « à placer
   // pas encore placée » par erreur et avaient disparu du calendrier.
   `UPDATE workouts SET flex_placed = NULL WHERE flex_week IS NULL AND flex_placed = 0`,
+  // Journal de bord fusionné avec les notes du calendrier : chaque entrée
+  // devient une note (même identifiant, même jour, même texte).
+  `INSERT INTO calendar_events (id, athlete_id, author_id, updated_by, kind, title, start_date, end_date, notes, created_at)
+   SELECT j.id, j.athlete_id, j.athlete_id, j.athlete_id, 'note',
+          CASE WHEN length(replace(j.content, char(10), ' ')) > 60 THEN substr(replace(j.content, char(10), ' '), 1, 57) || '…' ELSE replace(j.content, char(10), ' ') END,
+          substr(j.entry_date, 1, 10), substr(j.entry_date, 1, 10),
+          CASE WHEN length(j.content) > 60 OR instr(j.content, char(10)) > 0 THEN j.content ELSE NULL END,
+          j.created_at
+   FROM journal_entries j WHERE j.id NOT IN (SELECT id FROM calendar_events)`,
+  `DELETE FROM journal_entries WHERE id IN (SELECT id FROM calendar_events)`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

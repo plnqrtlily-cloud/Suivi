@@ -427,7 +427,7 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
 
           {journal.length > 0 && (
             <>
-              <p className="px-1 pt-2 text-xs font-bold uppercase tracking-[0.06em] text-slate">Journal</p>
+              <p className="px-1 pt-2 text-xs font-bold uppercase tracking-[0.06em] text-slate">Journal de bord</p>
               <ul className="flex flex-col gap-2 text-sm">
                 {journal.map((j) => (
                   <JournalEntry key={j.id} entry={j} />

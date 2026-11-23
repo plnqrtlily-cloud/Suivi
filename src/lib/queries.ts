@@ -601,17 +601,20 @@ export async function getEffortTestBatchesForAthlete(athleteId: string): Promise
   return Array.from(batches.values());
 }
 
+/** Texte complet d'une note du calendrier (titre + détail sans doublon). */
+export const NOTE_CONTENT_SQL = `CASE WHEN notes IS NULL OR trim(notes) = '' THEN title WHEN substr(replace(notes, char(10), ' '), 1, length(rtrim(title, '…'))) = rtrim(title, '…') THEN notes ELSE title || char(10) || notes END`;
+
+/**
+ * Journal de bord = notes du calendrier de l'athlète (fusion des deux
+ * fonctionnalités, notes de l'athlète comme du coach). Filtré par jour quand une date est fournie.
+ */
 export async function getJournalForAthlete(athleteId: string, entryDate?: string) {
-  // Filtré par jour quand une date est fournie : le journal affiché sur le
-  // dashboard concerne la journée sélectionnée dans le calendrier, pas tout
-  // l'historique.
+  const base = `SELECT id, start_date AS entry_date, ${NOTE_CONTENT_SQL} AS content FROM calendar_events
+                WHERE athlete_id = ? AND kind = 'note'`;
   if (entryDate) {
-    return dbAll(`SELECT * FROM journal_entries WHERE athlete_id = ? AND entry_date = ? ORDER BY entry_date DESC`, [
-      athleteId,
-      entryDate,
-    ]);
+    return dbAll(`${base} AND start_date <= ? AND end_date >= ? ORDER BY start_date DESC`, [athleteId, entryDate, entryDate]);
   }
-  return dbAll(`SELECT * FROM journal_entries WHERE athlete_id = ? ORDER BY entry_date DESC`, [athleteId]);
+  return dbAll(`${base} ORDER BY start_date DESC, created_at DESC`, [athleteId]);
 }
 
 export async function profileCompletion(athleteId: string): Promise<number> {
