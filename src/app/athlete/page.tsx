@@ -421,7 +421,7 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
 
           {nothing && (
             <p className="rounded-2xl bg-white px-4 py-4 text-sm text-slate">
-              Rien de prévu ce jour-là. Ajoute une séance faite, une indisponibilité ou une note avec le bouton +.
+              Rien de prévu ce jour-là. Ajoute un évènement sur ton calendrier en cliquant sur le bouton +.
             </p>
           )}
 
