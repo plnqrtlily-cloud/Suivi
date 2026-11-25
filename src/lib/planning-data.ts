@@ -1,5 +1,7 @@
 // Données de la Planification (séances + indisponibilités) sur une plage de
 // dates, pour la page et pour le chargement au fil du défilement.
+import { countsAsDone, countsInWeek } from "./session-status";
+import { unavailabilityReason } from "./availability-kinds";
 import { dbAll } from "./db";
 import { loadWorkoutsForAthletes } from "./dashboard-batch";
 import { sportLabelPlain } from "./sport-labels";
@@ -33,8 +35,8 @@ export async function loadPlanningRange(coachId: string, ids: string[], start: s
   const [workoutsMap, blockRows, events] = await Promise.all([
     loadWorkoutsForAthletes(ids, start, end),
     ids.length
-      ? dbAll<{ id: string; athlete_id: string; date: string; time_of_day: string; reason: string | null }>(
-          `SELECT id, athlete_id, date, time_of_day, reason FROM availability_blocks WHERE athlete_id IN (${ids.map(() => "?").join(",")}) AND date BETWEEN ? AND ? ORDER BY date ASC`,
+      ? dbAll<{ id: string; athlete_id: string; date: string; time_of_day: string; reason: string | null; kind: string | null }>(
+          `SELECT id, athlete_id, date, time_of_day, reason, kind FROM availability_blocks WHERE athlete_id IN (${ids.map(() => "?").join(",")}) AND date BETWEEN ? AND ? ORDER BY date ASC`,
           [...ids, start, end]
         )
       : Promise.resolve([]),
@@ -51,8 +53,9 @@ export async function loadPlanningRange(coachId: string, ids: string[], start: s
         title: w.title,
         sport: w.sport,
         sportLabel: sportLabelPlain(w.sport),
-        minutes: isGoal ? 0 : w.duration_minutes ?? 0,
-        doneMinutes: w.status === "done" || w.status === "partial" ? w.actual_duration_minutes ?? w.duration_minutes ?? 0 : 0,
+        minutes: isGoal || !countsInWeek(w, today) ? 0 : w.duration_minutes ?? 0,
+        // Fait = retour validé par le coach.
+        doneMinutes: countsAsDone(w) ? w.actual_duration_minutes ?? w.duration_minutes ?? 0 : 0,
         status: isGoal ? "goal" : planStatus(w.status, w.date, today, !!w.coach_validated_at),
         isGoal,
         isDraft: !!w.is_draft,
@@ -64,7 +67,7 @@ export async function loadPlanningRange(coachId: string, ids: string[], start: s
     id: b.id,
     athleteId: b.athlete_id,
     date: b.date,
-    label: ["Indispo", TIME_OF_DAY[b.time_of_day], b.reason].filter(Boolean).join(" · "),
+    label: ["Indispo", TIME_OF_DAY[b.time_of_day], unavailabilityReason(b.kind, b.reason)].filter(Boolean).join(" · "),
   }));
   // Événements partagés (compétition, stage…) : un repère coloré chaque jour
   // qu'ils couvrent, placé avant l'indisponibilité éventuelle du même jour.

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unavailabilityReason } from "@/lib/availability-kinds";
 import { getWorkoutsForAthlete, getImportedActivitiesForRange, getAvailabilityBlocksForRange } from "@/lib/queries";
 import { getWeekDates, getMonthGrid, monthLabel } from "@/lib/dates";
 import { AVAILABILITY_SLOT_LABELS, resolveTimeForSort, formatWorkoutTime } from "@/lib/time-of-day";
@@ -107,7 +108,7 @@ async function CoachWeekView({ athleteId, offset, today, base }: { athleteId: st
                         <path d="M7 9V6a3 3 0 016 0v3" />
                       </svg>
                       <b className="font-semibold">{AVAILABILITY_SLOT_LABELS[b.time_of_day]}</b>
-                      {b.reason && <span className="truncate text-white/70">— {b.reason}</span>}
+                      {unavailabilityReason(b.kind, b.reason) && <span className="truncate text-white/70">— {unavailabilityReason(b.kind, b.reason)}</span>}
                     </div>
                   ))}
                 </div>

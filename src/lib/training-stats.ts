@@ -1,6 +1,7 @@
 // Agrégations pour le bilan d'entraînement côté coach (charge, volume,
 // répartition par sport, évolution du RPE) — calculs purs, séparés du
 // rendu pour rester faciles à ajuster/tester.
+import { countsAsDone, countsInWeek } from "./session-status";
 import type { Workout } from "./queries";
 import type { ImportedActivity } from "./queries";
 import { toISODate } from "./dates";
@@ -45,7 +46,7 @@ export function computeWeeklyLoad(workouts: Workout[], imports: ImportedActivity
   const byWeek: Record<string, number> = {};
 
   for (const w of workouts) {
-    if (w.status !== "done") continue;
+    if (!countsAsDone(w)) continue; // faite = retour validé par le coach
     const minutes = w.actual_duration_minutes ?? w.duration_minutes;
     const load = sessionLoad(minutes, w.rpe);
     if (load > 0) {
@@ -200,8 +201,10 @@ export interface PeriodSummary {
 // le plan (adhérence), combien il/elle s'entraîne par semaine en moyenne, et
 // la charge totale accumulée — au-delà des graphiques détaillés déjà présents.
 export function computePeriodSummary(workouts: Workout[], imports: ImportedActivity[], periodDays: number, today: string): PeriodSummary {
-  const pastWorkouts = workouts.filter((w) => w.date <= today);
-  const completed = pastWorkouts.filter((w) => w.status === "done");
+  // Une séance ajoutée par l'athlète à une date passée ne compte qu'une fois
+  // validée ; « faite » = retour validé par le coach.
+  const pastWorkouts = workouts.filter((w) => w.date <= today && countsInWeek(w, today));
+  const completed = pastWorkouts.filter((w) => countsAsDone(w));
   const adherenceRate = pastWorkouts.length > 0 ? Math.round((completed.length / pastWorkouts.length) * 100) : null;
 
   let totalMinutes = 0;

@@ -56,6 +56,10 @@ export interface CalEntry {
   plan: { label: string; value: string }[];
   feedback: string | null;
   reportedByCoach: boolean;
+  /** Séance ajoutée par l'athlète lui-même. */
+  byAthlete?: boolean;
+  /** Compte dans les données de la semaine (cf. countsInWeek). */
+  inWeek?: boolean;
   /** Entrée saisie par ce coach (activité hors programme) : lui seul peut la supprimer. */
   createdByMe: boolean;
   comments: CalComment[];
@@ -67,6 +71,10 @@ export interface CalBlock {
   timeOfDay: string;
   label: string;
   reason: string | null;
+  kind: string | null;
+  notes: string | null;
+  /** Motif et précision, pour l'affichage (« Stage · Font-Romeu »). */
+  motif: string | null;
   createdByMe: boolean;
 }
 
@@ -132,4 +140,6 @@ export interface CoachCalendarData {
   /** Semaines consécutives déjà chargées ; le client en ajoute au défilement. */
   weeks: CalWeek[];
   cycleShared: boolean;
+  /** Athlète concernée par le motif « Règles » des indisponibilités. */
+  isFemale?: boolean;
 }

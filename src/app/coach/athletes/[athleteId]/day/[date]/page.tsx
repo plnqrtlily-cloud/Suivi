@@ -1,4 +1,5 @@
 import { AddEventButton, EventRow } from "@/components/calendar-events";
+import { unavailabilityReason } from "@/lib/availability-kinds";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { getCalendarEvents } from "@/lib/calendar-events";
 import { redirect, notFound } from "next/navigation";
@@ -111,10 +112,11 @@ export default async function CoachAthleteDayPage({ params }: { params: Promise<
           <rect x="4" y="9" width="12" height="8" rx="1.5" />
           <path d="M7 9V6a3 3 0 016 0v3" />
         </svg>
-        <span className="truncate">
+        <span className="min-w-0">
           <b className="font-semibold">{AVAILABILITY_SLOT_LABELS[b.time_of_day]} — indisponible</b>
-          {b.reason && <span className="text-white/70"> — {b.reason}</span>}
+          {unavailabilityReason(b.kind, b.reason) && <span className="text-white/70"> — {unavailabilityReason(b.kind, b.reason)}</span>}
           {b.created_by === user!.id && <span className="text-white/50"> · renseignée par vous</span>}
+          {b.notes && <span className="mt-0.5 block whitespace-pre-line text-[12.5px] font-normal text-white/75">{b.notes}</span>}
         </span>
         {b.created_by === user!.id && (
           <span className="ml-auto">

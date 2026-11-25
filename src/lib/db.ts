@@ -831,6 +831,12 @@ const MIGRATIONS: string[] = [
           j.created_at
    FROM journal_entries j WHERE j.id NOT IN (SELECT id FROM calendar_events)`,
   `DELETE FROM journal_entries WHERE id IN (SELECT id FROM calendar_events)`,
+  // Indisponibilité : motif (stage, entraînement, santé, règles, autre) et
+  // note libre, en plus de la précision (reason).
+  `ALTER TABLE availability_blocks ADD COLUMN kind TEXT`,
+  `ALTER TABLE availability_blocks ADD COLUMN notes TEXT`,
+  // Séance ajoutée par l'athlète lui-même (NULL : programmée par le coach).
+  `ALTER TABLE workouts ADD COLUMN created_by TEXT`,
 ];
 
 // SQLite ne permet pas de modifier une contrainte CHECK existante par ALTER

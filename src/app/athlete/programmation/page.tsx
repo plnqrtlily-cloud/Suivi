@@ -1,4 +1,6 @@
 import { mtbLabel } from "@/lib/mtb";
+import { countsAsDone, countsInWeek } from "@/lib/session-status";
+import { unavailabilityReason } from "@/lib/availability-kinds";
 import { parsePlan } from "@/lib/discipline";
 import { sportTone } from "@/lib/palette";
 import { LongPressMove, MoveProvider } from "@/components/long-press-move";
@@ -12,6 +14,7 @@ import {
   getImportedActivitiesForRange,
   getAvailabilityBlocksForRange,
   getTrainingPeriodsForRange,
+  getUserGender,
   type AvailabilityBlock,
   type ImportedActivity,
   type Workout,
@@ -134,10 +137,11 @@ function DayItems({
             <rect x="4.5" y="9" width="11" height="8" rx="1.5" />
             <path d="M7 9V6.5a3 3 0 016 0V9" />
           </svg>
-          <span className="min-w-0 flex-1 truncate">
+          <span className="min-w-0 flex-1">
             <b className="font-semibold">Indisponible · {AVAILABILITY_SLOT_LABELS[b.time_of_day].toLowerCase()}</b>
-            {b.reason && <span className="text-white/70"> — {b.reason}</span>}
+            {unavailabilityReason(b.kind, b.reason) && <span className="text-white/70"> — {unavailabilityReason(b.kind, b.reason)}</span>}
             <span className="text-white/50"> · {b.created_by ? "par ton coach" : "par toi"}</span>
+            {b.notes && <span className="mt-0.5 block whitespace-pre-line text-[12.5px] font-normal text-white/75">{b.notes}</span>}
           </span>
           <span className="flex flex-shrink-0 items-center gap-3.5">
             <AvailabilityMenu block={b} />
@@ -171,7 +175,7 @@ function DayItems({
             iconColor={sportTone(w.sport, parsePlan(w.plan_json)?.discipline).color}
             iconBg={sportTone(w.sport, parsePlan(w.plan_json)?.discipline).tint}
             title={w.title}
-            sub={[formatWorkoutTime(w.time), durationLabel(w.duration_minutes), `par ${w.coach_first_name ?? "ton coach"}`].filter(Boolean).join(" · ")}
+            sub={[formatWorkoutTime(w.time), durationLabel(w.duration_minutes), w.created_by === w.athlete_id ? "par toi" : `par ${w.coach_first_name ?? "ton coach"}`].filter(Boolean).join(" · ")}
             href={`/workouts/${w.id}`}
             chip={<Chip k={statusKey(w, today)} />}
           />
@@ -289,6 +293,7 @@ export default async function ProgrammationPage({
   const { view, week, month, day, from, to } = await searchParams;
   const activeView = view === "month" ? "month" : "week";
   const today = todayISO();
+  const isFemale = (await getUserGender(user.id)) === "female";
 
   return (
     <div className="min-h-screen bg-[#f2f4f3]">
@@ -300,7 +305,7 @@ export default async function ProgrammationPage({
         <div data-sticky-head className="sticky top-0 z-20 bg-[#f2f4f3]">
         <header className="flex flex-wrap items-end justify-between gap-3 px-5 pb-3 pt-6">
           <h1 className="text-[30px] font-bold leading-tight tracking-tight text-ink">Calendrier</h1>
-          <CalendarAddButton defaultDate={today} />
+          <CalendarAddButton defaultDate={today} isFemale={isFemale} />
         </header>
         <div className="px-4 pb-3">
           <div className="flex gap-1 rounded-xl bg-[#e3e8e6] p-[3px]">
@@ -385,12 +390,14 @@ async function WeekView({ athleteId, offset, fromParam, toParam, today }: { athl
       {weeks.map((dates) => {
         // Toutes les séances d'entraînement de la semaine, quelle que soit la
         // façon dont elles ont été mises : programmées, à placer, ajoutées au calendrier.
+        // Faites = retour validé par le coach ; une séance ajoutée à une date
+        // passée ne compte qu'une fois validée.
         const planned =
-          workouts.filter((w) => dates.includes(w.date) && !isGoal(w)).reduce((s, w) => s + (w.duration_minutes || 0), 0) +
+          workouts.filter((w) => dates.includes(w.date) && !isGoal(w) && countsInWeek(w, today)).reduce((s, w) => s + (w.duration_minutes || 0), 0) +
           events.filter((e) => e.kind === "entrainement" && dates.includes(e.startDate)).reduce((s, e) => s + (e.durationMinutes || 0), 0);
         const done =
           workouts
-            .filter((w) => dates.includes(w.date) && !isGoal(w) && (w.status === "done" || w.status === "partial"))
+            .filter((w) => dates.includes(w.date) && !isGoal(w) && countsAsDone(w))
             .reduce((s, w) => s + (w.actual_duration_minutes || w.duration_minutes || 0), 0) +
           imports.filter((a) => dates.includes(a.activity_date)).reduce((s, a) => s + (a.duration_minutes || 0), 0);
         const mid = dates[3];

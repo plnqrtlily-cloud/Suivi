@@ -1945,27 +1945,38 @@ export async function duplicateImportedActivityAction(id: string, dates: string[
 // autour plutôt qu'en plein dessus — pas de bascule de partage séparée ici,
 // contrairement au cycle menstruel : il ne s'agit pas d'une donnée de santé.
 const VALID_TIME_OF_DAY = ["morning", "midday", "afternoon", "evening", "full_day"];
+const VALID_UNAVAILABILITY_KINDS = ["stage", "entrainement", "sante", "regles", "autre"];
+function blockKind(kind: unknown): string | null {
+  const k = String(kind ?? "");
+  return VALID_UNAVAILABILITY_KINDS.includes(k) ? k : null;
+}
+function blockNotes(notes: unknown): string | null {
+  return String(notes ?? "").trim().slice(0, 2000) || null;
+}
 
 // Une même indisponibilité peut couvrir plusieurs jours d'affilée (sélecteur
 // de plage façon Booking, comme pour la création de séance côté coach) — un
 // enregistrement par jour, pour rester modifiable/supprimable jour par jour
 // ensuite plutôt que comme un bloc figé.
-export async function addAvailabilityBlockAction(params: { dates: string[]; timeOfDay: string; reason?: string }) {
+export async function addAvailabilityBlockAction(params: { dates: string[]; timeOfDay: string; reason?: string; kind?: string | null; notes?: string }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
   if (!params.dates.length || !VALID_TIME_OF_DAY.includes(params.timeOfDay)) {
     throw new Error("Choisissez au moins un jour et un créneau.");
   }
   const reason = params.reason?.trim() || null;
+  const dates = params.dates.filter((d) => DATE_ONLY_RE.test(d));
 
   await Promise.all(
-    params.dates.map((date) =>
-      dbRun(`INSERT INTO availability_blocks (id, athlete_id, date, time_of_day, reason) VALUES (?, ?, ?, ?, ?)`, [
+    dates.map((date) =>
+      dbRun(`INSERT INTO availability_blocks (id, athlete_id, date, time_of_day, reason, kind, notes) VALUES (?, ?, ?, ?, ?, ?, ?)`, [
         randomUUID(),
         user.id,
         date,
         params.timeOfDay,
         reason,
+        blockKind(params.kind),
+        blockNotes(params.notes),
       ])
     )
   );
@@ -1996,12 +2007,14 @@ export async function updateAvailabilityBlockAction(id: string, formData: FormDa
   const date = String(formData.get("date") || "");
   const timeOfDay = String(formData.get("timeOfDay") || "");
   const reason = String(formData.get("reason") || "").trim();
-  if (!date || !VALID_TIME_OF_DAY.includes(timeOfDay)) throw new Error("Choisissez un jour et un créneau.");
+  if (!DATE_ONLY_RE.test(date) || !VALID_TIME_OF_DAY.includes(timeOfDay)) throw new Error("Choisissez un jour et un créneau.");
 
-  await dbRun(`UPDATE availability_blocks SET date = ?, time_of_day = ?, reason = ? WHERE id = ?`, [
+  await dbRun(`UPDATE availability_blocks SET date = ?, time_of_day = ?, reason = ?, kind = ?, notes = ? WHERE id = ?`, [
     date,
     timeOfDay,
     reason || null,
+    blockKind(formData.get("kind")),
+    blockNotes(formData.get("notes")),
     id,
   ]);
 
@@ -2018,6 +2031,111 @@ export async function deleteAvailabilityBlockAction(id: string) {
   await dbRun(`DELETE FROM availability_blocks WHERE id = ?`, [id]);
 
   revalidateAthleteDays(block.athlete_id, [block.date]);
+}
+
+// ---------- ENTRAÎNEMENT AJOUTÉ PAR L'ATHLÈTE ----------
+// L'athlète ajoute lui-même une vraie séance, à n'importe quelle date : à
+// venir, elle compte comme prévue ; passée, il en fait le retour, et elle ne
+// compte dans les données de la semaine qu'une fois ce retour validé par le
+// coach (cf. countsInWeek). created_by = l'athlète ; coach_id = son coach
+// (pour la validation et les vues coach), ou lui-même s'il n'en a pas.
+export interface AthleteTrainingInput {
+  title: string;
+  sport: string;
+  discipline?: string | null;
+  dates: string[];
+  time?: string;
+  durationMinutes?: number;
+  elevationGainM?: number;
+  routeUrl?: string;
+  description?: string;
+}
+
+const ATHLETE_TRAINING_SPORTS = ["mtb", "running", "strength", "hiking", "swimming", "climbing", "other"];
+
+function athleteTrainingFields(input: AthleteTrainingInput) {
+  const title = input.title.trim().slice(0, 120);
+  if (!title) throw new Error("Donne un titre à l'entraînement.");
+  const key = ATHLETE_TRAINING_SPORTS.includes(input.sport) ? input.sport : "other";
+  const discipline = key === "mtb" ? parseDiscipline(input.discipline) : null;
+  const sport = key === "mtb" ? "cycling" : key;
+  const activity = key === "mtb" ? (discipline === "route" ? "road" : discipline === "home_trainer" ? "trainer" : "mtb") : key;
+  const values: Record<string, string> = {};
+  if (input.elevationGainM && input.elevationGainM > 0) values.dplus = String(Math.round(input.elevationGainM));
+  const plan = { activity, ...(discipline ? { discipline } : {}), ...(Object.keys(values).length ? { values } : {}) };
+  const duration = input.durationMinutes && input.durationMinutes > 0 ? Math.min(Math.round(input.durationMinutes), 2880) : null;
+  const time = /^\d{2}:\d{2}$/.test(input.time || "") ? input.time! : null;
+  return { title, sport, plan: JSON.stringify(plan), duration, time, description: input.description?.trim().slice(0, 4000) || null, routeUrl: cleanRouteUrl(input.routeUrl ?? "") };
+}
+
+async function primaryCoachOf(athleteId: string): Promise<string | null> {
+  const row = await dbGet<{ coach_id: string }>(
+    `SELECT coach_id FROM coach_athlete_links WHERE athlete_id = ? AND status = 'active' ORDER BY created_at ASC LIMIT 1`,
+    [athleteId]
+  );
+  return row?.coach_id ?? null;
+}
+
+export async function createAthleteTrainingAction(input: AthleteTrainingInput): Promise<{ ids: string[] }> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "athlete") throw new Error("Non autorisé.");
+  const dates = [...new Set(input.dates.filter((d) => DATE_ONLY_RE.test(d)))].sort();
+  if (!dates.length) throw new Error("Choisis au moins un jour.");
+  const f = athleteTrainingFields(input);
+  const coachId = await primaryCoachOf(user.id);
+  const ids = dates.map(() => randomUUID());
+  await dbBatch(
+    dates.map((date, i) => ({
+      sql: `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, title, date, time, duration_minutes, description, plan_json, route_url, status, is_draft, created_by)
+            VALUES (?, ?, ?, ?, 'entrainement', ?, ?, ?, ?, ?, ?, ?, 'planned', 0, ?)`,
+      args: [ids[i], coachId ?? user.id, user.id, f.sport, f.title, date, dates.length === 1 ? f.time : null, f.duration, f.description, f.plan, f.routeUrl, user.id],
+    }))
+  );
+  revalidateAthleteDays(user.id, dates);
+  if (coachId) {
+    await createNotification({
+      userId: coachId,
+      type: "new_workout",
+      title: `${user.first_name} a ajouté un entraînement`,
+      body: `${f.title} : ${dates.map((d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`).join(", ")}`,
+      link: `/workouts/${ids[0]}`,
+    });
+  }
+  return { ids };
+}
+
+export async function updateAthleteTrainingAction(id: string, input: AthleteTrainingInput) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Non autorisé.");
+  const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [id]);
+  if (!workout || workout.athlete_id !== user.id || workout.created_by !== user.id) throw new Error("Seul ton coach peut modifier une séance qu'il a programmée.");
+  const dates = [...new Set(input.dates.filter((d) => DATE_ONLY_RE.test(d)))].sort();
+  if (!dates.length) throw new Error("Choisis au moins un jour.");
+  const f = athleteTrainingFields(input);
+  const extra = dates.slice(1).map(() => randomUUID());
+  await dbBatch([
+    {
+      sql: `UPDATE workouts SET sport = ?, title = ?, date = ?, time = ?, duration_minutes = ?, description = ?, plan_json = ?, route_url = COALESCE(route_url, ?) WHERE id = ?`,
+      args: [f.sport, f.title, dates[0], dates.length === 1 ? f.time : null, f.duration, f.description, f.plan, f.routeUrl, id],
+    },
+    // Jours en plus : des copies de la séance, à faire elles aussi.
+    ...dates.slice(1).map((date, i) => ({
+      sql: `INSERT INTO workouts (id, coach_id, athlete_id, sport, category, title, date, duration_minutes, description, plan_json, route_url, status, is_draft, created_by)
+            VALUES (?, ?, ?, ?, 'entrainement', ?, ?, ?, ?, ?, ?, 'planned', 0, ?)`,
+      args: [extra[i], workout.coach_id, user.id, f.sport, f.title, date, f.duration, f.description, f.plan, f.routeUrl, user.id],
+    })),
+  ]);
+  revalidatePath(`/workouts/${id}`);
+  revalidateAthleteDays(user.id, [workout.date, ...dates]);
+  if (workout.coach_id !== user.id) {
+    await createNotification({
+      userId: workout.coach_id,
+      type: "workout_updated",
+      title: `${user.first_name} a modifié un entraînement`,
+      body: `${f.title} : ${dates[0].slice(8, 10)}/${dates[0].slice(5, 7)}`,
+      link: `/workouts/${id}`,
+    });
+  }
 }
 
 // ---------- SAISIE PAR LE COACH POUR LE COMPTE DE L'ATHLÈTE ----------
@@ -2094,6 +2212,8 @@ export async function coachAddAvailabilityBlockAction(params: {
   dates: string[];
   timeOfDay: string;
   reason?: string;
+  kind?: string | null;
+  notes?: string;
 }) {
   const user = await requireCoachOf(params.athleteId);
   const dates = params.dates.filter((d) => DATE_ONLY_RE.test(d));
@@ -2105,8 +2225,8 @@ export async function coachAddAvailabilityBlockAction(params: {
   await Promise.all(
     dates.map((date) =>
       dbRun(
-        `INSERT INTO availability_blocks (id, athlete_id, date, time_of_day, reason, created_by) VALUES (?, ?, ?, ?, ?, ?)`,
-        [randomUUID(), params.athleteId, date, params.timeOfDay, reason, user.id]
+        `INSERT INTO availability_blocks (id, athlete_id, date, time_of_day, reason, created_by, kind, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [randomUUID(), params.athleteId, date, params.timeOfDay, reason, user.id, blockKind(params.kind), blockNotes(params.notes)]
       )
     )
   );
@@ -3719,9 +3839,15 @@ export async function planningUpdateWorkoutAction(params: { workoutId: string; t
 export async function planningDeleteWorkoutAction(workoutId: string) {
   const user = await getCurrentUser();
   if (!user) throw new Error("Non autorisé.");
-  if (user.role !== "coach") throw new Error("Seul ton coach peut supprimer une séance qu'il a programmée.");
   const workout = await dbGet<any>(`SELECT * FROM workouts WHERE id = ?`, [workoutId]);
   if (!workout) return;
+  // L'athlète supprime les entraînements qu'il a ajoutés lui-même.
+  if (user.role === "athlete" && workout.athlete_id === user.id && workout.created_by === user.id) {
+    await dbRun(`DELETE FROM workouts WHERE id = ?`, [workoutId]);
+    revalidateAthleteDays(workout.athlete_id, [workout.date]);
+    return;
+  }
+  if (user.role !== "coach") throw new Error("Seul ton coach peut supprimer une séance qu'il a programmée.");
   if (workout.coach_id !== user.id) throw new Error("Non autorisé.");
   await dbRun(`DELETE FROM workouts WHERE id = ?`, [workoutId]);
   revalidateAthleteDays(workout.athlete_id, [workout.date]);

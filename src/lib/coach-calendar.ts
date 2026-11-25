@@ -1,6 +1,8 @@
 // Chargement du calendrier coach (vue semaine ou mois) : toutes les requêtes
 // de la période en une fois, puis mise en forme dans CoachCalendarData.
 
+import { countsInWeek, isAthleteAdded } from "./session-status";
+import { unavailabilityReason } from "./availability-kinds";
 import { cleanStructureJson } from "./structure-clean";
 import { sportTone } from "./palette";
 import { mtbLabel } from "./mtb";
@@ -128,6 +130,7 @@ export async function loadCoachCalendar(params: {
   month?: string;
   today: string;
   cycleShared: boolean;
+  isFemale?: boolean;
 }): Promise<CoachCalendarData> {
   const { athleteId, coachId, today } = params;
   const view: "week" | "month" = params.view === "month" ? "month" : "week";
@@ -149,6 +152,7 @@ export async function loadCoachCalendar(params: {
     goal: goal ? { title: goal.title, dateLabel: frDay(goal.date), days: daysUntil(goal.date) } : null,
     weeks,
     cycleShared: params.cycleShared,
+    isFemale: !!params.isFemale,
   };
 }
 
@@ -237,6 +241,8 @@ export async function loadCalendarWeeks(params: {
       structure: w.sport !== "strength" ? cleanStructureJson(w.intervals_json) : null,
       feedback: w.athlete_feedback,
       reportedByCoach: w.reported_by === "coach",
+      byAthlete: isAthleteAdded(w),
+      inWeek: countsInWeek(w, today),
       createdByMe: w.coach_id === coachId,
       comments: (comments as CommentRow[]).filter((c) => c.workout_id === w.id).map(toComment),
     };
@@ -300,6 +306,9 @@ export async function loadCalendarWeeks(params: {
           timeOfDay: b.time_of_day,
           label: b.time_of_day === "full_day" ? "Indisponible" : `${AVAILABILITY_SLOT_LABELS[b.time_of_day]} indispo`,
           reason: b.reason,
+          kind: b.kind ?? null,
+          notes: b.notes ?? null,
+          motif: unavailabilityReason(b.kind, b.reason),
           createdByMe: b.created_by === coachId,
         })),
       events: eventsOn(events, date),
@@ -326,15 +335,18 @@ export async function loadCalendarWeeks(params: {
     const disc: Record<string, number> = {};
     // Données de la semaine : toutes les séances de catégorie entraînement,
     // quelle que soit la façon dont elles ont été mises (séance programmée,
-    // séance à placer, entraînement ajouté au calendrier, activité saisie à
-    // côté) et par qui. Objectifs et compétitions n'entrent pas dans le compte.
+    // séance à placer, ajoutée par l'athlète, activité saisie à côté) et par
+    // qui. Objectifs et compétitions n'entrent pas dans le compte. Une séance
+    // n'est « faite » qu'une fois son retour validé par le coach ; ajoutée
+    // par l'athlète à une date passée, elle ne compte qu'à ce moment-là.
     for (const day of days) {
       for (const e of day.entries) {
         if (e.isGoal) continue;
-        const realised = e.status === "done" || e.status === "tovalidate" || e.status === "hors";
+        if (e.kind === "workout" && e.inWeek === false) continue;
+        const realised = e.status === "done" || e.status === "hors";
         if (e.kind === "workout") {
           total++;
-          if (e.status === "done" || e.status === "tovalidate") done++;
+          if (e.status === "done") done++;
           plannedMinutes += e.plannedMin || 0;
           plannedLoad += sessionLoad(e.plannedMin, e.plannedRpe);
         } else {

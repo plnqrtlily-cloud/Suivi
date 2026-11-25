@@ -5,10 +5,9 @@ import { OUTDOOR_SPORTS } from "@/lib/route-url";
 import { SessionDurationInput } from "@/components/session-duration-input";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { addImportedActivityAction, addAvailabilityBlockAction, addJournalEntryAction, addCycleEntryAction } from "@/lib/actions";
+import { addImportedActivityAction, addJournalEntryAction, addCycleEntryAction } from "@/lib/actions";
 import { reportHealthAction } from "@/lib/health-actions";
 import { Button, Field, SelectField, TextAreaField, ErrorText } from "@/components/ui";
-import { AVAILABILITY_SLOT_LABELS } from "@/lib/time-of-day";
 import { DaysPicker } from "@/components/days-picker";
 import { toISODate } from "@/lib/dates";
 import { PainScale } from "@/components/pain-scale";
@@ -125,39 +124,8 @@ export function DoneActivityForm({ defaultDate, onDone, onCancel }: { defaultDat
   );
 }
 
-export function UnavailabilityForm({ defaultDate, onDone, onCancel }: { defaultDate?: string; onDone: () => void; onCancel?: () => void }) {
-  const [dates, setDates] = useState<string[]>(defaultDate ? [defaultDate] : []);
-  const { pending, error, setError, run } = useSubmit(onDone);
-  return (
-    <form
-      className="flex flex-col gap-3"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!dates.length) return setError("Choisissez au moins un jour.");
-        const fd = new FormData(e.currentTarget);
-        run(() =>
-          addAvailabilityBlockAction({
-            dates,
-            timeOfDay: String(fd.get("timeOfDay") || "full_day"),
-            reason: String(fd.get("reason") || ""),
-          })
-        );
-      }}
-    >
-      <DaysField dates={dates} onChange={setDates} />
-      <SelectField label="Moment" name="timeOfDay" defaultValue="full_day">
-        {Object.entries(AVAILABILITY_SLOT_LABELS).map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </SelectField>
-      <Field label="Motif (facultatif)" name="reason" placeholder="Déplacement, travail, repos…" />
-      <ErrorText>{error}</ErrorText>
-      <FormButtons pending={pending} onCancel={onCancel} />
-    </form>
-  );
-}
+// Indisponibilité : formulaire commun athlète / coach.
+export { UnavailabilityForm } from "./unavailability-form";
 
 export function JournalNoteForm({ defaultDate, onDone, onCancel }: { defaultDate: string; onDone: () => void; onCancel?: () => void }) {
   const { pending, error, run } = useSubmit(onDone);

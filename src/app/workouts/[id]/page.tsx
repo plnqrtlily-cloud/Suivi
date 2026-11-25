@@ -19,6 +19,7 @@ import { MoreMenu, MenuSeparator, menuItem } from "@/components/more-menu";
 import { parsePlan } from "@/lib/discipline";
 import { formatDuration } from "@/lib/duration";
 import { StatusForm } from "./status-form";
+import { DeleteAthleteTrainingButton, EditAthleteTrainingButton } from "./athlete-training-actions";
 import { CommentBody } from "@/components/comment-body";
 import { OpenDetailsButton } from "@/components/open-details-button";
 import { MoveWorkoutItem } from "@/components/entry-menus";
@@ -118,6 +119,8 @@ export default async function WorkoutDetailPage({
           routeUrl: workout.route_url,
         };
   const role = preview ? "athlete" : user.role;
+  // Entraînement ajouté par l'athlète lui-même (modifiable et supprimable par lui).
+  const addedByAthlete = !!workout.created_by && workout.created_by === workout.athlete_id;
 
   // Animations refaites depuis leur import : remplacées en arrière-plan, sans
   // retarder l'affichage (la démonstration pointe déjà vers la bonne version).
@@ -194,7 +197,11 @@ export default async function WorkoutDetailPage({
             </p>
             <h1 className="font-display text-3xl text-ink">{workout.title}</h1>
             <p className="mt-1 text-sm text-slate">
-              Programmée par {workout.coach_first_name} {workout.coach_last_name}
+              {addedByAthlete
+                ? user.id === workout.athlete_id
+                  ? "Ajoutée par toi"
+                  : `Ajoutée par ${athleteFirstName}`
+                : `Programmée par ${workout.coach_first_name} ${workout.coach_last_name}`}
             </p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">
@@ -241,10 +248,33 @@ export default async function WorkoutDetailPage({
             )}
             {role === "athlete" && !preview && (
               <MoreMenu label="Actions sur la séance">
+                {addedByAthlete && (
+                  <EditAthleteTrainingButton
+                    className={menuItem}
+                    existing={{
+                      id: workout.id,
+                      title: workout.title,
+                      sport: workout.sport,
+                      discipline: workoutDiscipline,
+                      date: workout.date,
+                      time: workout.time,
+                      durationMinutes: workout.duration_minutes,
+                      elevationGainM: Number(parsePlan(workout.plan_json)?.values?.dplus) || null,
+                      routeUrl: workout.route_url ?? null,
+                      description: workout.description,
+                    }}
+                  />
+                )}
                 <a href="#renseigner" className={menuItem}>{workout.status === "planned" ? "Renseigner la séance" : "Modifier mon retour"}</a>
                 <MoveWorkoutItem workoutId={workout.id} date={workout.date} />
                 {/* Fichier .fit à copier dans le dossier NEWFILES d'une montre Garmin branchée en USB. */}
                 <a href={`/api/workouts/${workout.id}/fit`} className={menuItem}>Télécharger pour ma montre (.fit)</a>
+                {addedByAthlete && (
+                  <>
+                    <MenuSeparator />
+                    <DeleteAthleteTrainingButton id={workout.id} title={workout.title} className={`${menuItem} !text-[#a4492a]`} />
+                  </>
+                )}
               </MoreMenu>
             )}
           </div>

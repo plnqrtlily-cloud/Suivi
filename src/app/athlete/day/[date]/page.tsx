@@ -1,4 +1,5 @@
 import { redirect, notFound } from "next/navigation";
+import { unavailabilityReason } from "@/lib/availability-kinds";
 import { ActivityMenu, AvailabilityMenu } from "@/components/entry-menus";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
@@ -60,7 +61,7 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
       time: w.time,
       title: w.title,
       subtitle: `${sportLabel(w.sport)}${w.duration_minutes ? ` · ${w.duration_minutes} min` : ""} · séance prévue${
-        w.coach_first_name ? ` · programmée par ${w.coach_first_name}` : ""
+        w.created_by === w.athlete_id ? " · ajoutée par toi" : w.coach_first_name ? ` · programmée par ${w.coach_first_name}` : ""
       }`,
       color: w.color,
       href: `/workouts/${w.id}`,
@@ -98,10 +99,11 @@ export default async function AthleteDayPage({ params }: { params: Promise<{ dat
             <rect x="4" y="9" width="12" height="8" rx="1.5" />
             <path d="M7 9V6a3 3 0 016 0v3" />
           </svg>
-          <span className="truncate">
+          <span className="min-w-0">
             <b className="font-semibold">Indisponible</b>
-            {b.reason && <span className="text-white/70"> — {b.reason}</span>}
-            {b.created_by && <span className="text-white/50"> · renseignée par votre coach</span>}
+            {unavailabilityReason(b.kind, b.reason) && <span className="text-white/70"> — {unavailabilityReason(b.kind, b.reason)}</span>}
+            {b.created_by && <span className="text-white/50"> · renseignée par ton coach</span>}
+            {b.notes && <span className="mt-0.5 block whitespace-pre-line text-[12.5px] font-normal text-white/75">{b.notes}</span>}
           </span>
         </span>
         <span className="flex flex-shrink-0 items-center gap-3">

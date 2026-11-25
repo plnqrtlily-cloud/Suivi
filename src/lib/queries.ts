@@ -227,6 +227,8 @@ export interface Workout {
   planned_rpe?: number | null;
   plan_json?: string | null;
   coach_validated_at?: string | null;
+  /** Auteur quand l'athlète a ajouté la séance lui-même (NULL : le coach). */
+  created_by?: string | null;
   coach_first_name?: string;
   coach_last_name?: string;
 }
@@ -766,6 +768,8 @@ export interface AvailabilityBlock {
   time_of_day: AvailabilitySlot;
   reason: string | null;
   created_by?: string | null;
+  kind?: string | null;
+  notes?: string | null;
 }
 
 export async function getAvailabilityBlocksForRange(

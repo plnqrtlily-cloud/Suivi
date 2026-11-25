@@ -219,6 +219,7 @@ export default async function AthleteDetailPage({
     month,
     today,
     cycleShared,
+    isFemale: athleteGender === "female",
   });
 
   // ---------- Aperçu ----------

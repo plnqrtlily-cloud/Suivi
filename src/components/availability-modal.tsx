@@ -3,105 +3,16 @@
 import { createPortal } from "react-dom";
 
 import { useState } from "react";
-import { addAvailabilityBlockAction, updateAvailabilityBlockAction } from "@/lib/actions";
-import { Button, SelectField, Field, TextAreaField, ErrorText } from "@/components/ui";
-import { AVAILABILITY_SLOT_LABELS, AVAILABILITY_SLOT_ORDER, type AvailabilitySlot } from "@/lib/time-of-day";
-import { DaysPicker } from "@/components/days-picker";
+import type { AvailabilitySlot } from "@/lib/time-of-day";
+import { UnavailabilityForm } from "@/components/unavailability-form";
 
 export interface ExistingBlock {
   id: string;
   date: string;
   time_of_day: AvailabilitySlot;
   reason: string | null;
-}
-
-// Ajout : plage de dates façon Booking (une indisponibilité peut couvrir
-// plusieurs jours d'affilée, ex. des vacances) — un enregistrement par jour
-// créé côté serveur, cf. addAvailabilityBlockAction.
-function AddAvailabilityForm({ defaultDate, onDone }: { defaultDate: string; onDone: () => void }) {
-  const [dates, setDates] = useState<string[]>([defaultDate]);
-  const [timeOfDay, setTimeOfDay] = useState<AvailabilitySlot>("morning");
-  const [error, setError] = useState<string | undefined>();
-  const [pending, setPending] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!dates.length) {
-      setError("Choisissez au moins un jour.");
-      return;
-    }
-    setPending(true);
-    setError(undefined);
-    const formData = new FormData(e.currentTarget);
-    await addAvailabilityBlockAction({
-      dates,
-      timeOfDay,
-      reason: String(formData.get("reason") || ""),
-    });
-    setPending(false);
-    onDone();
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <div>
-        <span className="mb-1.5 block text-sm font-medium text-ink-soft">Jour(s)</span>
-        <DaysPicker value={dates} onChange={setDates} />
-      </div>
-      <SelectField label="Créneau" name="timeOfDay" value={timeOfDay} onChange={(e) => setTimeOfDay(e.target.value as AvailabilitySlot)}>
-        {AVAILABILITY_SLOT_ORDER.map((t) => (
-          <option key={t} value={t}>
-            {AVAILABILITY_SLOT_LABELS[t]}
-          </option>
-        ))}
-      </SelectField>
-      <TextAreaField label="Motif (facultatif)" name="reason" rows={2} placeholder="ex. Rendez-vous médical" />
-      <ErrorText>{error}</ErrorText>
-      <Button type="submit" disabled={pending} className="mt-1">
-        {pending ? "Enregistrement…" : "Ajouter"}
-      </Button>
-    </form>
-  );
-}
-
-// Édition : une brique existante reste un jour unique — déplacer une
-// indisponibilité déjà posée vers une plage n'aurait pas de sens (elle
-// deviendrait plusieurs briques distinctes, pas la même modifiée).
-function EditAvailabilityForm({ existing, onDone }: { existing: ExistingBlock; onDone: () => void }) {
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | undefined>();
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    setPending(true);
-    setError(undefined);
-    try {
-      await updateAvailabilityBlockAction(existing.id, new FormData(form));
-      onDone();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Une erreur est survenue.");
-    }
-    setPending(false);
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <Field label="Date" type="date" name="date" required defaultValue={existing.date} />
-      <SelectField label="Créneau" name="timeOfDay" defaultValue={existing.time_of_day}>
-        {AVAILABILITY_SLOT_ORDER.map((t) => (
-          <option key={t} value={t}>
-            {AVAILABILITY_SLOT_LABELS[t]}
-          </option>
-        ))}
-      </SelectField>
-      <TextAreaField label="Motif (facultatif)" name="reason" rows={2} placeholder="ex. Rendez-vous médical" defaultValue={existing.reason || ""} />
-      <ErrorText>{error}</ErrorText>
-      <Button type="submit" disabled={pending} className="mt-1">
-        {pending ? "Enregistrement…" : "Enregistrer"}
-      </Button>
-    </form>
-  );
+  kind?: string | null;
+  notes?: string | null;
 }
 
 function Modal({ title, subtitle, onClose, children }: { title: string; subtitle: string; onClose: () => void; children: React.ReactNode }) {
@@ -143,10 +54,10 @@ export function AddAvailabilityModal({ defaultDate }: { defaultDate: string }) {
       {open && (
         <Modal
           title="Indisponibilité"
-          subtitle="Un rendez-vous, des vacances… votre coach le verra pour planifier autour. Cliquez un second jour pour couvrir toute une période."
+          subtitle="Stage, entraînement, blessure, déplacement… ton coach le verra pour planifier autour."
           onClose={() => setOpen(false)}
         >
-          <AddAvailabilityForm defaultDate={defaultDate} onDone={() => setOpen(false)} />
+          <UnavailabilityForm defaultDate={defaultDate} onDone={() => setOpen(false)} />
         </Modal>
       )}
     </>
@@ -155,7 +66,20 @@ export function AddAvailabilityModal({ defaultDate }: { defaultDate: string }) {
 
 // Icône crayon posée sur une brique existante pour la modifier (date, créneau,
 // motif) sans avoir à la supprimer puis en recréer une.
-export function EditAvailabilityModal({ block, className, children }: { block: ExistingBlock; className?: string; children?: React.ReactNode }) {
+export function EditAvailabilityModal({
+  block,
+  athleteId,
+  isFemale,
+  className,
+  children,
+}: {
+  block: ExistingBlock;
+  /** Côté coach : jours ajoutés en plus créés pour cet athlète. */
+  athleteId?: string;
+  isFemale?: boolean;
+  className?: string;
+  children?: React.ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -178,8 +102,8 @@ export function EditAvailabilityModal({ block, className, children }: { block: E
       </button>
 
       {open && (
-        <Modal title="Modifier l'indisponibilité" subtitle="Ajustez le jour, le créneau ou le motif." onClose={() => setOpen(false)}>
-          <EditAvailabilityForm existing={block} onDone={() => setOpen(false)} />
+        <Modal title="Modifier l'indisponibilité" subtitle="Motif, jour(s), note ou moment : tout se modifie. D'autres jours ajoutés deviennent des copies." onClose={() => setOpen(false)}>
+          <UnavailabilityForm existing={block} athleteId={athleteId} isFemale={isFemale} onDone={() => setOpen(false)} onCancel={() => setOpen(false)} />
         </Modal>
       )}
     </>

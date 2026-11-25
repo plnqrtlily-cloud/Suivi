@@ -19,10 +19,10 @@ export function ActivityMenu({ activity }: { activity: EditableActivity }) {
   );
 }
 
-export function AvailabilityMenu({ block }: { block: ExistingBlock }) {
+export function AvailabilityMenu({ block, isFemale }: { block: ExistingBlock; isFemale?: boolean }) {
   return (
     <MoreMenu small label="Actions sur l'indisponibilité">
-      <EditAvailabilityModal block={block} className={menuItem}>Modifier</EditAvailabilityModal>
+      <EditAvailabilityModal block={block} isFemale={isFemale} className={menuItem}>Modifier</EditAvailabilityModal>
       <MenuSeparator />
       <DeleteAvailabilityButton id={block.id} className={`${menuItem} !text-[#a4492a]`}>Supprimer</DeleteAvailabilityButton>
     </MoreMenu>

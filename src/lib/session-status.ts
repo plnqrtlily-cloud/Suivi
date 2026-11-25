@@ -30,3 +30,22 @@ export function workoutTone(w: { status: string; date?: string; coach_validated_
   if (today && w.date && w.date < today) return "noreport";
   return "todo";
 }
+
+// --- Données de la semaine ---
+// Une séance compte comme faite seulement une fois son retour validé par le
+// coach. Une séance que l'athlète a ajoutée lui-même et dont la date est
+// passée ne compte pas du tout tant que ce retour n'est pas validé ; à venir,
+// elle compte comme prévue.
+type CountedWorkout = { status: string; date: string; athlete_id?: string; created_by?: string | null; coach_validated_at?: string | null };
+
+export function isAthleteAdded(w: { athlete_id?: string; created_by?: string | null }): boolean {
+  return !!w.created_by && w.created_by === w.athlete_id;
+}
+
+export function countsAsDone(w: CountedWorkout): boolean {
+  return (w.status === "done" || w.status === "partial") && !!w.coach_validated_at;
+}
+
+export function countsInWeek(w: CountedWorkout, today: string): boolean {
+  return !isAthleteAdded(w) || w.date >= today || countsAsDone(w);
+}

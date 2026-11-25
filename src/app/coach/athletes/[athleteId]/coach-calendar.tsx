@@ -12,7 +12,6 @@ import Link from "next/link";
 import {
   addWorkoutCommentAction,
   coachAddActivityAction,
-  coachAddAvailabilityBlockAction,
   coachDeleteEntryAction,
   planningDeleteWorkoutAction,
   publishWorkoutAction,
@@ -33,6 +32,7 @@ import { CommentBody } from "@/components/comment-body";
 import { ActivityMenuItems } from "@/components/entry-menus";
 import { LongPressMove } from "@/components/long-press-move";
 import { EditAvailabilityModal, type ExistingBlock } from "@/components/availability-modal";
+import { UnavailabilityForm } from "@/components/unavailability-form";
 import { ElapsedTimeField, RouteUrlField } from "@/components/activity-extra-fields";
 import { PlaceTray } from "@/components/place-tray";
 import { ClipboardBar, CopyWorkoutButton, pasteWorkout, useCopiedWorkout, type CopiedWorkout } from "@/components/workout-clipboard";
@@ -118,10 +118,14 @@ function longDate(dateISO: string): string {
   return `${DOW_LONG[dow]} ${d.getDate() === 1 ? "1er" : d.getDate()} ${MONTHS[d.getMonth()]}`;
 }
 function entrySub(e: CalEntry): string {
+  if (e.byAthlete) return [entrySubBase(e), "ajoutée par l'athlète"].join(" · ");
+  return entrySubBase(e);
+}
+function entrySubBase(e: CalEntry): string {
   if (e.isGoal) return `Objectif · ${e.sportLabel}`;
   if (e.status === "todo") return [e.sportLabel, e.plannedMin ? fmt(e.plannedMin) : null, e.plannedRpe ? `RPE ${e.plannedRpe} visé` : null].filter(Boolean).join(" · ");
   if (e.status === "miss" || e.status === "postponed" || e.status === "noreport") return `${e.sportLabel} · ${STATUS_LABEL[e.status].toLowerCase()}`;
-  return [e.sportLabel, fmt(e.realMin ?? e.plannedMin), e.rpe ? `RPE ${e.rpe}` : null].filter(Boolean).join(" · ");
+  return [e.sportLabel, e.realMin ?? e.plannedMin ? fmt(e.realMin ?? e.plannedMin) : null, e.rpe ? `RPE ${e.rpe}` : null].filter(Boolean).join(" · ");
 }
 
 export function CoachCalendar({ data }: { data: CoachCalendarData }) {
@@ -865,9 +869,10 @@ export function CoachCalendar({ data }: { data: CoachCalendarData }) {
                       () => setPanel({ type: "day", date: panel.date })
                     )
                   }
-                  onUnavailable={(timeOfDay, reason, dates) =>
-                    run(() => coachAddAvailabilityBlockAction({ athleteId: data.athleteId, dates, timeOfDay, reason }), dates.length > 1 ? `${dates.length} indisponibilités ajoutées` : "Indisponibilité ajoutée", () => setPanel({ type: "day", date: panel.date }))
-                  }
+                  onUnavailableDone={() => {
+                    setToast("Indisponibilité ajoutée");
+                    setPanel({ type: "day", date: panel.date });
+                  }}
                 />
               )}
               {panel.type === "copy" && head.week && (
@@ -1042,7 +1047,7 @@ function DayCard({
       })}
       {day.blocks.map((b) => (
         <LongPressMove key={b.id} item={{ kind: "availability", id: b.id, title: b.label, date: b.date }}>
-          <span className="block px-1.5 text-xs text-ink-soft">{b.label}{b.reason ? ` · ${b.reason}` : ""}</span>
+          <span className="block px-1.5 text-xs text-ink-soft">{b.label}{b.motif ? ` · ${b.motif}` : ""}</span>
         </LongPressMove>
       ))}
       <span className="flex-1" />
@@ -1327,9 +1332,10 @@ function DayPanel({
             <div key={b.id} className="flex items-center gap-3 border-l-[3px] border-line py-1 pl-3">
               <div className="flex-1">
                 <span className="block text-sm font-semibold text-ink">{b.label}</span>
-                {b.reason && <span className="block text-[13px] text-ink-soft">{b.reason}</span>}
+                {b.motif && <span className="block text-[13px] text-ink-soft">{b.motif}</span>}
+                {b.notes && <span className="mt-0.5 block whitespace-pre-line text-[13px] text-slate">{b.notes}</span>}
               </div>
-              <EditAvailabilityModal block={{ id: b.id, date: b.date, time_of_day: b.timeOfDay as ExistingBlock["time_of_day"], reason: b.reason }} className="flex h-8 w-8 items-center justify-center rounded-full bg-paper text-slate hover:text-ink" />
+              <EditAvailabilityModal athleteId={data.athleteId} isFemale={!!data.isFemale} block={{ id: b.id, date: b.date, time_of_day: b.timeOfDay as ExistingBlock["time_of_day"], reason: b.reason, kind: b.kind, notes: b.notes }} className="flex h-8 w-8 items-center justify-center rounded-full bg-paper text-slate hover:text-ink" />
               {b.createdByMe && (
                 <button type="button" onClick={() => onDelete("availability", b.id)} aria-label="Supprimer l'indisponibilité" className="flex h-8 w-8 items-center justify-center rounded-full bg-paper text-slate">×</button>
               )}
@@ -1697,7 +1703,7 @@ function AddPanel({
   pending,
   onEventDone,
   onActivity,
-  onUnavailable,
+  onUnavailableDone,
 }: {
   data: CoachCalendarData;
   date: string;
@@ -1706,12 +1712,8 @@ function AddPanel({
   pending: boolean;
   onEventDone: () => void;
   onActivity: (fd: FormData, dates: string[]) => void;
-  onUnavailable: (timeOfDay: string, reason: string, dates: string[]) => void;
+  onUnavailableDone: () => void;
 }) {
-  const [slot, setSlot] = useState("full_day");
-  const [reason, setReason] = useState("");
-  // Le jour cliqué est présélectionné ; d'autres jours peuvent s'y ajouter.
-  const [dates, setDates] = useState<string[]>([date]);
   const [doneDates, setDoneDates] = useState<string[]>(date <= data.today ? [date] : []);
   const [doneSport, setDoneSport] = useState("mtb");
   const [doneMtb, setDoneMtb] = useState<string | null>(null);
@@ -1795,23 +1797,8 @@ function AddPanel({
       )}
 
       {mode === "unavailable" && (
-        <div className="flex flex-col gap-4">
-          {daysField(dates, setDates)}
-          <div className="grid gap-3 sm:grid-cols-[1fr_2fr]">
-            <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Moment
-              <select value={slot} onChange={(ev) => setSlot(ev.target.value)} className={input}>
-                <option value="full_day">Journée entière</option>
-                <option value="morning">Matin</option>
-                <option value="midday">Midi</option>
-                <option value="afternoon">Après-midi</option>
-                <option value="evening">Soir</option>
-              </select>
-            </label>
-            <label className="flex flex-col gap-1.5 text-sm font-bold text-ink">Motif
-              <input value={reason} onChange={(ev) => setReason(ev.target.value)} placeholder="Déplacement, examens…" className={input} />
-            </label>
-          </div>
-          <div><button type="button" disabled={pending || !dates.length} onClick={() => onUnavailable(slot, reason, dates)} className={pillMain}>Enregistrer{dates.length > 1 ? ` (${dates.length} jours)` : ""}</button></div>
+        <div className="max-w-md">
+          <UnavailabilityForm athleteId={data.athleteId} isFemale={!!data.isFemale} defaultDate={date} onDone={onUnavailableDone} />
         </div>
       )}
     </div>

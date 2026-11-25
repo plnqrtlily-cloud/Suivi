@@ -2,6 +2,7 @@
 // quelques points qui méritent l'attention du coach. Calculs purs (aucune
 // requête) pour rester testables ; le composant client ne fait qu'afficher.
 
+import { countsAsDone, countsInWeek } from "./session-status";
 import { messagePreview } from "./message-preview";
 import type { Workout, ImportedActivity, TrainingPeriod } from "./queries";
 import type { Checkin } from "./checkin-types";
@@ -146,10 +147,13 @@ export function buildLoadWeeks(params: {
     if (!wk) continue;
     // Seules les séances d'entraînement comptent (pas objectifs ni compétitions).
     if (isGoal(w)) continue;
+    // Ajoutée par l'athlète à une date passée : ne compte qu'une fois validée.
+    if (!countsInWeek(w, today)) continue;
     wk.total++;
     wk.plannedMinutes += w.duration_minutes || 0;
     wk.plannedLoad += sessionLoad(w.duration_minutes, w.planned_rpe ?? null);
-    if (w.status === "done" || w.status === "partial") {
+    // Faite = retour validé par le coach.
+    if (countsAsDone(w)) {
       wk.done++;
       const m = w.actual_duration_minutes ?? w.duration_minutes ?? 0;
       wk.minutes += m;

@@ -1,4 +1,5 @@
 import { formatDuration } from "@/lib/duration";
+import { unavailabilityReason } from "@/lib/availability-kinds";
 import { parsePlan } from "@/lib/discipline";
 import { sportTone } from "@/lib/palette";
 import { ActivityMenu, AvailabilityMenu } from "@/components/entry-menus";
@@ -312,7 +313,7 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
             <ItemCard
               key={w.id}
               chip={isGoal(w) ? <span className="rounded-full bg-[#fbf3dc] px-2.5 py-0.5 text-xs font-semibold text-[#8a6d12]">Objectif{w.priority ? ` ${w.priority}` : ""}</span> : <Chip k={statusKey(w, today)} />}
-              by={`par ${w.coach_first_name ?? "ton coach"}`}
+              by={w.created_by === w.athlete_id ? "par toi" : `par ${w.coach_first_name ?? "ton coach"}`}
               icon={<SportIcon sport={w.sport} size={19} />}
               iconColor={isGoal(w) ? "#a8751c" : sportTone(w.sport, parsePlan(w.plan_json)?.discipline).color}
               iconBg={isGoal(w) ? "#f8f0de" : sportTone(w.sport, parsePlan(w.plan_json)?.discipline).tint}
@@ -351,13 +352,14 @@ export default async function AthleteDashboard({ searchParams }: { searchParams:
                 <rect x="4.5" y="9" width="11" height="8" rx="1.5" />
                 <path d="M7 9V6.5a3 3 0 016 0V9" />
               </svg>
-              <span className="min-w-0 flex-1 truncate">
+              <span className="min-w-0 flex-1">
                 <b className="font-semibold">Indisponible · {AVAILABILITY_SLOT_LABELS[b.time_of_day].toLowerCase()}</b>
-                {b.reason && <span className="text-white/70"> — {b.reason}</span>}
+                {unavailabilityReason(b.kind, b.reason) && <span className="text-white/70"> — {unavailabilityReason(b.kind, b.reason)}</span>}
                 <span className="text-white/50"> · {b.created_by ? "par ton coach" : "par toi"}</span>
+                {b.notes && <span className="mt-0.5 block whitespace-pre-line text-[12.5px] font-normal text-white/75">{b.notes}</span>}
               </span>
               <span className="flex flex-shrink-0 items-center gap-3.5">
-                <AvailabilityMenu block={b} />
+                <AvailabilityMenu block={b} isFemale={gender === "female"} />
               </span>
             </div>
           ))}
